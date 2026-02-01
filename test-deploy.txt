@@ -1,2 +1,0 @@
-Prueba de deploy - Si ves esto en producción, el flujo funciona correctamente.
-Fecha: 2026-02-01
