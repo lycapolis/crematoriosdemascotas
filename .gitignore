@@ -1,0 +1,38 @@
+# ═══════════════════════════════════════════════════════════
+# GITIGNORE - Crematorios de Mascotas
+# ═══════════════════════════════════════════════════════════
+
+# Archivos específicos de entorno (NO subir a Git)
+includes/config.php
+.htaccess
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+
+# IDE y editores
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Backups locales
+*.bak
+*.backup
+sql/backup_*.sql
+
+# Dependencias (si las hubiera)
+/vendor/
+/node_modules/
+
+# Archivos temporales
+*.tmp
+*.temp
+*.swp
+*~
+nul
+
+# Claude
+.claude/

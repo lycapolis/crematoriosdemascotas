@@ -1,0 +1,18 @@
+# ===============================================================
+# CREMATORIOS DE MASCOTAS - robots.txt
+# ===============================================================
+# Autor: Lycapolis LLC
+# Fecha: Enero 2026
+# ===============================================================
+
+User-agent: *
+Allow: /
+Disallow: /includes/
+Disallow: /sql/
+Disallow: /docs/
+Disallow: /plantillas/
+Disallow: /login.php
+Disallow: /test.php
+
+# Sitemap
+Sitemap: https://crematoriosdemascotas.es/sitemap.xml

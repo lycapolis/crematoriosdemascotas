@@ -1,0 +1,132 @@
+/* ═══════════════════════════════════════════════════════════
+   PLANTILLA DE CREACIÓN DE DIRECTORIOS - Variables CSS
+   ═══════════════════════════════════════════════════════════
+   
+   Autor: Facundo M. Campos
+   Empresa: Lycapolis LLC
+   Web: https://lycapolis.com
+   Proyecto: CREMATORIOS DE MASCOTAS
+   
+   Filosofía: Minimalismo extremo, solo lo esencial
+   Sistema: 12 colores, 8 tamaños de fuente, nomenclatura numérica
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+    /* ─────────────────────────────────────────────────────────
+       COLORES (Máximo 12)
+       ───────────────────────────────────────────────────────── */
+    
+    --color-uno: #B8704F;        /* Primario - Terracota - CTAs, enlaces, destacados */
+    --color-dos: #5A3E2F;        /* Secundario - Marrón - Títulos, elementos importantes */
+    --color-tres: #8FA876;       /* Acento - Salvia - Estados de éxito, elementos suaves */
+    --color-cuatro: #FFFBF7;     /* Fondo - Crema - Fondo principal del sitio */
+    --color-cinco: #F5EDE5;      /* Fondo Alt - Arena - Fondos alternativos, separadores */
+    --color-seis: #2C2C2C;       /* Texto - Gris oscuro - Todo el texto del sitio */
+    
+    /* Colores adicionales */
+    --color-siete: #C4695B;  /* Error/Advertencia - Rojo terracota */
+    --color-ocho: #FFFFFF;   /* Blanco - Fondos de tarjetas, modales */
+    --color-nueve: #25D366;  /* Verde WhatsApp - Botón de contacto */
+    --color-diez: #f59e0b;   /* Amarillo - Calificaciones con estrellas */
+
+    /* ─────────────────────────────────────────────────────────
+       VARIANTES CON OPACIDAD (claro/oscuro)
+       ───────────────────────────────────────────────────────── */
+
+    /* Texto - Variantes del color-seis */
+    --color-seis-claro: rgba(44, 44, 44, 0.65);      /* Base claro */
+    --color-seis-claro-02: rgba(44, 44, 44, 0.45);   /* Más claro */
+
+    /* Primario - Variantes del color-uno */
+    --color-uno-claro: rgba(184, 112, 79, 0.12);     /* Fondos suaves de iconos */
+
+    /* Blanco - Variantes del color-ocho (para fondos oscuros como footer) */
+    --color-ocho-claro: rgba(255, 255, 255, 0.8);    /* Texto en fondos oscuros */
+    --color-ocho-claro-02: rgba(255, 255, 255, 0.6); /* Texto secundario en fondos oscuros */
+    --color-ocho-claro-03: rgba(255, 255, 255, 0.2); /* Bordes sutiles en fondos oscuros */
+    --color-ocho-claro-04: rgba(255, 255, 255, 0.1); /* Fondos sutiles en fondos oscuros */
+    
+    /* ─────────────────────────────────────────────────────────
+       TIPOGRAFÍA
+       ───────────────────────────────────────────────────────── */
+
+    /* Fuentes */
+    --fuente-titulo: 'Playfair Display', Georgia, serif;
+    --fuente-texto: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+    /* 8 TAMAÑOS DE FUENTE (en REM para accesibilidad) */
+    --fs-uno: 0.75rem;     /* 12px - Textos muy pequeños, legales, footnotes */
+    --fs-dos: 0.875rem;    /* 14px - Texto base, body, metadatos, labels */
+    --fs-tres: 1rem;       /* 16px - Texto destacado, párrafos largos */
+    --fs-cuatro: 1.125rem; /* 18px - Texto destacado, lead paragraphs */
+    --fs-cinco: 1.25rem;   /* 20px - Subtítulos pequeños, H4 */
+    --fs-seis: 1.75rem;    /* 28px - Títulos de tarjetas, H3, H2 */
+    --fs-siete: 2.5rem;    /* 40px - Títulos de sección */
+    --fs-ocho: 3rem;       /* 48px - Títulos hero, H1 */
+
+    /* Pesos de Fuente */
+    --peso-normal: 400;
+    --peso-medio: 500;
+    --peso-negrita: 700;
+
+    /* Altura de Línea (unitless para mejor herencia) */
+    --lh-uno: 1.1;    /* Títulos muy grandes (H1 hero) - más comprimida */
+    --lh-dos: 1.3;    /* Títulos medianos (H2, H3) */
+    --lh-tres: 1.6;   /* Texto estándar, párrafos */
+    --lh-cuatro: 1.8; /* Textos largos, artículos, legal - más cómoda */
+
+    /* Letter Spacing (en EM - proporcional al font-size) */
+    --ls-uno: -0.02em;  /* Títulos grandes (comprime ligeramente) */
+    --ls-dos: 0;        /* Texto base (sin modificar) */
+    --ls-tres: 0.05em;  /* Subtítulos uppercase, labels (expande) */
+    
+    /* ─────────────────────────────────────────────────────────
+       ESPACIADO (Sistema de 4px)
+       ───────────────────────────────────────────────────────── */
+    
+    --espacio-uno: 0.25rem;    /* 4px */
+    --espacio-dos: 0.5rem;     /* 8px */
+    --espacio-tres: 1rem;      /* 16px */
+    --espacio-cuatro: 1.5rem;  /* 24px */
+    --espacio-cinco: 2.5rem;   /* 40px */
+    --espacio-seis: 4rem;      /* 64px */
+    --espacio-siete: 6rem;     /* 96px */
+    
+    /* ─────────────────────────────────────────────────────────
+       BORDES Y SOMBRAS
+       ───────────────────────────────────────────────────────── */
+    
+    /* Radios */
+    --radio-uno: 6px;
+    --radio-dos: 10px;
+    --radio-tres: 16px;
+    --radio-full: 9999px;
+    
+    /* Sombras (solo 2 niveles) */
+    --sombra-uno: 0 2px 12px rgba(90, 62, 47, 0.08);
+    --sombra-dos: 0 8px 32px rgba(90, 62, 47, 0.12);
+    
+    /* ─────────────────────────────────────────────────────────
+       TRANSICIONES
+       ───────────────────────────────────────────────────────── */
+    
+    --transicion: 280ms cubic-bezier(0.4, 0, 0.2, 1);
+    
+    /* ─────────────────────────────────────────────────────────
+       CONTENEDORES
+       ───────────────────────────────────────────────────────── */
+    
+    --contenedor-uno: 640px;
+    --contenedor-dos: 768px;
+    --contenedor-tres: 1024px;
+    --contenedor-cuatro: 1200px;
+    
+    /* ─────────────────────────────────────────────────────────
+       Z-INDEX
+       ───────────────────────────────────────────────────────── */
+    
+    --z-base: 1;
+    --z-dropdown: 100;
+    --z-sticky: 200;
+    --z-modal: 500;
+}
