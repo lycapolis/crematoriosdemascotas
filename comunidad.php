@@ -54,7 +54,14 @@ $comunidad_slug = $comunidad['slug'];
 // Obtener provincias de esta comunidad
 $provincias = obtenerProvincias($comunidad['id']);
 $total_provincias = count($provincias);
-$total_crematorios = array_sum(array_column($provincias, 'total_crematorios'));
+$total_crematorios_provincias = array_sum(array_column($provincias, 'total_crematorios'));
+
+// Paginación para crematorios
+$pagina = isset($_GET['pagina']) ? max(1, intval($_GET['pagina'])) : 1;
+
+// Obtener crematorios de la comunidad con paginación
+$crematorios = obtenerCrematorios(['comunidad_id' => $comunidad['id']], $pagina);
+$total_crematorios = $crematorios['total'];
 
 $titulo_pagina = 'Crematorios de Mascotas en ' . $comunidad_nombre;
 $pagina_actual = 'directorio';
@@ -89,7 +96,7 @@ include 'includes/header.php';
         <div class="contenedor" style="text-align: center;">
             <h1>Crematorios de Mascotas en <?php echo limpiar($comunidad_nombre); ?></h1>
             <p class="seccion__descripcion">
-                <?php echo $total_crematorios; ?> crematorio<?php echo $total_crematorios != 1 ? 's' : ''; ?> en <?php echo $total_provincias; ?> provincia<?php echo $total_provincias != 1 ? 's' : ''; ?>
+                <?php echo $total_crematorios; ?> crematorio<?php echo $total_crematorios != 1 ? 's' : ''; ?> disponible<?php echo $total_crematorios != 1 ? 's' : ''; ?> en <?php echo $total_provincias; ?> provincia<?php echo $total_provincias != 1 ? 's' : ''; ?>
             </p>
         </div>
     </section>
@@ -133,6 +140,42 @@ include 'includes/header.php';
             <?php endif; ?>
         </div>
     </section>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         LISTADO DE CREMATORIOS
+         ═══════════════════════════════════════════════════════════ -->
+    <?php if ($total_crematorios > 0): ?>
+    <section class="seccion">
+        <div class="contenedor">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--espacio-cinco); flex-wrap: wrap; gap: var(--espacio-tres);">
+                <h2 style="font-size: var(--fs-tres); color: var(--color-dos); margin: 0;">
+                    Crematorios en <?php echo limpiar($comunidad_nombre); ?>
+                </h2>
+                <p style="color: var(--color-uno); margin: 0; font-size: var(--fs-dos); padding: var(--espacio-dos) var(--espacio-tres); background: var(--color-uno-claro); border-radius: var(--radio-uno);">
+                    <?php echo $total_crematorios; ?> crematorio<?php echo $total_crematorios != 1 ? 's' : ''; ?> encontrado<?php echo $total_crematorios != 1 ? 's' : ''; ?>
+                </p>
+            </div>
+
+            <!-- Grid de crematorios -->
+            <div class="grid-tarjetas">
+                <?php foreach ($crematorios['datos'] as $crem): ?>
+                    <?php include ROOT_PATH . '/includes/componentes/tarjeta-crematorio.php'; ?>
+                <?php endforeach; ?>
+            </div>
+
+            <!-- Paginación -->
+            <?php if ($crematorios['paginas'] > 1): ?>
+            <nav style="display: flex; justify-content: center; gap: var(--espacio-dos); margin-top: var(--espacio-seis);">
+                <?php for ($i = 1; $i <= $crematorios['paginas']; $i++): ?>
+                <a href="?pagina=<?php echo $i; ?>" class="boton <?php echo $i == $pagina ? 'uno' : 'dos'; ?> pequeno">
+                    <?php echo $i; ?>
+                </a>
+                <?php endfor; ?>
+            </nav>
+            <?php endif; ?>
+        </div>
+    </section>
+    <?php endif; ?>
 
     <!-- ═══════════════════════════════════════════════════════════
          CONTENIDO SEO
