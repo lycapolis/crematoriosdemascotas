@@ -18,6 +18,15 @@ $pagina_actual = 'contacto';
 include 'includes/header.php';
 ?>
 
+<style>
+    /* Responsive para tarjetas de contacto */
+    @media (max-width: 767px) {
+        .contacto-tarjeta {
+            padding: var(--espacio-tres) !important;
+        }
+    }
+</style>
+
     <!-- ═══════════════════════════════════════════════════════════
          HERO
          ═══════════════════════════════════════════════════════════ -->
@@ -50,20 +59,20 @@ include 'includes/header.php';
                     </div>
 
                     <!-- Email -->
-                    <article class="item-tres" style="padding: var(--espacio-cuatro); background: var(--color-ocho); border-radius: var(--radio-dos); border: 1px solid var(--color-cinco);">
+                    <article class="item-tres contacto-tarjeta" style="padding: var(--espacio-cuatro); background: var(--color-ocho); border-radius: var(--radio-dos); border: 1px solid var(--color-cinco);">
                         <div class="caracteristica__icono" style="width: 48px; height: 48px; margin: 0;">
                             <i data-lucide="mail" class="icono"></i>
                         </div>
                         <div>
                             <h3 style="font-size: var(--fs-dos); margin-bottom: var(--espacio-uno);">Email</h3>
                             <p style="color: var(--color-seis-claro); margin: 0;">
-                                <a href="mailto:contacto@crematoriosdemascotas.com" style="color: var(--color-uno); text-decoration: none;">contacto@crematoriosdemascotas.com</a>
+                                <a href="mailto:contacto@crematoriosdemascotas.com" style="color: var(--color-uno); text-decoration: none; word-break: break-all;">contacto@crematoriosdemascotas.com</a>
                             </p>
                         </div>
                     </article>
 
                     <!-- Teléfono -->
-                    <article class="item-tres" style="padding: var(--espacio-cuatro); background: var(--color-ocho); border-radius: var(--radio-dos); border: 1px solid var(--color-cinco);">
+                    <article class="item-tres contacto-tarjeta" style="padding: var(--espacio-cuatro); background: var(--color-ocho); border-radius: var(--radio-dos); border: 1px solid var(--color-cinco);">
                         <div class="caracteristica__icono" style="width: 48px; height: 48px; margin: 0;">
                             <i data-lucide="phone" class="icono"></i>
                         </div>
@@ -76,7 +85,7 @@ include 'includes/header.php';
                     </article>
 
                     <!-- Horario -->
-                    <article class="item-tres" style="padding: var(--espacio-cuatro); background: var(--color-ocho); border-radius: var(--radio-dos); border: 1px solid var(--color-cinco);">
+                    <article class="item-tres contacto-tarjeta" style="padding: var(--espacio-cuatro); background: var(--color-ocho); border-radius: var(--radio-dos); border: 1px solid var(--color-cinco);">
                         <div class="caracteristica__icono" style="width: 48px; height: 48px; margin: 0;">
                             <i data-lucide="clock" class="icono"></i>
                         </div>
@@ -91,7 +100,7 @@ include 'includes/header.php';
                 </div>
 
                 <!-- COLUMNA 2: Formulario -->
-                <div class="tarjeta simple" style="padding: var(--espacio-cinco); background: var(--color-ocho); border: 1px solid var(--color-cinco);">
+                <div class="tarjeta simple" style="padding: var(--espacio-cuatro); background: var(--color-ocho); border: 1px solid var(--color-cinco);">
                     <h2 style="font-size: var(--fs-cuatro); margin-bottom: var(--espacio-cuatro);">Envíanos un Mensaje</h2>
 
                     <!-- Alerta -->
@@ -100,69 +109,40 @@ include 'includes/header.php';
                     <!-- Formulario -->
                     <form id="formulario-contacto" onsubmit="enviarFormulario(event)">
 
-                        <!-- Fila 1: Nombre + Email -->
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--espacio-cuatro);">
-                            <div class="formulario-grupo">
-                                <label class="formulario-etiqueta" for="nombre">Nombre *</label>
-                                <input
-                                    type="text"
-                                    id="nombre"
-                                    name="nombre"
-                                    class="campo"
-                                    required
-                                    placeholder="Tu nombre completo"
-                                >
-                            </div>
-
-                            <div class="formulario-grupo">
-                                <label class="formulario-etiqueta" for="email">Email *</label>
-                                <input
-                                    type="email"
-                                    id="email"
-                                    name="email"
-                                    class="campo"
-                                    required
-                                    placeholder="tu@email.com"
-                                >
-                            </div>
+                        <!-- Nombre -->
+                        <div class="formulario-grupo">
+                            <label class="formulario-etiqueta" for="nombre">Nombre *</label>
+                            <input type="text" id="nombre" name="nombre" class="campo" required placeholder="Tu nombre completo">
                         </div>
 
-                        <!-- Fila 2: Teléfono + Asunto -->
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--espacio-cuatro);">
-                            <div class="formulario-grupo">
-                                <label class="formulario-etiqueta" for="telefono">Teléfono</label>
-                                <input
-                                    type="tel"
-                                    id="telefono"
-                                    name="telefono"
-                                    class="campo"
-                                    placeholder="+34 600 000 000"
-                                >
-                            </div>
+                        <!-- Email -->
+                        <div class="formulario-grupo">
+                            <label class="formulario-etiqueta" for="email">Email *</label>
+                            <input type="email" id="email" name="email" class="campo" required placeholder="tu@email.com">
+                        </div>
 
-                            <div class="formulario-grupo">
-                                <label class="formulario-etiqueta" for="asunto">Asunto</label>
-                                <select id="asunto" name="asunto" class="seleccion">
-                                    <option value="consulta">Consulta general</option>
-                                    <option value="sugerencia">Sugerencia</option>
-                                    <option value="problema">Reportar problema</option>
-                                    <option value="negocio">Información para negocios</option>
-                                    <option value="otro">Otro</option>
-                                </select>
-                            </div>
+                        <!-- Teléfono -->
+                        <div class="formulario-grupo">
+                            <label class="formulario-etiqueta" for="telefono">Teléfono</label>
+                            <input type="tel" id="telefono" name="telefono" class="campo" placeholder="+34 600 000 000">
+                        </div>
+
+                        <!-- Asunto -->
+                        <div class="formulario-grupo">
+                            <label class="formulario-etiqueta" for="asunto">Asunto</label>
+                            <select id="asunto" name="asunto" class="seleccion">
+                                <option value="consulta">Consulta general</option>
+                                <option value="sugerencia">Sugerencia</option>
+                                <option value="problema">Reportar problema</option>
+                                <option value="negocio">Información para negocios</option>
+                                <option value="otro">Otro</option>
+                            </select>
                         </div>
 
                         <!-- Mensaje -->
                         <div class="formulario-grupo">
                             <label class="formulario-etiqueta" for="mensaje">Mensaje *</label>
-                            <textarea
-                                id="mensaje"
-                                name="mensaje"
-                                class="area-texto"
-                                required
-                                placeholder="Escribe tu mensaje aquí..."
-                                rows="6"
-                            ></textarea>
+                            <textarea id="mensaje" name="mensaje" class="area-texto" required placeholder="Escribe tu mensaje aquí..." rows="6"></textarea>
                         </div>
 
                         <!-- Botón submit -->

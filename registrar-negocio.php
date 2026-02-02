@@ -18,10 +18,82 @@ $pagina_actual = 'registrar-negocio';
 include 'includes/header.php';
 ?>
 
+<style>
+    /* ═══════════════════════════════════════════════════════════
+       REGISTRAR NEGOCIO - Responsive Styles
+       ═══════════════════════════════════════════════════════════ */
+
+    /* MÓVIL (Base) - Todo en cascada, sidebar al final */
+    .registro-layout {
+        display: flex;
+        flex-direction: column;
+        gap: var(--espacio-cinco);
+    }
+
+    .registro-tarjeta {
+        padding: var(--espacio-cuatro) !important;
+    }
+
+    .registro-form-grid {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .registro-sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: var(--espacio-cuatro);
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       TABLET (768px - 1023px) - Sidebar en fila de 3
+       ═══════════════════════════════════════════════════════════ */
+    @media (min-width: 768px) {
+        .registro-seccion {
+            padding: var(--espacio-seis) !important;
+        }
+
+        .registro-tarjeta {
+            padding: var(--espacio-cinco) !important;
+        }
+
+        .registro-form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--espacio-cuatro);
+        }
+
+        .registro-sidebar {
+            flex-direction: row;
+        }
+
+        .registro-sidebar article {
+            flex: 1;
+        }
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       DESKTOP (1024px+) - Sidebar lateral sticky
+       ═══════════════════════════════════════════════════════════ */
+    @media (min-width: 1024px) {
+        .registro-layout {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+        }
+
+        .registro-sidebar {
+            flex-direction: column;
+            position: sticky;
+            top: 120px;
+            align-self: start;
+        }
+    }
+</style>
+
     <!-- ═══════════════════════════════════════════════════════════
          HERO
          ═══════════════════════════════════════════════════════════ -->
-    <section class="hero hero-tres">
+    <section class="hero hero-cuatro">
         <div class="contenedor">
             <h1>Registra tu Crematorio</h1>
             <h2 class="seccion__descripcion estilo-h5 seis">
@@ -34,13 +106,13 @@ include 'includes/header.php';
     <!-- ═══════════════════════════════════════════════════════════
          CONTENIDO PRINCIPAL
          ═══════════════════════════════════════════════════════════ -->
-    <section class="seccion">
+    <section class="seccion registro-seccion" style="padding: var(--espacio-seis) var(--espacio-cuatro);">
         <div class="contenedor">
-            <div style="display: grid; grid-template-columns: 1fr 380px; gap: var(--espacio-cinco);">
+            <div class="registro-layout">
 
                 <!-- FORMULARIO -->
                 <div id="formulario-container">
-                    <div class="tarjeta simple" style="padding: var(--espacio-cinco); background: var(--color-ocho); border: 1px solid var(--color-cinco);">
+                    <div class="tarjeta simple registro-tarjeta" style="background: var(--color-ocho); border: 1px solid var(--color-cinco);">
                         <h2 style="font-size: var(--fs-seis); margin-bottom: var(--espacio-cinco); padding-bottom: var(--espacio-tres); border-bottom: 2px solid var(--color-uno);">Información de Registro</h2>
 
                         <!-- Alerta -->
@@ -55,7 +127,7 @@ include 'includes/header.php';
                                     Datos de Contacto
                                 </h3>
 
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--espacio-cuatro);">
+                                <div class="registro-form-grid">
                                     <div class="formulario-grupo">
                                         <label class="formulario-etiqueta" for="nombre">Nombre completo *</label>
                                         <input
@@ -125,7 +197,7 @@ include 'includes/header.php';
                                     >
                                 </div>
 
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--espacio-cuatro);">
+                                <div class="registro-form-grid">
                                     <div class="formulario-grupo">
                                         <label class="formulario-etiqueta" for="ciudad">Ciudad *</label>
                                         <input
@@ -204,7 +276,7 @@ include 'includes/header.php';
                                     Presencia en Línea (Opcional)
                                 </h3>
 
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--espacio-cuatro);">
+                                <div class="registro-form-grid">
                                     <div class="formulario-grupo">
                                         <label class="formulario-etiqueta" for="sitio_web">Sitio web</label>
                                         <input
@@ -228,7 +300,7 @@ include 'includes/header.php';
                                     </div>
                                 </div>
 
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--espacio-cuatro);">
+                                <div class="registro-form-grid">
                                     <div class="formulario-grupo">
                                         <label class="formulario-etiqueta" for="facebook">Facebook</label>
                                         <input
@@ -295,10 +367,10 @@ include 'includes/header.php';
                 </div>
 
                 <!-- SIDEBAR - Beneficios -->
-                <aside style="position: sticky; top: 100px; align-self: start;">
+                <aside class="registro-sidebar">
 
                     <!-- Beneficio 1 -->
-                    <article class="item-cuatro" style="margin-bottom: var(--espacio-cuatro);">
+                    <article class="item-cuatro">
                         <div class="caracteristica__icono" style="width: 56px; height: 56px; margin-bottom: var(--espacio-tres);">
                             <i data-lucide="users" class="icono"></i>
                         </div>
@@ -309,7 +381,7 @@ include 'includes/header.php';
                     </article>
 
                     <!-- Beneficio 2 -->
-                    <article class="item-cuatro" style="margin-bottom: var(--espacio-cuatro);">
+                    <article class="item-cuatro">
                         <div class="caracteristica__icono" style="width: 56px; height: 56px; margin-bottom: var(--espacio-tres);">
                             <i data-lucide="star" class="icono"></i>
                         </div>

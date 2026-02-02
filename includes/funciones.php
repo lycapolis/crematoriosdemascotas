@@ -542,3 +542,154 @@ function promedioResenasAprobadas($crematorioId) {
 
     return round((float) $stmt->fetchColumn(), 1);
 }
+
+// ═══════════════════════════════════════════════════════════
+// FUNCIONES DE INDEXACIÓN (IndexNow)
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Notifica a Bing y Yandex sobre una URL nueva o actualizada via IndexNow
+ *
+ * @param string|array $urls URL única o array de URLs (máx 10.000)
+ * @return array Resultado con status de cada motor
+ *
+ * Uso:
+ *   notificarIndexNow('https://crematoriosdemascotas.com/mi-crematorio');
+ *   notificarIndexNow(['https://...url1', 'https://...url2']);
+ */
+function notificarIndexNow($urls) {
+    // Solo ejecutar en producción
+    if (!defined('INDEXNOW_ENABLED') || !INDEXNOW_ENABLED) {
+        return ['skipped' => true, 'reason' => 'IndexNow deshabilitado en este entorno'];
+    }
+
+    if (!defined('INDEXNOW_KEY') || empty(INDEXNOW_KEY)) {
+        return ['error' => 'INDEXNOW_KEY no configurada'];
+    }
+
+    // Normalizar a array
+    $urls = is_array($urls) ? $urls : [$urls];
+
+    // Validar que sean URLs absolutas
+    foreach ($urls as $url) {
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            return ['error' => "URL inválida: $url"];
+        }
+    }
+
+    $key = INDEXNOW_KEY;
+    $host = parse_url($urls[0], PHP_URL_HOST);
+    $keyLocation = "https://{$host}/{$key}.txt";
+
+    $resultados = [];
+
+    // Motores que soportan IndexNow
+    $motores = [
+        'bing'   => 'https://www.bing.com/indexnow',
+        'yandex' => 'https://yandex.com/indexnow',
+    ];
+
+    // Si es una sola URL, usar GET (más simple)
+    if (count($urls) === 1) {
+        $url = $urls[0];
+
+        foreach ($motores as $nombre => $endpoint) {
+            $params = http_build_query([
+                'url' => $url,
+                'key' => $key,
+                'keyLocation' => $keyLocation
+            ]);
+
+            $fullUrl = "{$endpoint}?{$params}";
+
+            $contexto = stream_context_create([
+                'http' => [
+                    'method' => 'GET',
+                    'timeout' => 10,
+                    'ignore_errors' => true,
+                ]
+            ]);
+
+            $response = @file_get_contents($fullUrl, false, $contexto);
+            $httpCode = 0;
+
+            if (isset($http_response_header[0])) {
+                preg_match('/\d{3}/', $http_response_header[0], $matches);
+                $httpCode = (int)($matches[0] ?? 0);
+            }
+
+            $resultados[$nombre] = [
+                'status' => ($httpCode >= 200 && $httpCode < 300) ? 'ok' : 'error',
+                'http_code' => $httpCode,
+            ];
+        }
+    }
+    // Si son múltiples URLs, usar POST con JSON
+    else {
+        $payload = json_encode([
+            'host' => $host,
+            'key' => $key,
+            'keyLocation' => $keyLocation,
+            'urlList' => $urls
+        ]);
+
+        foreach ($motores as $nombre => $endpoint) {
+            $contexto = stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'header' => "Content-Type: application/json\r\n",
+                    'content' => $payload,
+                    'timeout' => 10,
+                    'ignore_errors' => true,
+                ]
+            ]);
+
+            $response = @file_get_contents($endpoint, false, $contexto);
+            $httpCode = 0;
+
+            if (isset($http_response_header[0])) {
+                preg_match('/\d{3}/', $http_response_header[0], $matches);
+                $httpCode = (int)($matches[0] ?? 0);
+            }
+
+            $resultados[$nombre] = [
+                'status' => ($httpCode >= 200 && $httpCode < 300) ? 'ok' : 'error',
+                'http_code' => $httpCode,
+                'urls_enviadas' => count($urls)
+            ];
+        }
+    }
+
+    return $resultados;
+}
+
+/**
+ * Genera la URL completa de un crematorio para IndexNow
+ *
+ * @param string $slug
+ * @return string
+ */
+function urlCrematorio($slug) {
+    return 'https://crematoriosdemascotas.com/' . $slug;
+}
+
+/**
+ * Genera la URL completa de una provincia para IndexNow
+ *
+ * @param string $slug
+ * @return string
+ */
+function urlProvincia($slug) {
+    return 'https://crematoriosdemascotas.com/espana/' . $slug;
+}
+
+/**
+ * Genera la URL completa de una ciudad para IndexNow
+ *
+ * @param string $provinciaSlug
+ * @param string $ciudadSlug
+ * @return string
+ */
+function urlCiudad($provinciaSlug, $ciudadSlug) {
+    return 'https://crematoriosdemascotas.com/espana/' . $provinciaSlug . '/' . $ciudadSlug;
+}

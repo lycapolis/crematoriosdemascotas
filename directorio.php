@@ -16,7 +16,232 @@
 $titulo_pagina = 'Directorio de Crematorios - Crematorios de Mascotas';
 $pagina_actual = 'directorio';
 include 'includes/header.php';
+?>
 
+<!-- ═══════════════════════════════════════════════════════════
+     ESTILOS ESPECÍFICOS DE DIRECTORIO
+     ═══════════════════════════════════════════════════════════ -->
+<style>
+    /* ═══════════════════════════════════════════════════════════
+       MÓVIL (Base: 0-767px) - Filtros verticales arriba
+       ═══════════════════════════════════════════════════════════ */
+
+    .directorio-layout {
+        display: flex;
+        flex-direction: column;
+        gap: var(--espacio-cuatro);
+        padding: var(--espacio-cuatro) var(--espacio-tres);
+    }
+
+    .directorio-filtros {
+        background: var(--color-ocho);
+        border: 1px solid var(--color-cinco);
+        border-radius: var(--radio-dos);
+        padding: var(--espacio-cuatro);
+    }
+
+    .directorio-filtros__titulo {
+        font-size: var(--fs-tres);
+        border-bottom: 2px solid var(--color-uno);
+        padding-bottom: var(--espacio-tres);
+        margin-bottom: var(--espacio-cuatro);
+    }
+
+    .directorio-filtros__form {
+        display: flex;
+        flex-direction: column;
+        gap: var(--espacio-tres);
+    }
+
+    .directorio-filtros__acciones {
+        display: flex;
+        flex-direction: column;
+        gap: var(--espacio-dos);
+        margin-top: var(--espacio-cuatro);
+        padding-top: var(--espacio-cuatro);
+        border-top: 1px solid var(--color-cinco);
+    }
+
+    .directorio-main {
+        display: flex;
+        flex-direction: column;
+        gap: var(--espacio-cuatro);
+    }
+
+    /* Header de resultados (como provincia.php) */
+    .directorio-resultados__header {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        /*margin-bottom: var(--espacio-cinco);*/
+        gap: var(--espacio-tres);
+    }
+
+    .directorio-resultados__titulo {
+        font-size: var(--fs-tres);
+        color: var(--color-dos);
+        margin: 0;
+    }
+
+    .directorio-resultados__badge {
+        color: var(--color-uno);
+        margin: 0;
+        font-size: var(--fs-dos);
+        padding: var(--espacio-dos) var(--espacio-tres);
+        background: var(--color-uno-claro);
+        border-radius: var(--radio-uno);
+    }
+
+    .directorio-vacio {
+        text-align: center;
+        padding: var(--espacio-seis);
+    }
+
+    .directorio-vacio .icono {
+        width: 48px;
+        height: 48px;
+        color: var(--color-cinco);
+        margin-bottom: var(--espacio-tres);
+    }
+
+    .directorio-vacio p {
+        font-size: var(--fs-tres);
+        color: var(--color-seis-claro);
+    }
+
+    .paginacion__enlace.deshabilitado {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       TABLET (768px - 1023px) - Filtros en 3 filas centradas
+       ═══════════════════════════════════════════════════════════ */
+    @media (min-width: 768px) {
+        .directorio-layout {
+            padding: var(--espacio-cuatro) 0;
+        }
+
+        /* Tarjeta sin esquinas ni bordes laterales */
+        .directorio-filtros {
+            border-radius: 0;
+            border-left: none;
+            border-right: none;
+        }
+
+        .directorio-filtros__titulo {
+            display: none;
+        }
+
+        /* Form en columna centrada */
+        .directorio-filtros__form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: var(--espacio-tres);
+        }
+
+        /* Input búsqueda más ancho (fila 1) */
+        .directorio-filtros__form > .formulario-grupo:first-child {
+            width: 100%;
+            max-width: 450px;
+        }
+
+        /* Contenedor dropdowns centrados (fila 2) */
+        .directorio-filtros__dropdowns {
+            display: flex;
+            justify-content: center;
+            gap: var(--espacio-tres);
+            flex-wrap: wrap;
+        }
+
+        /* Botones centrados (fila 3) */
+        .directorio-filtros__acciones {
+            flex-direction: row;
+            justify-content: center;
+            border-top: none;
+            margin-top: 0;
+            padding-top: 0;
+        }
+
+        .directorio-filtros .formulario-etiqueta {
+            display: none;
+        }
+
+        .directorio-filtros__acciones .boton {
+            white-space: nowrap;
+            padding: var(--espacio-dos) var(--espacio-cuatro);
+        }
+
+        /* Header en fila centrado */
+        .directorio-resultados__header {
+            flex-direction: row;
+            justify-content: center;
+            gap: var(--espacio-cinco);
+        }
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       DESKTOP (1024px+) - Sidebar lateral
+       ═══════════════════════════════════════════════════════════ */
+    @media (min-width: 1024px) {
+        .directorio-layout {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: var(--espacio-cuatro);
+        }
+
+        .directorio-resultados__header {
+            margin-bottom: var(--espacio-cuatro);
+        }
+
+        .directorio-filtros {
+            height: fit-content;
+            position: sticky;
+            top: 100px;
+            border-radius: var(--radio-dos);
+            border: 1px solid var(--color-cinco);
+        }
+
+        .directorio-filtros__titulo {
+            display: block;
+        }
+
+        .directorio-filtros__form {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .directorio-filtros__acciones {
+            flex-direction: column;
+            border-top: 1px solid var(--color-cinco);
+            margin-top: var(--espacio-cuatro);
+            padding-top: var(--espacio-cuatro);
+        }
+
+        .directorio-filtros .formulario-etiqueta {
+            display: block;
+        }
+
+        .directorio-filtros__form .formulario-grupo {
+            width: 100%;
+        }
+
+        .directorio-resultados__header {
+            flex-direction: row;
+            justify-content: center;
+            gap: var(--espacio-cinco);
+        }
+
+        .grid-tarjetas {
+            justify-content: space-evenly;
+        }
+    }
+</style>
+
+<?php
 // ═══════════════════════════════════════════════════════════
 // PROCESAR PARÁMETROS DE FILTRADO
 // ═══════════════════════════════════════════════════════════
@@ -74,13 +299,13 @@ $totalPaginas = $resultado['paginas'];
     <!-- ═══════════════════════════════════════════════════════════
          LAYOUT PRINCIPAL
          ═══════════════════════════════════════════════════════════ -->
-    <div class="contenedor" style="display: grid; grid-template-columns: 280px 1fr; gap: var(--espacio-cinco); padding: var(--espacio-cinco) 0;">
+    <div class="contenedor directorio-layout">
 
-        <!-- SIDEBAR - Filtros -->
-        <aside class="tarjeta simple" style="padding: var(--espacio-cuatro); height: fit-content; position: sticky; top: 100px; background: var(--color-ocho); border: 1px solid var(--color-cinco);">
-            <h2 style="font-size: var(--fs-tres); border-bottom: 2px solid var(--color-uno); padding-bottom: var(--espacio-tres); margin-bottom: var(--espacio-cuatro);">Filtros</h2>
+        <!-- Filtros -->
+        <div class="directorio-filtros">
+            <h2 class="directorio-filtros__titulo">Filtros</h2>
 
-            <form action="directorio.php" method="GET">
+            <form action="directorio.php" method="GET" class="directorio-filtros__form">
                 <!-- Búsqueda -->
                 <div class="formulario-grupo">
                     <label for="busqueda" class="formulario-etiqueta">Buscar</label>
@@ -89,10 +314,13 @@ $totalPaginas = $resultado['paginas'];
                         id="busqueda"
                         name="busqueda"
                         class="campo"
-                        placeholder="Nombre o ciudad..."
+                        placeholder="Nombre, ciudad o servicio..."
                         value="<?php echo limpiar($busqueda); ?>"
                     >
                 </div>
+
+                <!-- Dropdowns en fila (tablet) -->
+                <div class="directorio-filtros__dropdowns">
 
                 <!-- Comunidad Autónoma -->
                 <div class="formulario-grupo">
@@ -154,8 +382,10 @@ $totalPaginas = $resultado['paginas'];
                     </div>
                 </div>
 
+                </div><!-- /.directorio-filtros__dropdowns -->
+
                 <!-- Botones -->
-                <div style="display: flex; flex-direction: column; gap: var(--espacio-dos); margin-top: var(--espacio-cuatro); padding-top: var(--espacio-cuatro); border-top: 1px solid var(--color-cinco);">
+                <div class="directorio-filtros__acciones">
                     <button type="submit" class="boton uno">
                         <i data-lucide="filter" class="icono"></i>
                         Aplicar filtros
@@ -167,28 +397,28 @@ $totalPaginas = $resultado['paginas'];
                     </a>
                 </div>
             </form>
-        </aside>
+        </div>
 
         <!-- MAIN - Resultados -->
-        <div style="display: flex; flex-direction: column; gap: var(--espacio-cuatro);">
+        <div class="directorio-main">
 
             <!-- Header de resultados -->
-            <div style="padding-bottom: var(--espacio-cuatro); border-bottom: 1px solid var(--color-cinco);">
-                <p style="color: var(--color-seis-claro); font-size: var(--fs-tres);">
-                    <strong><?php echo $totalCrematorios; ?> crematorio<?php echo $totalCrematorios !== 1 ? 's' : ''; ?></strong> encontrado<?php echo $totalCrematorios !== 1 ? 's' : ''; ?>
-                    <?php if (!empty($filtros)): ?>
-                    <span style="font-size: var(--fs-dos);">(filtrado)</span>
-                    <?php endif; ?>
+            <div class="directorio-resultados__header">
+                <h2 class="directorio-resultados__titulo">
+                    Crematorios en el Directorio
+                </h2>
+                <p class="directorio-resultados__badge">
+                    <?php echo $totalCrematorios; ?> crematorio<?php echo $totalCrematorios !== 1 ? 's' : ''; ?> encontrado<?php echo $totalCrematorios !== 1 ? 's' : ''; ?>
                 </p>
             </div>
 
             <!-- Lista de crematorios -->
             <div class="grid-tarjetas">
                 <?php if (empty($crematorios)): ?>
-                <div style="grid-column: 1 / -1; text-align: center; padding: var(--espacio-seis);">
-                    <i data-lucide="search-x" style="width: 48px; height: 48px; color: var(--color-cinco); margin-bottom: var(--espacio-tres);"></i>
-                    <p style="font-size: var(--fs-tres); color: var(--color-seis-claro);">No se encontraron crematorios con los filtros seleccionados.</p>
-                    <a href="directorio.php" class="boton dos" style="margin-top: var(--espacio-cuatro);">Ver todos los crematorios</a>
+                <div class="directorio-vacio">
+                    <i data-lucide="search-x" class="icono"></i>
+                    <p>No se encontraron crematorios con los filtros seleccionados.</p>
+                    <a href="directorio.php" class="boton dos">Ver todos los crematorios</a>
                 </div>
                 <?php else: ?>
                 <?php foreach ($crematorios as $crem): ?>
@@ -258,7 +488,7 @@ $totalPaginas = $resultado['paginas'];
                     <i data-lucide="chevron-left" class="icono"></i>
                 </a>
                 <?php else: ?>
-                <span class="paginacion__enlace" style="opacity: 0.5; cursor: not-allowed;">
+                <span class="paginacion__enlace deshabilitado">
                     <i data-lucide="chevron-left" class="icono"></i>
                 </span>
                 <?php endif; ?>
@@ -295,7 +525,7 @@ $totalPaginas = $resultado['paginas'];
                     <i data-lucide="chevron-right" class="icono"></i>
                 </a>
                 <?php else: ?>
-                <span class="paginacion__enlace" style="opacity: 0.5; cursor: not-allowed;">
+                <span class="paginacion__enlace deshabilitado">
                     <i data-lucide="chevron-right" class="icono"></i>
                 </span>
                 <?php endif; ?>

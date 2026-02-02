@@ -194,7 +194,7 @@ $schema_data = $schema_data ?? null;
             </nav>
 
             <!-- Botón Menú Móvil -->
-            <button class="header__boton-movil boton icono" onclick="toggleMenu()" aria-label="Abrir menú">
+            <button class="header__boton-movil" onclick="toggleMenu()" aria-label="Abrir menú">
                 <i data-lucide="menu" class="icono"></i>
             </button>
         </div>
@@ -202,17 +202,15 @@ $schema_data = $schema_data ?? null;
 
     <!-- Menú Móvil (overlay) -->
     <nav id="menu-movil" class="menu movil">
-        <button class="menu__cerrar boton icono" onclick="toggleMenu()" aria-label="Cerrar menú">
+        <button class="menu__cerrar" onclick="toggleMenu()" aria-label="Cerrar menú">
             <i data-lucide="x" class="icono"></i>
         </button>
 
-        <a href="<?php echo $base_url; ?>/" class="menu__enlace <?php echo $pagina_actual === 'inicio' ? 'activo' : ''; ?>">Inicio</a>
+        <a href="<?php echo $base_url; ?>/" class="header__logo <?php echo $pagina_actual === 'inicio' ? 'activo' : ''; ?>">
+            <i data-lucide="paw-print" class="icono"></i>
+            Crematorios de Mascotas
+        </a>
         <a href="<?php echo $base_url; ?>/directorio.php" class="menu__enlace <?php echo $pagina_actual === 'directorio' ? 'activo' : ''; ?>">Directorio</a>
         <a href="<?php echo $base_url; ?>/como-funciona.php" class="menu__enlace <?php echo $pagina_actual === 'como-funciona' ? 'activo' : ''; ?>">Cómo Funciona</a>
         <a href="<?php echo $base_url; ?>/nosotros.php" class="menu__enlace <?php echo $pagina_actual === 'nosotros' ? 'activo' : ''; ?>">Sobre Nosotros</a>
-
-        <button data-chatwith="cw-open" class="boton uno grande">
-            <i data-lucide="message-circle" class="icono"></i>
-            Contacto
-        </button>
     </nav>

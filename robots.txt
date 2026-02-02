@@ -15,4 +15,4 @@ Disallow: /login.php
 Disallow: /test.php
 
 # Sitemap
-Sitemap: https://crematoriosdemascotas.es/sitemap.xml
+Sitemap: https://crematoriosdemascotas.com/sitemap.xml
