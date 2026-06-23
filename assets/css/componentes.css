@@ -46,7 +46,7 @@
 /* Los controles de formulario NO heredan la fuente del body por defecto
    (renderizan en el font del navegador / Arial). Forzamos herencia para que
    botones, inputs, selects y textareas usen la tipografía del sitio.
-   Fix global admin + público — antes .boton <button> salía Arial y <a> Lato. */
+   Fix global admin + público — antes .boton <button> salía Arial. */
 button,
 input,
 select,
@@ -70,7 +70,7 @@ h1, h2 {
     line-height: var(--lh-dos);
 }
 
-/* Subtítulos funcionales (Lato - sans-serif) */
+/* Subtítulos funcionales (Roboto sans-serif) */
 h3, h4, h5, h6 {
     font-family: var(--fuente-texto);
     font-weight: var(--peso-negrita);
@@ -99,7 +99,7 @@ h6 { font-size: var(--fs-dos); margin-bottom: var(--espacio-dos); }      /* 14px
 /* Títulos (--fuente-titulo = Roboto) */
 .estilo-h1 { font-family: var(--fuente-titulo); font-size: var(--fs-ocho); margin-bottom: var(--espacio-seis); }   /* 48px */
 .estilo-h2 { font-family: var(--fuente-titulo); font-size: var(--fs-seis); margin-bottom: var(--espacio-cuatro); }  /* 28px */
-/* Funcionales (Lato + negrita) */
+/* Funcionales (Roboto + negrita) */
 .estilo-h3 { font-family: var(--fuente-texto); font-weight: var(--peso-negrita); font-size: var(--fs-cinco); margin-bottom: var(--espacio-tres); }   /* 20px */
 .estilo-h4 { font-family: var(--fuente-texto); font-weight: var(--peso-negrita); font-size: var(--fs-cuatro); margin-bottom: var(--espacio-dos); }   /* 18px */
 .estilo-h5 { font-family: var(--fuente-texto); font-weight: var(--peso-negrita); font-size: var(--fs-tres); margin-bottom: var(--espacio-dos); }     /* 16px */

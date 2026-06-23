@@ -30,7 +30,7 @@ include 'includes/header.php';
             <h2>1. Responsable del Tratamiento</h2>
             <p>
                 <strong>Identidad:</strong> Lycapolis LLC<br>
-                <strong>Correo electrónico:</strong> <a href="mailto:privacidad@crematoriosdemascotas.com">privacidad@crematoriosdemascotas.com</a><br>
+                <strong>Correo electrónico:</strong> <a href="mailto:info@crematoriosdemascotas.com">info@crematoriosdemascotas.com</a><br>
                 <strong>Sitio web:</strong> <a href="https://crematoriosdemascotas.com">crematoriosdemascotas.com</a>
             </p>
 
@@ -153,7 +153,7 @@ include 'includes/header.php';
                 <li><strong>Derecho de oposición:</strong> Oponerte al procesamiento de tus datos</li>
                 <li><strong>Derecho a retirar el consentimiento:</strong> En cualquier momento</li>
             </ul>
-            <p>Para ejercer estos derechos, contáctanos en: <a href="mailto:privacidad@crematoriosdemascotas.com">privacidad@crematoriosdemascotas.com</a></p>
+            <p>Para ejercer estos derechos, contáctanos en: <a href="mailto:info@crematoriosdemascotas.com">info@crematoriosdemascotas.com</a></p>
 
             <h2>7. Retención de Datos</h2>
             <p>Conservamos tu información personal durante el tiempo necesario para cumplir con los propósitos descritos en esta política, a menos que la ley requiera o permita un período de retención más largo.</p>
@@ -194,8 +194,8 @@ include 'includes/header.php';
             <h2>13. Contacto</h2>
             <p>Si tienes preguntas sobre esta Política de Privacidad o sobre cómo manejamos tus datos personales, contáctanos:</p>
             <ul>
-                <li><strong>Email:</strong> <a href="mailto:privacidad@crematoriosdemascotas.com">privacidad@crematoriosdemascotas.com</a></li>
-                <li><strong>Teléfono:</strong> <a href="tel:+15752019989">+1 575 201 9989</a></li>
+                <li><strong>Email:</strong> <a href="mailto:info@crematoriosdemascotas.com">info@crematoriosdemascotas.com</a></li>
+                <li><strong>Teléfono:</strong> <a href="tel:+351912070203">+351 912 070 203</a></li>
             </ul>
 
             <h2>14. Autoridad de Control</h2>

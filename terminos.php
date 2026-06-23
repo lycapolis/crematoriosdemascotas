@@ -121,8 +121,8 @@ include 'includes/header.php';
             <h2>13. Contacto</h2>
             <p>Si tienes preguntas sobre estos Términos y Condiciones, por favor contáctanos:</p>
             <ul>
-                <li><strong>Email:</strong> <a href="mailto:legal@crematoriosdemascotas.com">legal@crematoriosdemascotas.com</a></li>
-                <li><strong>Teléfono:</strong> <a href="tel:+15752019989">+1 575 201 9989</a></li>
+                <li><strong>Email:</strong> <a href="mailto:info@crematoriosdemascotas.com">info@crematoriosdemascotas.com</a></li>
+                <li><strong>Teléfono:</strong> <a href="tel:+351912070203">+351 912 070 203</a></li>
                 <li><strong>Dirección:</strong> Madrid, España</li>
             </ul>
 

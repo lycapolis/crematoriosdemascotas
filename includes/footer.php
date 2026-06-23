@@ -48,15 +48,15 @@
                     <h3 class="footer__titulo">Contacto</h3>
                     <ul class="footer__lista">
                         <li>
-                            <a href="mailto:contacto@crematoriosdemascotas.com" class="footer__enlace">
+                            <a href="mailto:info@crematoriosdemascotas.com" class="footer__enlace">
                                 <i data-lucide="mail" class="icono"></i>
-                                contacto@crematoriosdemascotas.com
+                                info@crematoriosdemascotas.com
                             </a>
                         </li>
                         <li>
-                            <a href="tel:+34900000000" class="footer__enlace">
+                            <a href="tel:+351912070203" class="footer__enlace">
                                 <i data-lucide="phone" class="icono"></i>
-                                +34 900 000 000
+                                +351 912 070 203
                             </a>
                         </li>
                     </ul>

@@ -14,7 +14,7 @@ $titulo_pagina = 'Contacto - Crematorios de Mascotas';
 $pagina_actual = 'contacto';
 include 'includes/header.php';
 
-$emailContacto = defined('EMAIL_CONTACTO') ? EMAIL_CONTACTO : 'contacto@crematoriosdemascotas.com';
+$emailContacto = defined('EMAIL_CONTACTO') ? EMAIL_CONTACTO : 'info@crematoriosdemascotas.com';
 $whatsapp      = defined('WHATSAPP_SOPORTE') ? WHATSAPP_SOPORTE : '';
 $whatsappFmt   = $whatsapp ? '+' . substr($whatsapp, 0, 1) . ' ' . substr($whatsapp, 1, 3) . ' ' . substr($whatsapp, 4, 3) . ' ' . substr($whatsapp, 7) : '';
 ?>

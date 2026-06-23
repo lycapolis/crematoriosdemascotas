@@ -2,7 +2,7 @@
    ADMIN PANEL — Design System
    ═══════════════════════════════════════════════════════════
    Adaptación del design system de referencia a la paleta cálida.
-   Tipografía: Lato (sans-serif) para todo. Type scale fluida.
+   Tipografía: Roboto (sans-serif) para todo. Type scale fluida.
    Spacing base 8px. Cards con thin border + soft shadow.
    Ver docs/admin-design-system.md para la filosofía completa.
 
@@ -107,7 +107,7 @@
 body {
     background: var(--admin-papel);
     color: var(--admin-tinta);
-    font-family: var(--fuente-texto); /* Lato */
+    font-family: var(--fuente-texto); /* Roboto */
     font-size: var(--admin-body-sm);
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;

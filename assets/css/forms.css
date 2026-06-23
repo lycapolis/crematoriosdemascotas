@@ -3,7 +3,7 @@
    ═══════════════════════════════════════════════════════════
 
    Diseño: paleta cálida (terracota / marrón / crema).
-   Tipografía: Lato.
+   Tipografía: Roboto (vía var(--fuente-texto)).
    Tokens: usa --admin-* como naming convention.
 
    Load order:
