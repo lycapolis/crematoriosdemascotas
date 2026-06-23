@@ -60,6 +60,9 @@ try {
     // Borrar de BD
     $pdo->prepare("DELETE FROM crematorio_imagenes WHERE id = :id")->execute([':id' => $imagenId]);
 
+    // Limpiar referencias de portada/logo principal que apuntaran a este ID.
+    limpiarReferenciasImagenesBorradas([$imagenId]);
+
     echo json_encode(['ok' => true, 'error' => null]);
 
 } catch (Throwable $e) {

@@ -30,6 +30,33 @@ function assetUrl(string $rutaRelativa): string {
     return BASE_URL . '/' . $rutaRelativa . '?v=' . $version;
 }
 
+/**
+ * Limpia las referencias `portada_principal_id` y `logo_principal_id` en la
+ * tabla `crematorios` para imágenes que fueron borradas.
+ *
+ * Debe llamarse DESPUÉS de eliminar filas de `crematorio_imagenes`.
+ *
+ * Si no se llama, la columna queda apuntando a un ID que ya no existe y la
+ * lógica de auto-asignación de portada/logo activo (que solo aplica cuando
+ * la columna es NULL) no entra → ficha sin portada/logo activo visible.
+ *
+ * @param array $imagenIds  IDs de imágenes recién borradas
+ */
+function limpiarReferenciasImagenesBorradas(array $imagenIds): void {
+    if (empty($imagenIds)) return;
+    $pdo = obtenerConexion();
+    if (!$pdo) return;
+
+    $imagenIds = array_values(array_filter(array_map('intval', $imagenIds), fn($i) => $i > 0));
+    if (empty($imagenIds)) return;
+
+    $placeholders = implode(',', array_fill(0, count($imagenIds), '?'));
+    $pdo->prepare("UPDATE crematorios SET portada_principal_id = NULL WHERE portada_principal_id IN ($placeholders)")
+        ->execute($imagenIds);
+    $pdo->prepare("UPDATE crematorios SET logo_principal_id    = NULL WHERE logo_principal_id    IN ($placeholders)")
+        ->execute($imagenIds);
+}
+
 // ═══════════════════════════════════════════════════════════
 // FUNCIONES DE CREMATORIOS
 // ═══════════════════════════════════════════════════════════

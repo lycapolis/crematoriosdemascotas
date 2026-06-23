@@ -51,5 +51,9 @@ if (!empty($imagen['ruta']) && !str_starts_with($imagen['ruta'], 'http')) {
 // Eliminar de DB
 $pdo->prepare("DELETE FROM crematorio_imagenes WHERE id = :id")->execute([':id' => $imagenId]);
 
+// Si esta imagen era la portada/logo principal, limpiar la referencia para
+// que la lógica de auto-asignación tome la siguiente disponible.
+limpiarReferenciasImagenesBorradas([$imagenId]);
+
 header('Location: ' . $redir . '&img_ok=' . urlencode('Imagen eliminada'));
 exit;

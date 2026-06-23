@@ -33,6 +33,7 @@ $stmt = $pdo->prepare(
 $stmt->execute(array_merge($ids, [$crematorioId]));
 $imagenes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+$idsBorrados = [];
 foreach ($imagenes as $img) {
     $ruta = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $img['ruta']);
     $rutaAbs = rtrim($root, '/\\') . DIRECTORY_SEPARATOR . ltrim($ruta, DIRECTORY_SEPARATOR);
@@ -40,7 +41,12 @@ foreach ($imagenes as $img) {
 
     $pdo->prepare("DELETE FROM crematorio_imagenes WHERE id = ? AND crematorio_id = ? AND tipo = 'galeria'")
         ->execute([$img['id'], $crematorioId]);
+    $idsBorrados[] = (int)$img['id'];
     $eliminadas++;
 }
+
+// Limpiar referencias de portada/logo principal que apuntaran a alguno
+// de los IDs borrados (defensa por si una galería estaba pin como portada).
+limpiarReferenciasImagenesBorradas($idsBorrados);
 
 echo json_encode(['ok' => true, 'eliminadas' => $eliminadas]);
