@@ -104,17 +104,17 @@ $schema_data = $schema_data ?? null;
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-    <script src="<?php echo $base_url; ?>/assets/js/mapa-leaflet-pines.js"></script>
+    <script src="<?php echo assetUrl('assets/js/mapa-leaflet-pines.js'); ?>"></script>
     <?php endif; ?>
 
-    <!-- CSS -->
-    <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/css/variables.css">
-    <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/css/componentes.css">
+    <!-- CSS (con cache-busting filemtime para que el browser baje versión nueva al actualizar) -->
+    <link rel="stylesheet" href="<?php echo assetUrl('assets/css/variables.css'); ?>">
+    <link rel="stylesheet" href="<?php echo assetUrl('assets/css/componentes.css'); ?>">
 
     <!-- Form controls + Tom Select (capa compartida admin + público, paleta cálida) -->
     <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/librerias/tom-select/tom-select.css">
     <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/librerias/notyf/notyf.min.css">
-    <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/css/forms.css">
+    <link rel="stylesheet" href="<?php echo assetUrl('assets/css/forms.css'); ?>">
 
     <!-- Fuentes Google -->
     <link rel="preconnect" href="https://fonts.googleapis.com">

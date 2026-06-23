@@ -9,6 +9,28 @@
  */
 
 // ═══════════════════════════════════════════════════════════
+// HELPERS DE ASSETS — cache-busting
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Devuelve la URL absoluta de un asset con `?v=<filemtime>` para cache-busting.
+ * Cuando el archivo cambia, el browser baja la versión nueva sin hard reload.
+ *
+ * Uso:
+ *   <link rel="stylesheet" href="<?php echo assetUrl('assets/css/componentes.css'); ?>">
+ *   <script src="<?php echo assetUrl('assets/js/lead-capture.js'); ?>"></script>
+ *
+ * @param string $rutaRelativa Path relativo desde la raíz del proyecto (ej. 'assets/css/x.css')
+ * @return string URL completa con `?v=...`
+ */
+function assetUrl(string $rutaRelativa): string {
+    $rutaRelativa = ltrim($rutaRelativa, '/');
+    $rutaAbsoluta = ROOT_PATH . '/' . $rutaRelativa;
+    $version = is_file($rutaAbsoluta) ? filemtime($rutaAbsoluta) : 0;
+    return BASE_URL . '/' . $rutaRelativa . '?v=' . $version;
+}
+
+// ═══════════════════════════════════════════════════════════
 // FUNCIONES DE CREMATORIOS
 // ═══════════════════════════════════════════════════════════
 

@@ -24,17 +24,17 @@ $fechaHoy = $dias_es[(int)date('w')] . ', ' . (int)date('j') . ' de ' . $meses_e
     <link rel="shortcut icon" href="<?php echo $base_url; ?>/assets/img/favicon/favicon.ico">
     <link rel="apple-touch-icon" sizes="180x180" href="<?php echo $base_url; ?>/assets/img/favicon/apple-touch-icon.png">
 
-    <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/css/variables.css">
-    <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/css/componentes.css">
+    <link rel="stylesheet" href="<?php echo assetUrl('assets/css/variables.css'); ?>">
+    <link rel="stylesheet" href="<?php echo assetUrl('assets/css/componentes.css'); ?>">
 
     <!-- Form controls compartidos: capa base + tema Tom Select + Notyf.
          Cargado ANTES de admin.css para que admin.css pueda sobrescribir tokens.
          forms.css va último (tematiza Tom Select, Notyf y Micromodal). -->
     <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/librerias/tom-select/tom-select.css">
     <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/librerias/notyf/notyf.min.css">
-    <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/css/forms.css">
+    <link rel="stylesheet" href="<?php echo assetUrl('assets/css/forms.css'); ?>">
 
-    <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/css/admin.css">
+    <link rel="stylesheet" href="<?php echo assetUrl('assets/css/admin.css'); ?>">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

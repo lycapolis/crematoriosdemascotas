@@ -52,7 +52,7 @@
     <!-- ═══ FASE 6 — Feedback: Notyf (toasts) + Micromodal (confirmaciones) ═══ -->
     <script src="<?php echo $base_url; ?>/assets/librerias/notyf/notyf.min.js"></script>
     <script src="<?php echo $base_url; ?>/assets/librerias/micromodal/micromodal.min.js"></script>
-    <script src="<?php echo $base_url; ?>/assets/js/feedback.js"></script>
+    <script src="<?php echo assetUrl('assets/js/feedback.js'); ?>"></script>
 
     <!-- Template único del modal de confirmación (Micromodal lo reusa) -->
     <div class="modal micromodal-slide" id="modal-confirmar" aria-hidden="true">

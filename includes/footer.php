@@ -240,7 +240,7 @@
     <!-- ═══ Feedback: Notyf (toasts) + Micromodal (confirmaciones) ═══ -->
     <script src="<?php echo $base_url; ?>/assets/librerias/notyf/notyf.min.js"></script>
     <script src="<?php echo $base_url; ?>/assets/librerias/micromodal/micromodal.min.js"></script>
-    <script src="<?php echo $base_url; ?>/assets/js/feedback.js"></script>
+    <script src="<?php echo assetUrl('assets/js/feedback.js'); ?>"></script>
 
     <!-- ═══ Lead-capture widget (interno) ═══
          Modal interceptor para clicks salientes (tel/wa/maps/web).
@@ -287,7 +287,7 @@
     <?php endif; ?>
 
     <script>window.LC_BASE_URL = <?php echo json_encode($base_url ?? '/crematoriosdemascotas'); ?>;</script>
-    <script src="<?php echo $base_url; ?>/assets/js/lead-capture.js" defer></script>
+    <script src="<?php echo assetUrl('assets/js/lead-capture.js'); ?>" defer></script>
 
     <div class="modal micromodal-slide" id="modal-confirmar" aria-hidden="true">
         <div class="modal__overlay" tabindex="-1" data-micromodal-close>

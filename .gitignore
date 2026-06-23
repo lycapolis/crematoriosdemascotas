@@ -49,6 +49,9 @@ plan-indexacion-google.md
 # ─── Dump generado para deploy (NO al repo) ────────────────
 deploy_db.sql
 
+# ─── Backups locales pre-deploy (NO al repo) ───────────────
+backup/
+
 # ─── Archivos del sistema ──────────────────────────────────
 .DS_Store
 Thumbs.db
