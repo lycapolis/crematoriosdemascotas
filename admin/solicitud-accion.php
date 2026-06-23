@@ -107,8 +107,10 @@ function crearSlug($texto) {
 // FUNCIÓN: Generar slug único y SEO-friendly
 // ═══════════════════════════════════════════════════════════════════════════
 // Lógica (regen 2026-06-23):
-//   1. Si nombre > 40 chars → LLM (Claude Haiku) lo acorta + sugiere keyword.
-//   2. Si nombre ≤ 40 chars → se usa tal cual + detección local de keyword.
+//   1. SIEMPRE que haya CLAUDE_API_KEY → LLM (Claude Haiku) analiza el nombre:
+//      decide si acortar (o dejarlo como está si ya es óptimo), clasifica si
+//      tiene contexto del nicho, sugiere keyword si no lo tiene.
+//   2. Si NO hay API key → fallback con detección local de keyword.
 //   3. Si el slug contiene palabra ambigua (funeraria/crematorio/tanatorio/etc.)
 //      sin "mascotas"/"pets"/"animal" → se inserta "mascotas" para clarificar.
 //   4. slug = nombre_corto + keyword (si hace falta) + ciudad.
@@ -119,8 +121,10 @@ function generarSlugUnico($pdo, $nombre, $ciudad) {
     $kwSugerida  = null;
     $tieneKw     = false;
 
-    // ─── Paso 1: si el nombre es largo, acortar con LLM ───────────────
-    if (mb_strlen($nombre) > 40 && defined('CLAUDE_API_KEY') && CLAUDE_API_KEY !== '') {
+    // ─── Paso 1: SIEMPRE pasar por LLM si está disponible ─────────────
+    // El LLM decide si conviene acortar (puede devolver el mismo nombre si ya
+    // es óptimo) y clasifica el tipo de servicio para sugerir keyword.
+    if (defined('CLAUDE_API_KEY') && CLAUDE_API_KEY !== '') {
         $prompt = "Analizá este negocio del rubro \"crematorios de mascotas\" y respondé en formato JSON estricto.
 
 Negocio:
