@@ -2,17 +2,24 @@
 # CREMATORIOS DE MASCOTAS - robots.txt
 # ===============================================================
 # Autor: Lycapolis LLC
-# Fecha: Enero 2026
 # ===============================================================
 
 User-agent: *
 Allow: /
-Disallow: /includes/
-Disallow: /sql/
-Disallow: /docs/
-Disallow: /plantillas/
-Disallow: /login.php
-Disallow: /test.php
 
-# Sitemap
+# Panel de administración — nunca indexar
+Disallow: /admin/
+
+# Internos / no públicos
+Disallow: /includes/
+Disallow: /cron/
+Disallow: /login.php
+
+# Endpoints de procesamiento (POST) — no malgastar crawl budget
+Disallow: /procesar-formulario.php
+Disallow: /procesar-lead-b2c.php
+Disallow: /procesar-registro.php
+Disallow: /registrar-clic-outbound.php
+
+# Sitemap (servido por sitemap.php vía rewrite en .htaccess)
 Sitemap: https://crematoriosdemascotas.com/sitemap.xml

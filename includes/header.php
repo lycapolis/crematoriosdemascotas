@@ -95,14 +95,31 @@ $schema_data = $schema_data ?? null;
     <link rel="manifest" href="<?php echo $base_url; ?>/assets/img/favicon/site.webmanifest">
 
 
+    <!-- Leaflet (solo en páginas con mapa) -->
+    <?php if (!empty($usar_leaflet) || !empty($usar_leaflet_mapa)): ?>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <?php endif; ?>
+    <?php if (!empty($usar_leaflet_mapa)): ?>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="<?php echo $base_url; ?>/assets/js/mapa-leaflet-pines.js"></script>
+    <?php endif; ?>
+
     <!-- CSS -->
     <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/css/variables.css">
     <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/css/componentes.css">
 
+    <!-- Form controls + Tom Select (capa compartida admin + público, paleta cálida) -->
+    <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/librerias/tom-select/tom-select.css">
+    <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/librerias/notyf/notyf.min.css">
+    <link rel="stylesheet" href="<?php echo $base_url; ?>/assets/css/forms.css">
+
     <!-- Fuentes Google -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;500;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 
     <!-- Google Tag Manager -->
     <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
@@ -112,39 +129,68 @@ $schema_data = $schema_data ?? null;
     })(window,document,'script','dataLayer','GTM-TDLMC4BH');</script>
     <!-- End Google Tag Manager -->
 
-    <!-- UTM Tracker: Preserva TODOS los parámetros de query string durante la navegación -->
+    <!-- UTM Tracker: Preserva SOLO params de attribution (utm_*, cmas_*, gclid, fbclid)
+         durante la navegación. NO propaga filtros internos (orden, geo, ciudad, etc.). -->
     <script>
     (function() {
-        const currentParams = new URLSearchParams(window.location.search);
-        let storedParams = sessionStorage.getItem('url_params');
-
-        // Si la URL actual tiene parámetros, guardarlos (sobrescribe los anteriores)
-        // Lista negra: parámetros que NO deben propagarse a otras páginas
-        const blacklist = ['busqueda'];
-
-        if (currentParams.toString()) {
-            const paramsObj = {};
-            currentParams.forEach(function(value, key) {
-                if (!blacklist.includes(key)) {
-                    paramsObj[key] = value;
-                }
-            });
-            storedParams = JSON.stringify(paramsObj);
-            sessionStorage.setItem('url_params', storedParams);
+        // Solo estos prefijos/nombres se persisten en sessionStorage
+        function esParamPersistible(key) {
+            return key.startsWith('utm_')
+                || key.startsWith('cmas_')
+                || key === 'gclid'
+                || key === 'fbclid'
+                || key === 'msclkid';
         }
 
-        // Si hay parámetros guardados, modificar todos los enlaces internos
+        // LIMPIEZA: si sessionStorage tiene basura de versiones anteriores
+        // (params de filtros internos), descartarla.
+        try {
+            var stored = sessionStorage.getItem('url_params');
+            if (stored) {
+                var parsed = JSON.parse(stored);
+                var limpio = {};
+                Object.keys(parsed).forEach(function(k) {
+                    if (esParamPersistible(k) && parsed[k] !== '') limpio[k] = parsed[k];
+                });
+                if (Object.keys(limpio).length === 0) {
+                    sessionStorage.removeItem('url_params');
+                } else {
+                    sessionStorage.setItem('url_params', JSON.stringify(limpio));
+                }
+            }
+        } catch (e) { sessionStorage.removeItem('url_params'); }
+
+        var currentParams = new URLSearchParams(window.location.search);
+        var storedParams  = sessionStorage.getItem('url_params');
+
+        // Capturar params persistibles de la URL actual (con value NO vacío)
+        if (currentParams.toString()) {
+            var paramsObj = storedParams ? JSON.parse(storedParams) : {};
+            var changed   = false;
+            currentParams.forEach(function(value, key) {
+                if (esParamPersistible(key) && value !== '') {
+                    paramsObj[key] = value;
+                    changed = true;
+                }
+            });
+            if (changed) {
+                storedParams = JSON.stringify(paramsObj);
+                sessionStorage.setItem('url_params', storedParams);
+            }
+        }
+
+        // Aplicar params guardados a links internos (sin pisar los que ya tienen value propio)
         if (storedParams) {
-            const paramsObj = JSON.parse(storedParams);
-            const currentHost = window.location.host;
+            var paramsObj   = JSON.parse(storedParams);
+            var currentHost = window.location.host;
 
             document.addEventListener('DOMContentLoaded', function() {
                 document.querySelectorAll('a[href]').forEach(function(link) {
                     try {
-                        const url = new URL(link.href, window.location.origin);
-                        // Solo enlaces internos (mismo host o relativos)
-                        if (url.host === currentHost || link.getAttribute('href').startsWith('/') || link.getAttribute('href').startsWith('?')) {
-                            // Añadir parámetros si no los tiene ya
+                        var url = new URL(link.href, window.location.origin);
+                        if (url.host === currentHost
+                            || link.getAttribute('href').startsWith('/')
+                            || link.getAttribute('href').startsWith('?')) {
                             Object.keys(paramsObj).forEach(function(key) {
                                 if (!url.searchParams.has(key)) {
                                     url.searchParams.set(key, paramsObj[key]);
@@ -160,9 +206,11 @@ $schema_data = $schema_data ?? null;
     </script>
     <!-- End UTM Tracker -->
 
-    <!-- WhatsApp Chat Widget -->
-    <script defer src="https://whatsapp.lycapolis.com/install-widget/bundle.js?key=1169a891-ad22-4a8e-9587-c3ee25af72a5"></script>
-    <!-- End WhatsApp Chat Widget -->     
+    <!-- WhatsApp Chat Widget (Lycapolis) — DESACTIVADO 2026-05-21.
+         Reemplazado por widget interno propio (modal lead-capture).
+         Ver: assets/js/lead-capture.js + includes/componentes/modal-lead-capture.php
+         Mantiene mismo webhook (Make), mismo JSON estructurado + campos contextuales nuevos. -->
+    <!--<script defer src="https://whatsapp.lycapolis.com/install-widget/bundle.js?key=1169a891-ad22-4a8e-9587-c3ee25af72a5"></script>-->     
 </head>
 <body>
 
@@ -182,15 +230,26 @@ $schema_data = $schema_data ?? null;
 
             <!-- Navegación Desktop -->
             <nav class="header__nav">
-                <ul class="menu">
-                    
-                    <li><a href="<?php echo $base_url; ?>/directorio.php" class="menu__enlace <?php echo $pagina_actual === 'directorio' ? 'activo' : ''; ?>">Directorio</a></li>                    
-                    <li><a href="<?php echo $base_url; ?>/nosotros.php" class="menu__enlace <?php echo $pagina_actual === 'nosotros' ? 'activo' : ''; ?>">Nosotros</a></li>
-                    <li><a href="<?php echo $base_url; ?>/contacto.php" class="menu__enlace <?php echo $pagina_actual === 'contacto' ? 'activo' : ''; ?>">Contacto</a></li>
-                </ul>                
-                
-                <a href="<?php echo $base_url; ?>/registrar-negocio.php" class="boton uno <?php echo $pagina_actual === 'registrar-negocio' ? 'activo' : ''; ?>">Registrar Mi Negocio</a>
-                
+                <!-- Búsqueda compacta -->
+                <form class="header__buscador" action="<?php echo $base_url; ?>/directorio.php" method="GET" role="search">
+                    <i data-lucide="search" class="icono"></i>
+                    <input
+                        type="text"
+                        name="busqueda"
+                        class="header__buscador-campo"
+                        placeholder="Buscar crematorio..."
+                        aria-label="Buscar crematorio"
+                    >
+                </form>
+
+                <a href="<?php echo $base_url; ?>/directorio.php" class="menu__enlace <?php echo $pagina_actual === 'directorio' ? 'activo' : ''; ?>">Directorio</a>
+
+                <button id="btn-cerca-header" type="button" class="boton dos pequeno" onclick="irACerca(this)">
+                    <i data-lucide="map-pin" class="icono"></i>
+                    Cerca de mí
+                </button>
+
+                <a href="<?php echo $base_url; ?>/nosotros.php" class="menu__enlace <?php echo $pagina_actual === 'nosotros' ? 'activo' : ''; ?>">Nosotros</a>
             </nav>
 
             <!-- Botón Menú Móvil -->
@@ -210,7 +269,62 @@ $schema_data = $schema_data ?? null;
             <i data-lucide="paw-print" class="icono"></i>
             Crematorios de Mascotas
         </a>
+
+        <!-- Acciones: las 2 formas de encontrar un crematorio -->
+        <form class="header__buscador" action="<?php echo $base_url; ?>/directorio.php" method="GET" role="search" style="width: 100%; max-width: 320px;">
+            <i data-lucide="search" class="icono"></i>
+            <input type="text" name="busqueda" class="header__buscador-campo" placeholder="Buscar crematorio..." aria-label="Buscar crematorio" style="width: 100%;">
+        </form>
+
+        <button id="btn-cerca-movil" type="button" class="boton dos" onclick="irACerca(this)" style="width: 100%; max-width: 320px;">
+            <i data-lucide="map-pin" class="icono"></i>
+            Cerca de mí
+        </button>
+
+        <div class="menu__sep"></div>
+
+        <!-- Navegación -->
         <a href="<?php echo $base_url; ?>/directorio.php" class="menu__enlace <?php echo $pagina_actual === 'directorio' ? 'activo' : ''; ?>">Directorio</a>
-        <a href="<?php echo $base_url; ?>/como-funciona.php" class="menu__enlace <?php echo $pagina_actual === 'como-funciona' ? 'activo' : ''; ?>">Cómo Funciona</a>
-        <a href="<?php echo $base_url; ?>/nosotros.php" class="menu__enlace <?php echo $pagina_actual === 'nosotros' ? 'activo' : ''; ?>">Sobre Nosotros</a>
+        <a href="<?php echo $base_url; ?>/nosotros.php" class="menu__enlace <?php echo $pagina_actual === 'nosotros' ? 'activo' : ''; ?>">Nosotros</a>
     </nav>
+
+    <script>
+    /**
+     * irACerca — handler global para todos los botones "Cerca de mí" del sitio
+     * (header desktop, header móvil, home hero, sidebar directorio).
+     * Bloquea el tamaño del botón antes de cambiar el contenido para que no
+     * se mueva el resto del layout, y muestra spinner + "Buscando".
+     */
+    function irACerca(btnEl) {
+        if (!navigator.geolocation) {
+            var m1 = 'Tu navegador no soporta la geolocalización.';
+            if (window.toast) { toast.error(m1); } else { alert(m1); }
+            return;
+        }
+        if (btnEl) {
+            // Lock dimensiones para evitar layout shift cuando cambia el contenido
+            var r = btnEl.getBoundingClientRect();
+            btnEl.style.width  = r.width  + 'px';
+            btnEl.style.height = r.height + 'px';
+            btnEl.dataset.origInner = btnEl.innerHTML;
+            btnEl.disabled = true;
+            btnEl.innerHTML = '<i data-lucide="loader-2" class="icono" style="animation:spin 1s linear infinite"></i> Buscando';
+            if (window.lucide) lucide.createIcons({ nodes: [btnEl] });
+        }
+        navigator.geolocation.getCurrentPosition(
+            function(p) { window.location.href = '<?php echo $base_url; ?>/cerca.php?lat=' + p.coords.latitude + '&lng=' + p.coords.longitude; },
+            function() {
+                var m2 = 'No se pudo obtener tu ubicación. Permite el acceso a la geolocalización.';
+                if (window.toast) { toast.error(m2); } else { alert(m2); }
+                if (btnEl) {
+                    btnEl.disabled = false;
+                    btnEl.style.width = '';
+                    btnEl.style.height = '';
+                    btnEl.innerHTML = btnEl.dataset.origInner || btnEl.innerHTML;
+                    if (window.lucide) lucide.createIcons({ nodes: [btnEl] });
+                }
+            },
+            { timeout: 8000 }
+        );
+    }
+    </script>

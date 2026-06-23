@@ -8,25 +8,19 @@
  * Empresa: Lycapolis LLC
  * Web: https://lycapolis.com
  *
- * Versión: 04
- * Fecha: Enero 2026
+ * Versión: 05 — refresh Fase 6 (encabezado compacto + partials)
  *
- * Lista crematorios de una ciudad desde la base de datos
- * URL: /espana/madrid/getafe/
+ * URL: /espana/{provincia}/{ciudad}/
  * ═══════════════════════════════════════════════════════════
  */
 
-// Incluir configuración y funciones
 require_once 'includes/config.php';
 require_once 'includes/conexion_db.php';
 require_once 'includes/funciones.php';
 
-// Obtener parámetros
-$pais_slug = isset($_GET['pais']) ? $_GET['pais'] : 'espana';
-$provincia_slug = isset($_GET['provincia']) ? trim($_GET['provincia']) : '';
-$ciudad_slug = isset($_GET['ciudad']) ? trim($_GET['ciudad']) : '';
+$provincia_slug = trim($_GET['provincia'] ?? '');
+$ciudad_slug    = trim($_GET['ciudad'] ?? '');
 
-// Validar provincia
 $provincia = obtenerProvinciaSlug($provincia_slug);
 if (!$provincia) {
     http_response_code(404);
@@ -47,10 +41,8 @@ if (!$provincia) {
     exit;
 }
 
-// Obtener crematorios de la ciudad
 $crematorios = obtenerCrematoriosCiudad($ciudad_slug, $provincia_slug);
 
-// Si no hay crematorios, mostrar 404
 if (empty($crematorios)) {
     http_response_code(404);
     $titulo_pagina = 'Ciudad no encontrada';
@@ -70,104 +62,114 @@ if (empty($crematorios)) {
     exit;
 }
 
-// Extraer datos del primer crematorio
-$pais_nombre = 'España';
-$ciudad_nombre = $crematorios[0]['ciudad'];
+$ciudad_nombre    = $crematorios[0]['ciudad'];
 $provincia_nombre = $crematorios[0]['provincia_nombre'];
 $comunidad_nombre = $crematorios[0]['comunidad_nombre'] ?? '';
-$comunidad_slug = $crematorios[0]['comunidad_slug'] ?? '';
+$comunidad_slug   = $crematorios[0]['comunidad_slug'] ?? '';
 $total_crematorios = count($crematorios);
+
+// Coordenadas para el mapa (debe estar ANTES del include header para que se cargue Leaflet)
+$coords_mapa       = obtenerCoordenadasCiudad($ciudad_slug, $provincia_slug);
+$usar_leaflet_mapa = count($coords_mapa) > 0;
 
 $titulo_pagina = 'Crematorios de Mascotas en ' . $ciudad_nombre . ', ' . $provincia_nombre;
 $pagina_actual = 'directorio';
 include 'includes/header.php';
 ?>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         BREADCRUMBS
-         ═══════════════════════════════════════════════════════════ -->
-    <nav class="breadcrumbs" aria-label="Breadcrumb" style="padding: var(--espacio-tres) 0; background: var(--color-cinco);">
-        <div class="contenedor">
-            <ol style="display: flex; flex-wrap: wrap; align-items: center; gap: var(--espacio-dos); list-style: none; padding: 0; margin: 0; font-size: var(--fs-uno);">
-                <li style="display: flex; align-items: center; gap: var(--espacio-dos);">
-                    <a href="<?php echo $base_url; ?>/" style="color: var(--color-seis-claro); text-decoration: none;">Inicio</a>
-                    <i data-lucide="chevron-right" class="icono" style="width: 14px; height: 14px; color: var(--color-seis-claro);"></i>
-                </li>
-                <li style="display: flex; align-items: center; gap: var(--espacio-dos);">
-                    <a href="<?php echo $base_url; ?>/espana/" style="color: var(--color-seis-claro); text-decoration: none;"><?php echo limpiar($pais_nombre); ?></a>
-                    <i data-lucide="chevron-right" class="icono" style="width: 14px; height: 14px; color: var(--color-seis-claro);"></i>
-                </li>
-                <?php if ($comunidad_nombre && $comunidad_nombre !== $provincia_nombre): ?>
-                <!-- Comunidad autónoma (con link) -->
-                <li style="display: flex; align-items: center; gap: var(--espacio-dos);">
-                    <a href="<?php echo generarUrl('comunidad', $comunidad_slug); ?>" style="color: var(--color-seis-claro); text-decoration: none;"><?php echo limpiar($comunidad_nombre); ?></a>
-                    <i data-lucide="chevron-right" class="icono" style="width: 14px; height: 14px; color: var(--color-seis-claro);"></i>
-                </li>
-                <?php endif; ?>
-                <li style="display: flex; align-items: center; gap: var(--espacio-dos);">
-                    <a href="<?php echo generarUrl('provincia', $provincia_slug); ?>" style="color: var(--color-seis-claro); text-decoration: none;"><?php echo limpiar($provincia_nombre); ?></a>
-                    <i data-lucide="chevron-right" class="icono" style="width: 14px; height: 14px; color: var(--color-seis-claro);"></i>
-                </li>
-                <li style="color: var(--color-seis); font-weight: var(--peso-medio);">
-                    <span><?php echo limpiar($ciudad_nombre); ?></span>
-                </li>
-            </ol>
-        </div>
-    </nav>
+<?php
+// ─── Encabezado compacto ───
+$migas = [['Inicio', BASE_URL . '/'], ['España', BASE_URL . '/espana/']];
+if ($comunidad_nombre && $comunidad_nombre !== $provincia_nombre) {
+    $migas[] = [$comunidad_nombre, generarUrl('comunidad', $comunidad_slug)];
+}
+$migas[] = [$provincia_nombre, generarUrl('provincia', $provincia_slug)];
+$migas[] = [$ciudad_nombre, null];
 
-    <!-- ═══════════════════════════════════════════════════════════
-         HERO
-         ═══════════════════════════════════════════════════════════ -->
-    <section class="hero hero-cuatro">
-        <div class="contenedor" style="text-align: center;">
-            <h1>Crematorios de Mascotas en <?php echo limpiar($ciudad_nombre); ?></h1>
-            <p class="seccion__descripcion">
-                Provincia de <?php echo limpiar($provincia_nombre); ?>, <?php echo limpiar($pais_nombre); ?>
-            </p>
-        </div>
-    </section>
+$tituloH1   = 'Crematorios de mascotas en ' . $ciudad_nombre;
+$badgeTotal = $total_crematorios . ' crematorio' . ($total_crematorios !== 1 ? 's' : '') . ' encontrado' . ($total_crematorios !== 1 ? 's' : '');
+$descripcion = 'Provincia de ' . $provincia_nombre . '. Compara servicios y contacta directamente con el crematorio que necesites.';
+$mapaRegionUrl = $usar_leaflet_mapa
+    ? BASE_URL . '/mapa/' . urlencode($provincia_slug) . '/' . urlencode($ciudad_slug) . '?volver=' . urlencode($_SERVER['REQUEST_URI'] ?? '')
+    : null;
+include ROOT_PATH . '/includes/componentes/encabezado-geo.php';
+?>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         LISTADO DE CREMATORIOS
-         ═══════════════════════════════════════════════════════════ -->
-    <section class="seccion">
-        <div class="contenedor">
+<!-- ─── Mapa con clustering (si hay coordenadas) ─── -->
+<?php if ($usar_leaflet_mapa): ?>
+<section style="padding: var(--espacio-cuatro) 0; background: var(--color-cuatro);">
+    <div class="contenedor">
+        <div id="mapa-ciudad" style="width:100%; height:420px; border-radius:var(--radio-dos); overflow:hidden; position:relative;"></div>
+    </div>
+</section>
+<script>
+(function() {
+    var puntos = <?php echo json_encode(array_map(function($c) {
+        $ubic = trim(($c['ciudad'] ?? '') . (!empty($c['provincia_nombre']) ? ', ' . $c['provincia_nombre'] : ''), ', ');
+        return [
+            'lat'        => (float) $c['latitud'],
+            'lng'        => (float) $c['longitud'],
+            'nombre'     => $c['nombre'],
+            'url'        => BASE_URL . '/' . $c['slug'],
+            'foto'       => ($c['foto_local'] ?? $c['foto_principal']) ?: null,
+            'ubicacion'  => $ubic ?: null,
+            'rating'     => $c['rating'] ? number_format((float)$c['rating'], 1) : null,
+            'reviews'    => (int)($c['reviews_total'] ?? 0),
+            'verificado' => !empty($c['verificado']),
+            'destacado'  => !empty($c['destacado']),
+            'registrado' => ($c['origen'] ?? '') === 'registro',
+        ];
+    }, $coords_mapa), JSON_UNESCAPED_UNICODE); ?>;
 
-            <!-- Info resultados -->
-            <div style="margin-bottom: var(--espacio-cinco); padding: var(--espacio-tres) var(--espacio-cuatro); background: var(--color-cinco); border-radius: var(--radio-dos);">
-                <p style="margin: 0; color: var(--color-seis); font-size: var(--fs-uno);"><?php echo $total_crematorios; ?> crematorio<?php echo $total_crematorios != 1 ? 's' : ''; ?> encontrado<?php echo $total_crematorios != 1 ? 's' : ''; ?></p>
-            </div>
+    if (!puntos.length || typeof L === 'undefined' || !window.MapaCrematorios) return;
 
-            <!-- Grid de crematorios -->
-            <div class="grid-tarjetas">
-                <?php foreach ($crematorios as $crem): ?>
-                    <?php include ROOT_PATH . '/includes/componentes/tarjeta-crematorio.php'; ?>
-                <?php endforeach; ?>
-            </div>
-        </div>
-    </section>
+    var lats = puntos.map(function(p){ return p.lat; });
+    var lngs = puntos.map(function(p){ return p.lng; });
+    var bounds = L.latLngBounds(
+        [Math.min.apply(null, lats), Math.min.apply(null, lngs)],
+        [Math.max.apply(null, lats), Math.max.apply(null, lngs)]
+    );
+    var centroLat = (Math.min.apply(null, lats) + Math.max.apply(null, lats)) / 2;
+    var centroLng = (Math.min.apply(null, lngs) + Math.max.apply(null, lngs)) / 2;
 
-    <!-- ═══════════════════════════════════════════════════════════
-         CONTENIDO SEO
-         ═══════════════════════════════════════════════════════════ -->
-    <section class="seccion uno">
-        <div class="contenedor">
-            <div style="max-width: 800px; margin: 0 auto;">
-                <h2 style="font-size: var(--fs-tres); color: var(--color-dos); margin-bottom: var(--espacio-cuatro);">Servicios de Cremación de Mascotas en <?php echo limpiar($ciudad_nombre); ?></h2>
+    var map = L.map('mapa-ciudad', { scrollWheelZoom: true });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 18
+    }).addTo(map);
 
-                <p style="color: var(--color-seis); line-height: 1.7; margin-bottom: var(--espacio-cuatro);">
-                    Encuentra los mejores crematorios de mascotas en <?php echo limpiar($ciudad_nombre); ?>, <?php echo limpiar($provincia_nombre); ?>.
-                    Todos los centros en nuestro directorio ofrecen servicios profesionales y respetuosos
-                    para despedir a tu compañero fiel con la dignidad que merece.
-                </p>
+    window.MapaCrematorios.crearClusterConPuntos(map, puntos, { maxClusterRadius: 50 });
+    map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
 
-                <p style="color: var(--color-seis); line-height: 1.7; margin: 0;">
-                    Los servicios típicos incluyen cremación individual, urnas conmemorativas, recogida
-                    a domicilio y asesoramiento durante todo el proceso. Compara reseñas, servicios y
-                    contacta directamente con el crematorio que mejor se adapte a tus necesidades.
-                </p>
-            </div>
+    // Spotlight: enfoca la ciudad oscureciendo el resto.
+    window.MapaCrematorios.dibujarSpotlight(map, {
+        lat: centroLat, lng: centroLng, puntos: puntos,
+        radioMinimoMetros: 3000
+    });
+})();
+</script>
+<?php endif; ?>
+
+<div class="contenedor seccion">
+
+    <!-- ─── Listado de crematorios ─── -->
+    <section style="margin-bottom: var(--espacio-cinco);">
+        <div class="grid-tarjetas <?php echo claseGridTarjetas(count($crematorios)); ?>">
+            <?php foreach ($crematorios as $crem): ?>
+                <?php include ROOT_PATH . '/includes/componentes/tarjeta-crematorio.php'; ?>
+            <?php endforeach; ?>
         </div>
     </section>
+
+</div>
+
+<!-- ─── Nube de ciudades cercanas (misma comunidad, otras provincias) ─── -->
+<?php
+$nubeScope      = 'cercanas';
+$nubeContextoId = $provincia['id'];
+$nubeTitulo     = 'Otras ciudades cercanas';
+$nubeLimite     = 24;
+include ROOT_PATH . '/includes/componentes/nube-ciudades.php';
+?>
 
 <?php include 'includes/footer.php'; ?>

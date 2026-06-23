@@ -110,7 +110,7 @@ $termino = isset($_GET['q']) ? htmlspecialchars($_GET['q']) : 'Madrid';
                         </div>
 
                         <a href="<?php echo $base_url; ?>/funeraria-san-antonio-abad" class="boton uno pequeno" style="width: 100%; margin-top: var(--espacio-tres);">
-                            Ver detalles
+                            Ver Crematorio
                         </a>
                     </div>
                 </article>
@@ -153,7 +153,7 @@ $termino = isset($_GET['q']) ? htmlspecialchars($_GET['q']) : 'Madrid';
                         </div>
 
                         <a href="<?php echo $base_url; ?>/pets-eternity-crematorio" class="boton uno pequeno" style="width: 100%; margin-top: var(--espacio-tres);">
-                            Ver detalles
+                            Ver Crematorio
                         </a>
                     </div>
                 </article>

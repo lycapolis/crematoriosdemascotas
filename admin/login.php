@@ -55,7 +55,7 @@ $base_url = BASE_URL;
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;500;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <a href="<?php echo $base_url; ?>/" style="position: absolute; top: var(--espacio-cinco); left: var(--espacio-cinco); display: flex; align-items: center; gap: var(--espacio-dos); color: var(--color-seis); text-decoration: none; font-size: var(--fs-uno);">

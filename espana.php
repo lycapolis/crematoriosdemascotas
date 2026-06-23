@@ -8,136 +8,168 @@
  * Empresa: Lycapolis LLC
  * Web: https://lycapolis.com
  *
- * Versión: 04
- * Fecha: Enero 2026
+ * Versión: 05 — refresh Fase 6 (encabezado compacto + partials)
  *
- * Lista las provincias de España desde la base de datos
+ * Lista las provincias de España + grid de crematorios + nube de ciudades.
  * URL: /espana/
- * Archivo específico (no usa plantilla genérica)
  * ═══════════════════════════════════════════════════════════
  */
 
-// Incluir configuración y funciones
 require_once 'includes/config.php';
 require_once 'includes/conexion_db.php';
 require_once 'includes/funciones.php';
 
-// Datos de España
-$pais_slug = 'espana';
 $pais_nombre = 'España';
 
-// Obtener provincias desde la base de datos
+// Provincias + totales
 $provincias = obtenerProvincias();
 $total_provincias = count($provincias);
-$total_crematorios_provincias = array_sum(array_column($provincias, 'total_crematorios'));
 
-// Paginación para crematorios
-$pagina = isset($_GET['pagina']) ? max(1, intval($_GET['pagina'])) : 1;
+// Crematorios paginados
+$pagina = max(1, (int)($_GET['pagina'] ?? 1));
+$resultado = obtenerCrematorios([], $pagina);
+$crematorios = $resultado['datos'];
+$total_crematorios = $resultado['total'];
+$total_paginas = $resultado['paginas'];
 
-// Obtener todos los crematorios con paginación
-$crematorios = obtenerCrematorios([], $pagina);
-$total_crematorios = $crematorios['total'];
+// Coordenadas para mapa nacional
+$coords_mapa       = obtenerCoordenadasEspana();
+$usar_leaflet_mapa = count($coords_mapa) > 0;
 
-$titulo_pagina = 'Crematorios de Mascotas en ' . $pais_nombre;
+$titulo_pagina = 'Crematorios de Mascotas en España';
 $pagina_actual = 'directorio';
 include 'includes/header.php';
 ?>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         BREADCRUMBS
-         ═══════════════════════════════════════════════════════════ -->
-    <nav class="breadcrumbs" aria-label="Breadcrumb" style="padding: var(--espacio-tres) 0; background: var(--color-cinco);">
-        <div class="contenedor">
-            <ol style="display: flex; flex-wrap: wrap; align-items: center; gap: var(--espacio-dos); list-style: none; padding: 0; margin: 0; font-size: var(--fs-uno);">
-                <li style="display: flex; align-items: center; gap: var(--espacio-dos);">
-                    <a href="<?php echo $base_url; ?>/" style="color: var(--color-seis-claro); text-decoration: none;">Inicio</a>
-                    <i data-lucide="chevron-right" class="icono" style="width: 14px; height: 14px; color: var(--color-seis-claro);"></i>
-                </li>
-                <li style="display: flex; align-items: center; gap: var(--espacio-dos);">
-                    <a href="<?php echo $base_url; ?>/paises/" style="color: var(--color-seis-claro); text-decoration: none;">Países</a>
-                    <i data-lucide="chevron-right" class="icono" style="width: 14px; height: 14px; color: var(--color-seis-claro);"></i>
-                </li>
-                <li style="color: var(--color-seis); font-weight: var(--peso-medio);">
-                    <span><?php echo htmlspecialchars($pais_nombre); ?></span>
-                </li>
-            </ol>
+<?php
+// ─── Encabezado compacto (breadcrumb + h1 + badge + descripción) ───
+$migas = [
+    ['Inicio', BASE_URL . '/'],
+    ['España', null],
+];
+$tituloH1    = 'Crematorios de mascotas en España';
+$badgeTotal  = $total_crematorios . ' crematorio' . ($total_crematorios !== 1 ? 's' : '') . ' en ' . $total_provincias . ' provincias';
+$descripcion = 'Explora el directorio nacional y encuentra el crematorio ideal para despedir a tu mascota con dignidad.';
+// Botón "Ver con mapa" — solo si hay coordenadas para mostrar
+$mapaRegionUrl = $usar_leaflet_mapa
+    ? BASE_URL . '/mapa?volver=' . urlencode($_SERVER['REQUEST_URI'] ?? '/espana')
+    : null;
+include ROOT_PATH . '/includes/componentes/encabezado-geo.php';
+?>
+
+<!-- ─── Mapa nacional con clustering ─── -->
+<?php if ($usar_leaflet_mapa): ?>
+<section style="padding: var(--espacio-cuatro) 0; background: var(--color-cuatro);">
+    <div class="contenedor">
+        <div id="mapa-espana" style="width:100%; height:480px; border-radius:var(--radio-dos); overflow:hidden; position:relative;"></div>
+    </div>
+</section>
+<script>
+(function() {
+    var puntos = <?php echo json_encode(array_map(function($c) {
+        $ubic = trim(($c['ciudad'] ?? '') . (!empty($c['provincia_nombre']) ? ', ' . $c['provincia_nombre'] : ''), ', ');
+        return [
+            'lat'        => (float) $c['latitud'],
+            'lng'        => (float) $c['longitud'],
+            'nombre'     => $c['nombre'],
+            'url'        => BASE_URL . '/' . $c['slug'],
+            'foto'       => ($c['foto_local'] ?? $c['foto_principal']) ?: null,
+            'ubicacion'  => $ubic ?: null,
+            'rating'     => $c['rating'] ? number_format((float)$c['rating'], 1) : null,
+            'reviews'    => (int)($c['reviews_total'] ?? 0),
+            'verificado' => !empty($c['verificado']),
+            'destacado'  => !empty($c['destacado']),
+            'registrado' => ($c['origen'] ?? '') === 'registro',
+        ];
+    }, $coords_mapa), JSON_UNESCAPED_UNICODE); ?>;
+
+    if (!puntos.length || typeof L === 'undefined' || !window.MapaCrematorios) return;
+
+    var lats = puntos.map(function(p){ return p.lat; });
+    var lngs = puntos.map(function(p){ return p.lng; });
+    var bounds = L.latLngBounds(
+        [Math.min.apply(null, lats), Math.min.apply(null, lngs)],
+        [Math.max.apply(null, lats), Math.max.apply(null, lngs)]
+    );
+    var centroLat = (Math.min.apply(null, lats) + Math.max.apply(null, lats)) / 2;
+    var centroLng = (Math.min.apply(null, lngs) + Math.max.apply(null, lngs)) / 2;
+
+    var map = L.map('mapa-espana', { scrollWheelZoom: true });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 18
+    }).addTo(map);
+
+    window.MapaCrematorios.crearClusterConPuntos(map, puntos, { maxClusterRadius: 60 });
+    map.fitBounds(bounds, { padding: [30, 30], maxZoom: 9 });
+
+    // Spotlight con frontera real de España (península + Baleares + Canarias).
+    // Si el archivo falla por cualquier motivo, fallback al spotlight circular.
+    fetch('<?php echo BASE_URL; ?>/assets/geojson/espana.geojson')
+        .then(function(r) { return r.ok ? r.json() : Promise.reject(); })
+        .then(function(data) {
+            var feature = data.features && data.features[0];
+            if (!feature) throw new Error('sin feature');
+            window.MapaCrematorios.dibujarSpotlightPoligono(map, feature.geometry);
+        })
+        .catch(function() {
+            window.MapaCrematorios.dibujarSpotlight(map, {
+                lat: centroLat, lng: centroLng, puntos: puntos,
+                margenPct: 15, radioMinimoMetros: 100000
+            });
+        });
+})();
+</script>
+<?php endif; ?>
+
+<div class="contenedor seccion">
+
+    <!-- ─── Grid de provincias ─── -->
+    <section style="margin-bottom: var(--espacio-cinco);">
+        <h2 class="estilo-h4" style="margin-bottom: var(--espacio-tres);">Provincias</h2>
+        <div class="lista-geo">
+            <?php foreach ($provincias as $prov): ?>
+            <a href="<?php echo generarUrl('provincia', $prov['slug']); ?>" class="lista-geo__item">
+                <div>
+                    <h3 class="lista-geo__item-titulo"><?php echo limpiar($prov['nombre']); ?></h3>
+                    <span class="lista-geo__item-meta"><?php echo $prov['total_crematorios']; ?> crematorio<?php echo $prov['total_crematorios'] != 1 ? 's' : ''; ?></span>
+                </div>
+                <i data-lucide="chevron-right" class="icono lista-geo__item-flecha"></i>
+            </a>
+            <?php endforeach; ?>
         </div>
-    </nav>
+    </section>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         CONTENIDO PRINCIPAL
-         ═══════════════════════════════════════════════════════════ -->
-    <main class="seccion">
-        <div class="contenedor">
+    <!-- ─── Listado de crematorios paginado ─── -->
+    <?php if ($total_crematorios > 0): ?>
+    <section style="margin-bottom: var(--espacio-cinco);">
+        <h2 class="estilo-h4" style="margin-bottom: var(--espacio-tres);">Todos los crematorios</h2>
+        <div class="grid-tarjetas <?php echo claseGridTarjetas(count($crematorios)); ?>">
+            <?php foreach ($crematorios as $crem): ?>
+                <?php include ROOT_PATH . '/includes/componentes/tarjeta-crematorio.php'; ?>
+            <?php endforeach; ?>
+        </div>
 
-            <!-- Header -->
-            <header style="text-align: center; margin-bottom: var(--espacio-siete);">
-                <h1 style="font-size: var(--fs-cuatro); color: var(--color-dos); margin-bottom: var(--espacio-dos);">Crematorios de Mascotas en <?php echo htmlspecialchars($pais_nombre); ?></h1>
-                <p class="seccion__descripcion">
-                    <?php echo $total_crematorios; ?> crematorios en <?php echo $total_provincias; ?> provincias
-                </p>
-            </header>
-
-            <!-- Grid de provincias -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: var(--espacio-cuatro); margin-bottom: var(--espacio-siete);">
-
-                <?php foreach ($provincias as $prov): ?>
-                <a href="<?php echo generarUrl('provincia', $prov['slug']); ?>" class="item-tres" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between;">
-                    <div>
-                        <h2 style="font-size: var(--fs-dos); font-weight: var(--peso-negrita); color: var(--color-dos); margin-bottom: var(--espacio-uno);"><?php echo limpiar($prov['nombre']); ?></h2>
-                        <span style="font-size: var(--fs-uno); color: var(--color-seis-claro);"><?php echo $prov['total_crematorios']; ?> crematorio<?php echo $prov['total_crematorios'] != 1 ? 's' : ''; ?></span>
-                    </div>
-                    <i data-lucide="chevron-right" class="icono" style="color: var(--color-uno); width: 24px; height: 24px;"></i>
+        <?php if ($total_paginas > 1): ?>
+        <nav class="paginacion" aria-label="Paginación" style="margin-top: var(--espacio-cuatro);">
+            <?php for ($i = 1; $i <= $total_paginas; $i++): ?>
+                <a href="?pagina=<?php echo $i; ?>" class="paginacion__enlace <?php echo $i === $pagina ? 'activo' : ''; ?>">
+                    <?php echo $i; ?>
                 </a>
-                <?php endforeach; ?>
+            <?php endfor; ?>
+        </nav>
+        <?php endif; ?>
+    </section>
+    <?php endif; ?>
 
-            </div>
+</div>
 
-            <!-- Listado de crematorios -->
-            <?php if ($total_crematorios > 0): ?>
-            <section style="margin-bottom: var(--espacio-siete);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--espacio-cinco); flex-wrap: wrap; gap: var(--espacio-tres);">
-                    <h2 style="font-size: var(--fs-tres); color: var(--color-dos); margin: 0;">
-                        Todos los Crematorios en <?php echo limpiar($pais_nombre); ?>
-                    </h2>
-                    <p style="color: var(--color-uno); margin: 0; font-size: var(--fs-dos); padding: var(--espacio-dos) var(--espacio-tres); background: var(--color-uno-claro); border-radius: var(--radio-uno);">
-                        <?php echo $total_crematorios; ?> crematorio<?php echo $total_crematorios != 1 ? 's' : ''; ?> encontrado<?php echo $total_crematorios != 1 ? 's' : ''; ?>
-                    </p>
-                </div>
-
-                <!-- Grid de crematorios -->
-                <div class="grid-tarjetas">
-                    <?php foreach ($crematorios['datos'] as $crem): ?>
-                        <?php include ROOT_PATH . '/includes/componentes/tarjeta-crematorio.php'; ?>
-                    <?php endforeach; ?>
-                </div>
-
-                <!-- Paginación -->
-                <?php if ($crematorios['paginas'] > 1): ?>
-                <nav style="display: flex; justify-content: center; gap: var(--espacio-dos); margin-top: var(--espacio-seis);">
-                    <?php for ($i = 1; $i <= $crematorios['paginas']; $i++): ?>
-                    <a href="?pagina=<?php echo $i; ?>" class="boton <?php echo $i == $pagina ? 'uno' : 'dos'; ?> pequeno">
-                        <?php echo $i; ?>
-                    </a>
-                    <?php endfor; ?>
-                </nav>
-                <?php endif; ?>
-            </section>
-            <?php endif; ?>
-
-            <!-- Información SEO -->
-            <section style="background: var(--color-cinco); padding: var(--espacio-seis); border-radius: var(--radio-dos);">
-                <h2 style="font-size: var(--fs-dos); color: var(--color-dos); margin-bottom: var(--espacio-cuatro);">Servicios de cremación de mascotas en <?php echo htmlspecialchars($pais_nombre); ?></h2>
-                <p style="color: var(--color-seis); line-height: 1.7; margin-bottom: var(--espacio-tres);">
-                    En nuestro directorio encontrarás los mejores crematorios de mascotas en toda <?php echo htmlspecialchars($pais_nombre); ?>.
-                    Todos los servicios listados ofrecen un trato digno y respetuoso para tu compañero fiel.
-                </p>
-                <p style="color: var(--color-seis); line-height: 1.7; margin: 0;">
-                    Selecciona tu provincia para ver las ciudades con crematorios disponibles en tu zona.
-                </p>
-            </section>
-
-        </div>
-    </main>
+<!-- ─── Nube de ciudades para internal linking SEO ─── -->
+<?php
+$nubeScope  = 'todas';
+$nubeTitulo = 'Crematorios de mascotas por ciudad';
+$nubeLimite = 30;
+include ROOT_PATH . '/includes/componentes/nube-ciudades.php';
+?>
 
 <?php include 'includes/footer.php'; ?>

@@ -1,0 +1,1289 @@
+/* ═══════════════════════════════════════════════════════════
+   ADMIN PANEL — Design System
+   ═══════════════════════════════════════════════════════════
+   Adaptación del design system de referencia a la paleta cálida.
+   Tipografía: Lato (sans-serif) para todo. Type scale fluida.
+   Spacing base 8px. Cards con thin border + soft shadow.
+   Ver docs/admin-design-system.md para la filosofía completa.
+
+   Se carga DESPUÉS de variables.css y componentes.css.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────
+   1. TOKENS DERIVADOS DE ADMIN (prefijo --admin-* para namespace)
+   ───────────────────────────────────────────────────────── */
+:root {
+    /* ─── Superficies (mapeo a Light 1/2/3 del reference) ─── */
+    --admin-superficie:        #FFFFFF;                 /* Light 1 — cards, hover */
+    --admin-papel:             #FFFBF7;                 /* Light 2 — bg página */
+    --admin-papel-alt:         #FAF4ED;                 /* Light 2.5 — alt rows, hover sutil */
+    --admin-linea:             #ECE2D4;                 /* Light 3 — borders sutiles */
+    --admin-linea-fuerte:      #D9CAB5;                 /* borders con presencia */
+
+    /* ─── Tinta (mapeo a Dark 1/2/3 del reference) — todos AA o mejor sobre crema ─── */
+    --admin-tinta-fuerte:      #2C2417;                 /* headings — ratio 13:1 (AAA) */
+    --admin-tinta:             #4A3B2A;                 /* body text — ratio 9.8:1 (AAA) */
+    --admin-tinta-suave:       #5A4B36;                 /* secondary, captions — ratio ~7.5:1 (AAA) */
+    --admin-tinta-tenue:       #76664C;                 /* helpers, hints — ratio ~5:1 (AA sólido) */
+
+    /* ─── Brand (mapeo Brand 1/2 del reference) ─── */
+    --admin-brand:             var(--color-uno);        /* #B8704F terracota — botones, iconos, details */
+    --admin-brand-hover:       #A45F40;                 /* terracota oscuro — hover/active */
+    --admin-brand-soft:        rgba(184, 112, 79, 0.08);
+    --admin-brand-soft-hover:  rgba(184, 112, 79, 0.14);
+
+    /* ─── Tonos funcionales (todos calculados para AA sobre su bg pastel) ─── */
+    --admin-tone-exito-bg:    #EEF4E4;
+    --admin-tone-exito-fg:    #3F5A2C;  /* ratio ~6.5:1 — antes 4F6B3A (~5:1) */
+    --admin-tone-exito-bord:  #D5E3BD;
+
+    --admin-tone-alerta-bg:   #FCF3DF;
+    --admin-tone-alerta-fg:   #7A560F;  /* ratio ~6.5:1 — antes 8B6314 (~5.5:1) */
+    --admin-tone-alerta-bord: #F0DDA8;
+
+    --admin-tone-error-bg:    #FCE8E3;
+    --admin-tone-error-fg:    #7A2D1D;  /* ratio ~7:1 — antes 8E3724 (~6:1) */
+    --admin-tone-error-bord:  #F0C5B5;
+
+    --admin-tone-info-bg:     #FCEFE6;
+    --admin-tone-info-fg:     #7A3D1D;  /* ratio ~7:1 — antes 8B4823 (~6:1) */
+    --admin-tone-info-bord:   #EDCDB1;
+
+    --admin-tone-neutro-bg:   var(--admin-papel-alt);
+    --admin-tone-neutro-fg:   var(--admin-tinta);          /* antes tinta-suave — más contraste para chips */
+    --admin-tone-neutro-bord: var(--admin-linea);
+
+    /* ─── Sombras (siempre con tinte cálido, nunca negro) ─── */
+    --admin-sombra-suave: 0 1px 2px rgba(74, 59, 42, 0.04),
+                          0 2px 6px rgba(74, 59, 42, 0.05);
+    --admin-sombra-media: 0 2px 4px rgba(74, 59, 42, 0.05),
+                          0 8px 20px rgba(74, 59, 42, 0.08);
+    --admin-sombra-alta:  0 4px 8px rgba(74, 59, 42, 0.08),
+                          0 20px 40px rgba(74, 59, 42, 0.10);
+    --admin-sombra-foco:  0 0 0 3px rgba(184, 112, 79, 0.18);
+
+    /* ─── Radios (sistema 8px) ─── */
+    --admin-r-sm: 6px;
+    --admin-r-md: 10px;
+    --admin-r-lg: 14px;
+    --admin-r-pill: 9999px;
+
+    /* ─── Type scale fluida (clamp para responsive natural) ─── */
+    /* Escala recalibrada para admin UI (2026-05-16): proporciones tipo Stripe/Linear,
+       jerarquía clara con page title 32px y section title 19px */
+    /* H1: 32px → 40px (reservado) */
+    --admin-h1: clamp(2rem, 1.75rem + 0.7vw, 2.5rem);
+    /* H2: 26px → 32px — page title */
+    --admin-h2: clamp(1.625rem, 1.45rem + 0.5vw, 2rem);
+    /* H3: 21px → 24px */
+    --admin-h3: clamp(1.3125rem, 1.2rem + 0.35vw, 1.5rem);
+    /* H4: 17px → 19px — section title */
+    --admin-h4: clamp(1.0625rem, 1rem + 0.18vw, 1.1875rem);
+    /* H5: 15px → 16px */
+    --admin-h5: clamp(0.9375rem, 0.9rem + 0.08vw, 1rem);
+    /* H6: 13px → 14px */
+    --admin-h6: clamp(0.8125rem, 0.78rem + 0.05vw, 0.875rem);
+    /* Body big: 18px */
+    --admin-body-big: 1.125rem;
+    /* Body: 16px */
+    --admin-body: 1rem;
+    /* Body small: 14px */
+    --admin-body-sm: 0.875rem;
+    /* Caption: 12px */
+    --admin-caption: 0.75rem;
+    /* Kicker uppercase: 12px (mínimo absoluto en el sistema) */
+    --admin-kicker: 0.75rem;
+    /* Hero number — cifras grandes del dashboard (reducido 36 → 52px para mantener proporción con H2) */
+    --admin-hero-num: clamp(2.25rem, 1.75rem + 2vw, 3.25rem);
+
+    /* ─── Spacing (base 8px) — re-exporta tokens existentes ─── */
+    /* Ya tenés --espacio-uno...siete (4,8,16,24,40,64,96).
+       Si querés expresarlo en base 8: 4,8,16,24,40,64,96 ya cumple. */
+}
+
+/* ─────────────────────────────────────────────────────────
+   2. RESET LOCAL DEL ADMIN — afecta solo páginas con admin.css cargado
+   ───────────────────────────────────────────────────────── */
+body {
+    background: var(--admin-papel);
+    color: var(--admin-tinta);
+    font-family: var(--fuente-texto); /* Lato */
+    font-size: var(--admin-body-sm);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Numerales tabulares en data crítica */
+.admin-num,
+.admin-table td,
+.admin-table th,
+.admin-stat-card__cifra,
+.admin-mini-stat__num,
+.admin-pill,
+.admin-tab__count {
+    font-variant-numeric: tabular-nums lining-nums;
+}
+
+::selection {
+    background: var(--admin-brand-soft-hover);
+    color: var(--admin-tinta-fuerte);
+}
+
+*:focus-visible {
+    outline: 2px solid var(--admin-brand);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+/* ─────────────────────────────────────────────────────────
+   3. KICKER — etiqueta uppercase como label de sección
+   ───────────────────────────────────────────────────────── */
+.admin-kicker {
+    display: inline-block;
+    font-size: var(--admin-kicker);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--admin-brand);
+}
+
+/* ─────────────────────────────────────────────────────────
+   4. PAGE LAYOUT + HEADER
+   ───────────────────────────────────────────────────────── */
+.admin-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--espacio-cuatro) var(--espacio-cuatro) var(--espacio-cinco);
+}
+
+/* Modificador: páginas de formulario/detalle con ancho controlado */
+.admin-page--narrow {
+    max-width: 760px;
+}
+
+/* ── Layout de 3 columnas (form + sidebar) ───────────────────
+   Estándar de medidas (dentro del marco .admin-page 1200, padding 24
+   → caja interna 1152):  columna lectura 760  +  gutter 32  +  aside 360 = 1152.
+   Patrones admin:
+     · listados/dashboard → .admin-page          (contenido a 1152)
+     · form/detalle simple → .admin-page--narrow  (columna 760 centrada)
+     · form + panel        → .admin-page + .ficha-layout (760 + 360 sticky)
+   Las galerías grandes rompen a 1152 completo con .ficha-bleed.        */
+.ficha-layout {
+    display: grid;
+    grid-template-columns: 760px 360px;
+    /* separación pareja en ambos ejes: 24px (igual que el gap interno del form
+       y que la separación vertical entre galerías) */
+    gap: var(--espacio-cuatro);
+    align-items: start;
+}
+
+.ficha-layout__main {
+    min-width: 0;
+    grid-column: 1;
+    grid-row: 1;
+}
+
+/* Galerías (imágenes/reseñas) — viven en la fila 2 de la columna 1, debajo
+   del form. Quedan dentro del grid para que el aside sticky pueda
+   acompañar también el scroll de esta sección. */
+.ficha-galerias {
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+    max-width: 760px;
+}
+
+.ficha-layout__aside {
+    position: sticky;
+    /* Se pega JUSTO debajo de admin-header + barra .ficha-sticky.
+       --ficha-aside-top lo calcula el JS con las alturas reales;
+       el fallback cubre el caso sin JS. */
+    top: var(--ficha-aside-top, 116px);
+    align-self: start;
+    z-index: 30; /* sobre el contenido que scrollea, debajo de .ficha-sticky (99) */
+    display: flex;
+    flex-direction: column;
+    gap: var(--espacio-cuatro);
+    /* Abarca las dos filas de la columna 2 para que el sticky siga vigente
+       mientras se scrollea por form (fila 1) y por galerías (fila 2). */
+    grid-column: 2;
+    grid-row: 1 / span 2;
+}
+
+/* Galerías de imágenes/reseñas: misma columna y ancho que el form (760),
+   alineadas a su borde izquierdo (no rompen a 1152). */
+.ficha-layout__gallery {
+    grid-column: 1;
+    min-width: 0;
+}
+
+/* Colapso responsive: por debajo del marco completo, una sola columna
+   y el aside deja de ser sticky (pasa a fluir debajo del form). */
+@media (max-width: 1100px) {
+    .ficha-layout {
+        grid-template-columns: 1fr;
+        gap: var(--espacio-cuatro);
+    }
+    /* Reset de grid-row/column para que main → aside → galerías
+       fluyan en orden natural cuando colapsa a 1 columna. */
+    .ficha-layout__main,
+    .ficha-layout__aside,
+    .ficha-galerias {
+        grid-column: auto;
+        grid-row: auto;
+    }
+    .ficha-layout__aside {
+        position: static;
+        top: auto;
+        order: 2;
+    }
+    .ficha-galerias {
+        order: 3;
+        max-width: 100%;
+    }
+}
+
+.admin-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--espacio-cuatro);
+    flex-wrap: wrap;
+    padding-bottom: var(--espacio-tres);
+    border-bottom: 1px solid var(--admin-linea);
+    margin-bottom: var(--espacio-cuatro);
+}
+
+/* Wrapper opcional cuando la página necesita agrupar kicker + título */
+.admin-page-header__intro {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.admin-page-title {
+    font-family: var(--fuente-texto);
+    font-size: var(--admin-h2);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+    color: var(--admin-tinta-fuerte);
+    margin: 0;
+}
+
+.admin-page-subtitle {
+    font-family: var(--fuente-texto);
+    font-size: var(--admin-body); /* 16px — metadata al lado del título, centrado vertical */
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--admin-tinta-suave);
+    margin: 0;
+    text-align: right;
+}
+
+/* Variante grande del subtitle cuando va debajo del título (no inline) */
+.admin-page-subtitle--big {
+    font-size: var(--admin-body-big);
+    text-align: left;
+    max-width: 60ch;
+}
+
+.admin-page-header__actions {
+    display: flex;
+    gap: var(--espacio-dos);
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* ─────────────────────────────────────────────────────────
+   5. SECTION dentro de página
+   ───────────────────────────────────────────────────────── */
+.admin-section {
+    margin-bottom: var(--espacio-cinco);
+}
+.admin-section:last-child {
+    margin-bottom: 0;
+}
+
+.admin-section__heading {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: var(--espacio-tres);
+}
+
+.admin-section__title {
+    font-family: var(--fuente-texto);
+    font-size: var(--admin-h4);
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+    color: var(--admin-tinta-fuerte);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.admin-section__count {
+    font-size: var(--admin-kicker); /* 12px */
+    font-weight: 600;
+    background: var(--admin-papel-alt);
+    color: var(--admin-tinta-suave);
+    padding: 0.22rem 0.7rem;
+    border-radius: var(--admin-r-pill);
+    letter-spacing: 0.02em;
+}
+
+.admin-section__hint {
+    font-size: var(--admin-body-sm);
+    color: var(--admin-tinta-suave);
+    line-height: 1.55;
+    margin: 0;
+    max-width: 65ch;
+}
+
+.admin-section__body {
+    background: var(--admin-superficie);
+    border: 1px solid var(--admin-linea);
+    border-radius: var(--admin-r-md);
+    padding: var(--espacio-cuatro);
+    box-shadow: var(--admin-sombra-suave);
+}
+
+.admin-section__body--flat {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    box-shadow: none;
+}
+
+/* ─────────────────────────────────────────────────────────
+   6. STAT CARDS — Dashboard hero
+   Sin bordes-izquierda. Diferencia por tono y chip de estado.
+   ───────────────────────────────────────────────────────── */
+.admin-grid-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--espacio-tres);
+}
+
+.admin-stat-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    background: var(--admin-superficie);
+    border: 1px solid var(--admin-linea);
+    border-radius: var(--admin-r-md);
+    padding: 1rem 1.15rem;
+    box-shadow: var(--admin-sombra-suave);
+    transition: transform 200ms ease-out,
+                box-shadow 200ms ease-out,
+                border-color 200ms ease-out;
+    text-decoration: none;
+    color: inherit;
+    overflow: hidden;
+}
+.admin-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--admin-sombra-media);
+    border-color: var(--admin-linea-fuerte);
+}
+
+.admin-stat-card__top {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+/* Icono — círculo sutil con icono pequeño, sin tanto padding */
+.admin-stat-card__icon {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--admin-brand-soft);
+    color: var(--admin-brand);
+}
+.admin-stat-card__icon .icono {
+    width: 14px;
+    height: 14px;
+}
+
+.admin-stat-card__kicker {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--admin-body-sm); /* 14px */
+    font-weight: 600;
+    letter-spacing: 0;
+    color: var(--admin-tinta-suave);
+    line-height: 1.3;
+}
+
+/* Cifra + chip estado en column, centrados — la cifra destaca, el badge la "etiqueta" debajo */
+.admin-stat-card__cifra-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.25rem 0;
+}
+
+.admin-stat-card__cifra {
+    font-size: var(--admin-hero-num);
+    font-weight: 700;
+    line-height: 1;
+    color: var(--admin-tinta-fuerte);
+    letter-spacing: -0.025em;
+    text-align: center;
+}
+
+/* Chip de estado — al lado del número, sin absolute, sin border */
+.admin-stat-card__estado {
+    flex-shrink: 0;
+    font-size: 0.75rem; /* 12px */
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.65rem;
+    border-radius: var(--admin-r-pill);
+    line-height: 1.2;
+    white-space: nowrap;
+    align-self: center;
+}
+
+.admin-stat-card__sub {
+    font-size: var(--admin-body-sm); /* 14px — antes era caption 12px, ahora legible */
+    color: var(--admin-tinta-suave);
+    line-height: 1.5;
+}
+
+.admin-stat-card__cta {
+    margin-top: auto;
+    padding-top: 0.65rem;
+    border-top: 1px solid var(--admin-linea);
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    font-size: var(--admin-body-sm);
+    font-weight: 600;
+    color: var(--admin-brand);
+}
+.admin-stat-card__arrow {
+    display: inline-block;
+    transition: transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.admin-stat-card:hover .admin-stat-card__arrow {
+    transform: translateX(4px);
+}
+
+/* Por defecto el chip estado es neutro — sin border */
+.admin-stat-card__estado {
+    background: var(--admin-tone-neutro-bg);
+    color: var(--admin-tone-neutro-fg);
+}
+
+.admin-stat-card--urgente .admin-stat-card__cifra { color: var(--admin-brand); }
+.admin-stat-card--urgente .admin-stat-card__estado {
+    background: var(--admin-tone-info-bg);
+    color: var(--admin-tone-info-fg);
+}
+
+.admin-stat-card--alerta .admin-stat-card__cifra { color: var(--admin-tone-alerta-fg); }
+.admin-stat-card--alerta .admin-stat-card__estado {
+    background: var(--admin-tone-alerta-bg);
+    color: var(--admin-tone-alerta-fg);
+}
+
+.admin-stat-card--ok .admin-stat-card__cifra { color: var(--admin-tone-exito-fg); }
+.admin-stat-card--ok .admin-stat-card__estado {
+    background: var(--admin-tone-exito-bg);
+    color: var(--admin-tone-exito-fg);
+}
+
+/* ─────────────────────────────────────────────────────────
+   7. MINI STATS — chips planos compactos
+   ───────────────────────────────────────────────────────── */
+.admin-grid-mini {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem;
+}
+
+.admin-mini-stat {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    background: var(--admin-superficie);
+    border: 1px solid var(--admin-linea);
+    border-radius: var(--admin-r-sm);
+    padding: 0.95rem 1.1rem;
+    transition: background 180ms ease-out, border-color 180ms ease-out;
+}
+.admin-mini-stat:hover {
+    border-color: var(--admin-brand);
+    box-shadow: var(--admin-sombra-suave);
+}
+
+.admin-mini-stat__num {
+    font-size: var(--admin-h5);
+    font-weight: 700;
+    line-height: 1;
+    color: var(--admin-tinta-fuerte);
+    letter-spacing: -0.01em;
+    min-width: 2.5rem;
+}
+
+.admin-mini-stat__label {
+    font-size: var(--admin-body-sm); /* 14px — antes 12px */
+    color: var(--admin-tinta-suave);
+    line-height: 1.4;
+}
+
+.admin-mini-stat--alerta .admin-mini-stat__num { color: var(--admin-tone-alerta-fg); }
+.admin-mini-stat--ok     .admin-mini-stat__num { color: var(--admin-tone-exito-fg); }
+
+/* ─────────────────────────────────────────────────────────
+   8. NAV CARDS — accesos rápidos
+   ───────────────────────────────────────────────────────── */
+.admin-grid-nav {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 0.75rem;
+}
+
+.admin-nav-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.1rem 1.25rem;
+    background: var(--admin-superficie);
+    border: 1px solid var(--admin-linea);
+    border-radius: var(--admin-r-md);
+    text-decoration: none;
+    color: inherit;
+    box-shadow: var(--admin-sombra-suave);
+    transition: transform 180ms ease-out,
+                box-shadow 180ms ease-out,
+                border-color 180ms ease-out;
+}
+.admin-nav-card:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--admin-sombra-media);
+    border-color: var(--admin-linea-fuerte);
+}
+
+.admin-nav-card__icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    background: var(--admin-brand-soft);
+    border-radius: var(--admin-r-sm);
+    color: var(--admin-brand);
+    transition: background 180ms ease-out;
+}
+.admin-nav-card:hover .admin-nav-card__icon {
+    background: var(--admin-brand-soft-hover);
+}
+.admin-nav-card__icon .icono {
+    width: 20px;
+    height: 20px;
+}
+
+.admin-nav-card__body {
+    min-width: 0;
+    flex: 1;
+}
+.admin-nav-card__title {
+    font-size: var(--admin-h6);
+    font-weight: 700;
+    color: var(--admin-tinta-fuerte);
+    line-height: 1.3;
+    letter-spacing: -0.005em;
+}
+.admin-nav-card__sub {
+    font-size: var(--admin-body-sm);
+    color: var(--admin-tinta-suave);
+    margin-top: 0.2rem;
+    line-height: 1.5;
+}
+
+/* ─────────────────────────────────────────────────────────
+   9. TABLAS
+   ───────────────────────────────────────────────────────── */
+.admin-table-wrap {
+    background: var(--admin-superficie);
+    border: 1px solid var(--admin-linea);
+    border-radius: var(--admin-r-md);
+    overflow: hidden;
+    box-shadow: var(--admin-sombra-suave);
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--admin-body-sm);
+}
+
+.admin-table thead th {
+    text-align: left;
+    padding: 0.85rem var(--espacio-cuatro);
+    font-size: var(--admin-kicker);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--admin-tinta-suave);
+    background: var(--admin-papel-alt);
+    border-bottom: 1px solid var(--admin-linea-fuerte);
+}
+
+.admin-table tbody tr {
+    border-bottom: 1px solid var(--admin-linea);
+    transition: background 120ms ease-out;
+}
+.admin-table tbody tr:last-child {
+    border-bottom: 0;
+}
+.admin-table tbody tr:hover {
+    background: var(--admin-papel-alt);
+}
+
+.admin-table tbody td {
+    padding: 1rem var(--espacio-cuatro);
+    vertical-align: middle;
+    line-height: 1.45;
+}
+
+.admin-table__principal {
+    font-weight: 600;
+    color: var(--admin-tinta-fuerte);
+    font-size: var(--admin-body-sm);
+}
+.admin-table__secundario {
+    font-size: 0.8125rem; /* 13px — un toque más legible que caption */
+    color: var(--admin-tinta-suave); /* contraste 6:1 — antes era tenue (4:1) */
+    margin-top: 0.2rem;
+}
+
+.admin-table__num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.admin-table__acciones {
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* ─────────────────────────────────────────────────────────
+   10. BANNERS DE FEEDBACK
+   ───────────────────────────────────────────────────────── */
+.admin-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    padding: 0.9rem 1.1rem;
+    border-radius: var(--admin-r-sm);
+    border: 1px solid;
+    font-size: var(--admin-body-sm);
+    line-height: 1.5;
+    margin-bottom: var(--espacio-cuatro);
+}
+
+.admin-banner .icono {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    margin-top: 0.15rem;
+}
+
+.admin-banner__contenido {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.admin-banner__titulo {
+    font-weight: 700;
+}
+
+.admin-banner__cerrar {
+    flex-shrink: 0;
+    background: transparent;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.55;
+    font-size: 1.15rem;
+    line-height: 1;
+    padding: 0.25rem;
+    transition: opacity 150ms ease-out;
+}
+.admin-banner__cerrar:hover { opacity: 1; }
+
+.admin-banner--ok      { background: var(--admin-tone-exito-bg);  border-color: var(--admin-tone-exito-bord);  color: var(--admin-tone-exito-fg); }
+.admin-banner--info    { background: var(--admin-tone-info-bg);   border-color: var(--admin-tone-info-bord);   color: var(--admin-tone-info-fg); }
+.admin-banner--warning { background: var(--admin-tone-alerta-bg); border-color: var(--admin-tone-alerta-bord); color: var(--admin-tone-alerta-fg); }
+.admin-banner--error   { background: var(--admin-tone-error-bg);  border-color: var(--admin-tone-error-bord);  color: var(--admin-tone-error-fg); }
+
+/* ─── Banner especial de SPAM — full-width, dos acciones a la derecha ─── */
+.admin-spam-alert {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: var(--admin-tone-error-bg);
+    border: 1px solid var(--admin-tone-error-bord);
+    border-radius: var(--admin-r-md);
+    padding: 0.85rem 1.25rem;
+    margin-bottom: var(--espacio-cuatro);
+    color: var(--admin-tone-error-fg);
+    flex-wrap: wrap;
+}
+.admin-spam-alert__icon {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: rgba(142, 55, 36, 0.12);
+    color: var(--admin-tone-error-fg);
+}
+.admin-spam-alert__icon .icono {
+    width: 18px;
+    height: 18px;
+}
+.admin-spam-alert__contenido {
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+.admin-spam-alert__titulo {
+    font-size: var(--admin-body); /* 16px */
+    font-weight: 700;
+    line-height: 1.3;
+}
+.admin-spam-alert__texto {
+    font-size: var(--admin-body-sm); /* 14px */
+    color: var(--admin-tone-error-fg);
+    opacity: 0.85;
+    line-height: 1.4;
+}
+.admin-spam-alert__acciones {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* ─────────────────────────────────────────────────────────
+   11. EMPTY STATES
+   ───────────────────────────────────────────────────────── */
+.admin-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: var(--espacio-seis) var(--espacio-cuatro);
+    gap: 0.6rem;
+}
+
+.admin-empty__icon {
+    width: 56px;
+    height: 56px;
+    display: grid;
+    place-items: center;
+    background: var(--admin-papel-alt);
+    border-radius: 50%;
+    color: var(--admin-tinta-tenue);
+    margin-bottom: 0.5rem;
+}
+.admin-empty__icon .icono {
+    width: 24px;
+    height: 24px;
+}
+
+.admin-empty__titulo {
+    font-size: var(--admin-h6);
+    font-weight: 700;
+    color: var(--admin-tinta-fuerte);
+    margin: 0;
+}
+
+.admin-empty__texto {
+    font-size: var(--admin-body-sm);
+    color: var(--admin-tinta-suave);
+    max-width: 40ch;
+    line-height: 1.55;
+    margin: 0;
+}
+
+/* ─────────────────────────────────────────────────────────
+   12. PILLS / BADGES
+   ───────────────────────────────────────────────────────── */
+.admin-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.22rem 0.7rem;
+    font-size: var(--admin-kicker); /* 12px */
+    font-weight: 600;
+    line-height: 1.4;
+    border-radius: var(--admin-r-pill);
+    background: var(--admin-tone-neutro-bg);
+    color: var(--admin-tone-neutro-fg);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.admin-pill--exito  { background: var(--admin-tone-exito-bg);  color: var(--admin-tone-exito-fg); }
+.admin-pill--info   { background: var(--admin-tone-info-bg);   color: var(--admin-tone-info-fg); }
+.admin-pill--alerta { background: var(--admin-tone-alerta-bg); color: var(--admin-tone-alerta-fg); }
+.admin-pill--error  { background: var(--admin-tone-error-bg);  color: var(--admin-tone-error-fg); }
+.admin-pill--marca  { background: var(--admin-brand-soft);     color: var(--admin-brand); }      /* logo / activo de marca — on-palette (antes púrpura suelto) */
+
+.admin-pill--stamp {
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.22rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.75rem; /* 12px — mínimo del sistema */
+}
+
+/* ─────────────────────────────────────────────────────────
+   13. BOTONES — refinements sobre las clases existentes
+   ───────────────────────────────────────────────────────── */
+.boton {
+    transition: background 150ms ease-out,
+                color 150ms ease-out,
+                transform 100ms ease-out,
+                filter 150ms ease-out,
+                border-color 150ms ease-out,
+                box-shadow 150ms ease-out;
+    border-radius: var(--admin-r-sm);
+    letter-spacing: 0;
+    line-height: 1.3;
+    font-family: var(--fuente-texto);
+    font-weight: 600;
+    padding: 0.55rem 1.1rem;
+    margin: 0; /* override del margin: var(--espacio-dos) 0 del sistema público */
+}
+.boton:active:not(:disabled) {
+    transform: scale(0.98);
+}
+.boton:focus-visible {
+    box-shadow: var(--admin-sombra-foco);
+    outline: none;
+}
+.boton.uno:hover    {
+    filter: brightness(1.06);
+    box-shadow: 0 2px 8px rgba(184, 112, 79, 0.32);
+    transform: translateY(-1px);
+}
+.boton.tres:hover   {
+    filter: brightness(1.06);
+    box-shadow: 0 2px 8px rgba(143, 168, 118, 0.32);
+    transform: translateY(-1px);
+}
+/* boton.dos en admin: el reposo es bg arena suave, el hover va a terracota sólido (alto contraste) */
+.boton.dos:hover    {
+    background: var(--admin-brand);
+    color: var(--color-ocho);
+    box-shadow: 0 2px 8px rgba(184, 112, 79, 0.32);
+    transform: translateY(-1px);
+}
+.boton.pequeno      { padding: 0.4rem 0.85rem; font-size: var(--admin-body-sm); }
+.boton.grande       { padding: 0.75rem 1.5rem; font-size: var(--admin-body); }
+
+/* Icon button — pieza nueva */
+.admin-icon-btn {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--admin-r-sm);
+    border: 0;
+    background: transparent;
+    color: var(--admin-tinta-suave);
+    cursor: pointer;
+    transition: background 150ms ease-out, color 150ms ease-out, transform 100ms ease-out;
+}
+.admin-icon-btn .icono { width: 16px; height: 16px; }
+.admin-icon-btn:hover  { background: var(--admin-brand-soft); color: var(--admin-brand-hover); }
+.admin-icon-btn:active:not(:disabled) { transform: scale(0.94); }
+
+.admin-icon-btn--ok:hover     { background: var(--admin-tone-exito-bg);  color: var(--admin-tone-exito-fg); }
+.admin-icon-btn--alerta:hover { background: var(--admin-tone-alerta-bg); color: var(--admin-tone-alerta-fg); }
+.admin-icon-btn--error:hover  { background: var(--admin-tone-error-bg);  color: var(--admin-tone-error-fg); }
+.admin-icon-btn--info:hover   { background: var(--admin-tone-info-bg);   color: var(--admin-tone-info-fg); }
+
+.admin-acciones-fila {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+}
+
+/* ─────────────────────────────────────────────────────────
+   14. FORM FIELDS — migrados a /assets/css/forms.css (capa
+   compartida admin + público, naming .field__* agnóstico)
+   ───────────────────────────────────────────────────────── */
+
+/* ─────────────────────────────────────────────────────────
+   14.b FILTROS — patrón reusable para listings admin
+
+   Razón: cuando se mezclan fields (label + input + margin) con
+   botones (solo botón) en el mismo grid con align-items:end, los
+   altos no matchean y los botones quedan desfasados. La solución
+   correcta es separar las dos cosas en filas distintas: campos
+   arriba, acciones abajo.
+
+   Uso:
+     <form class="admin-filtros">
+         <div class="admin-filtros__campos">
+             <div class="field">...</div>
+             <div class="field">...</div>
+         </div>
+         <div class="admin-filtros__acciones">
+             <button>Filtrar</button>
+             <a>Limpiar</a>
+         </div>
+     </form>
+   ───────────────────────────────────────────────────────── */
+.admin-filtros {
+    margin-bottom: var(--espacio-cuatro);
+}
+
+.admin-filtros__campos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--espacio-dos) var(--espacio-tres);
+}
+
+/* En la fila de campos, los .field no necesitan margin-bottom porque
+   el spacing entre filas lo maneja la siguiente sección */
+.admin-filtros__campos .field {
+    margin-bottom: 0;
+}
+
+.admin-filtros__acciones {
+    display: flex;
+    gap: var(--espacio-dos);
+    margin-top: var(--espacio-tres);
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* ─── Tag option — checkbox visual como "card" seleccionable ─── */
+.admin-tag-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.7rem 0.9rem;
+    background: var(--admin-superficie);
+    border: 1px solid var(--admin-linea);
+    border-radius: var(--admin-r-sm);
+    cursor: pointer;
+    transition: background 150ms ease-out, border-color 150ms ease-out, box-shadow 150ms ease-out;
+}
+.admin-tag-option:hover {
+    border-color: var(--admin-brand);
+    background: var(--admin-brand-soft);
+}
+.admin-tag-option input[type="checkbox"] {
+    margin-top: 0.15rem;
+    accent-color: var(--admin-brand);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.admin-tag-option--checked {
+    background: var(--admin-brand-soft);
+    border-color: var(--admin-brand);
+    box-shadow: 0 0 0 1px var(--admin-brand) inset;
+}
+.admin-tag-option__body {
+    min-width: 0;
+    flex: 1;
+}
+.admin-tag-option__name {
+    font-family: monospace;
+    font-size: var(--admin-body-sm); /* 14px */
+    font-weight: 700;
+    color: var(--admin-tinta-fuerte);
+    letter-spacing: 0;
+}
+.admin-tag-option__desc {
+    font-size: var(--admin-body-sm); /* 14px */
+    color: var(--admin-tinta-suave);
+    line-height: 1.5;
+    margin-top: 0.25rem;
+}
+
+/* ─────────────────────────────────────────────────────────
+   15. SEPARADORES Y DECORACIONES
+   ───────────────────────────────────────────────────────── */
+.admin-rule {
+    border: 0;
+    border-top: 1px solid var(--admin-linea);
+    margin: var(--espacio-cuatro) 0;
+}
+
+.admin-dash {
+    color: var(--admin-tinta-tenue);
+    padding: 0 0.35rem;
+    user-select: none;
+}
+.admin-dash::before {
+    content: "—";
+}
+
+/* ─────────────────────────────────────────────────────────
+   16. UTILIDADES
+   ───────────────────────────────────────────────────────── */
+.admin-stack       { display: flex; flex-direction: column; }
+.admin-stack--xs   { gap: 0.25rem; }
+.admin-stack--sm   { gap: 0.5rem; }
+.admin-stack--md   { gap: 1rem; }
+.admin-stack--lg   { gap: 1.5rem; }
+.admin-stack--xl   { gap: 2.5rem; }
+
+.admin-row         { display: flex; align-items: center; flex-wrap: wrap; }
+.admin-row--gap-xs { gap: 0.25rem; }
+.admin-row--gap-sm { gap: 0.5rem; }
+.admin-row--gap-md { gap: 1rem; }
+.admin-row--gap-lg { gap: 1.5rem; }
+.admin-row--end    { justify-content: flex-end; }
+.admin-row--between{ justify-content: space-between; }
+.admin-row--center { justify-content: center; }
+
+.admin-text-strong { color: var(--admin-tinta-fuerte); }
+.admin-text-muted  { color: var(--admin-tinta-suave); }
+.admin-text-tenue  { color: var(--admin-tinta-tenue); }
+.admin-text-num    { font-variant-numeric: tabular-nums; }
+
+/* ─────────────────────────────────────────────────────────
+   17. LINKS — underline animado
+   ───────────────────────────────────────────────────────── */
+.admin-link {
+    color: var(--admin-brand);
+    text-decoration: none;
+    background-image: linear-gradient(currentColor, currentColor);
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    background-size: 0% 1px;
+    transition: background-size 240ms cubic-bezier(0.4, 0, 0.2, 1), color 150ms ease-out;
+    padding-bottom: 1px;
+    font-weight: 600;
+}
+.admin-link:hover {
+    background-size: 100% 1px;
+    color: var(--admin-brand-hover);
+}
+
+/* ─────────────────────────────────────────────────────────
+   18. TABS — sub-filtros y navegación interna
+   ───────────────────────────────────────────────────────── */
+.admin-tabs {
+    display: flex;
+    gap: 0.25rem;
+    border-bottom: 1px solid var(--admin-linea);
+    margin-bottom: var(--espacio-cuatro);
+    flex-wrap: wrap;
+}
+
+.admin-tab {
+    position: relative;
+    padding: 0.6rem 1rem;
+    font-size: var(--admin-body-sm);
+    font-weight: 600;
+    color: var(--admin-tinta-suave);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    text-decoration: none;
+    transition: color 150ms ease-out;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: -1px;
+}
+.admin-tab::after {
+    content: "";
+    position: absolute;
+    left: 0.5rem;
+    right: 0.5rem;
+    bottom: -1px;
+    height: 2px;
+    background: var(--admin-brand);
+    transform: scaleX(0);
+    transition: transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.admin-tab:hover { color: var(--admin-tinta-fuerte); }
+.admin-tab--activo { color: var(--admin-tinta-fuerte); }
+.admin-tab--activo::after { transform: scaleX(1); }
+.admin-tab__count {
+    font-size: var(--admin-kicker);
+    font-weight: 700;
+    background: var(--admin-papel-alt);
+    color: var(--admin-tinta-suave);
+    padding: 0.05rem 0.45rem;
+    border-radius: var(--admin-r-pill);
+    font-variant-numeric: tabular-nums;
+}
+.admin-tab--activo .admin-tab__count {
+    background: var(--admin-brand);
+    color: #fff;
+}
+
+/* ─────────────────────────────────────────────────────────
+   19. METADATA INLINE (autor · fecha · ciudad)
+   ───────────────────────────────────────────────────────── */
+.admin-meta {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.4rem;
+    font-size: var(--admin-body-sm);
+    color: var(--admin-tinta-suave);
+    line-height: 1.5;
+}
+.admin-meta > * + *::before {
+    content: "—";
+    color: var(--admin-linea-fuerte);
+    margin-right: 0.4rem;
+}
+
+/* ─────────────────────────────────────────────────────────
+   20. SCROLLBAR cálida (webkit only)
+   ───────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+::-webkit-scrollbar-track {
+    background: var(--admin-papel);
+}
+::-webkit-scrollbar-thumb {
+    background: var(--admin-linea-fuerte);
+    border-radius: 6px;
+    border: 2px solid var(--admin-papel);
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--admin-brand);
+}
+
+/* ─────────────────────────────────────────────────────────
+   21. ANIMACIÓN de aparición
+   ───────────────────────────────────────────────────────── */
+@keyframes admin-fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.admin-banner,
+.admin-section,
+.admin-stat-card,
+.admin-nav-card {
+    animation: admin-fade-in 360ms cubic-bezier(0.4, 0, 0.2, 1) backwards;
+}
+
+.admin-grid-stats > :nth-child(1),
+.admin-grid-nav   > :nth-child(1) { animation-delay: 0ms; }
+.admin-grid-stats > :nth-child(2),
+.admin-grid-nav   > :nth-child(2) { animation-delay: 70ms; }
+.admin-grid-stats > :nth-child(3),
+.admin-grid-nav   > :nth-child(3) { animation-delay: 140ms; }
+.admin-grid-stats > :nth-child(4) { animation-delay: 210ms; }
+.admin-grid-stats > :nth-child(5) { animation-delay: 280ms; }
+.admin-grid-stats > :nth-child(6) { animation-delay: 350ms; }
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+/* ═══ Card de imagen admin — compartida (imagenes-cola + editar-ficha) ═══
+   Markup en includes/componentes/img-card-admin.php. Antes vivía como
+   .cola-card* local en imagenes-cola.php; movida acá para que el partial
+   se vea idéntico en ambas páginas. */
+.img-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: var(--espacio-tres);
+    align-items: start;
+}
+.img-card {
+    position: relative;
+    background: var(--admin-papel);
+    border: 1px solid var(--admin-linea);
+    border-radius: var(--admin-r-md);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--admin-sombra-suave);
+    transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.img-card:hover { border-color: var(--admin-brand); box-shadow: var(--admin-sombra-media); transform: translateY(-1px); }
+.img-card__thumb {
+    width: 100%;
+    aspect-ratio: 4/3;
+    object-fit: cover;
+    display: block;
+    background: var(--admin-papel-alt);
+    cursor: zoom-in;
+}
+.img-card__thumb--ph {
+    aspect-ratio: 4/3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--admin-tone-alerta-bg);
+    color: var(--admin-tone-alerta-fg);
+    gap: .3rem;
+}
+.img-card__body { padding: var(--espacio-tres); display: flex; flex-direction: column; gap: var(--espacio-dos); flex: 1; }
+.img-card__nombre {
+    font-size: var(--admin-body);
+    font-weight: 600;
+    color: var(--admin-tinta-fuerte);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.img-card__meta {
+    font-size: var(--admin-body-sm);
+    color: var(--admin-tinta-suave);
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    flex-wrap: wrap;
+}
+.img-card__alt {
+    font-size: var(--admin-body-sm);
+    color: var(--admin-tinta);
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.img-card__divider { border: none; border-top: 1px solid var(--admin-linea); margin: .25rem 0; }

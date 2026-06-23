@@ -1,0 +1,231 @@
+<?php
+/**
+ * ═══════════════════════════════════════════════════════════
+ * PROCESAR LEAD B2C (widget lead-capture interno)
+ * ═══════════════════════════════════════════════════════════
+ *
+ * Recibe el form del modal lead-capture cuando un usuario está por hacer
+ * clic en tel:/wa.me/maps/web de un negocio (o genérico fuera de ficha).
+ *
+ * Flujo:
+ * 1. Valida datos.
+ * 2. Inserta en `leads_b2c`.
+ * 3. Inserta evento en `outbound_clicks` con modal_action='sent' y lead_b2c_id.
+ * 4. Envía webhook a WEBHOOK_URLS (Make) con MISMA estructura del widget
+ *    Lycapolis previo + campos nuevos contextuales (backward compat).
+ * 5. Devuelve { ok:true, destino: 'URL FINAL' } así el JS redirige al usuario.
+ *
+ * Notificación al negocio: solo si el crematorio tiene tier premium
+ * (Verificado/Destacado/Promocionado). [Implementación pendiente fase posterior.]
+ *
+ * Autor: Facundo M. Campos | Lycapolis LLC
+ * ═══════════════════════════════════════════════════════════
+ */
+
+require_once 'includes/config.php';
+require_once 'includes/conexion_db.php';
+require_once 'includes/funciones.php';
+require_once 'includes/notificaciones.php';
+
+header('Content-Type: application/json; charset=utf-8');
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['ok' => false, 'mensaje' => 'Método no permitido']);
+    exit;
+}
+
+// ─── 1. Anti-spam: honeypot + time-trap ─────────────────────────────
+if (!empty($_POST['website_url'])) {
+    // Honeypot completado → bot. Respondemos OK falso (no le decimos que fue rechazado).
+    echo json_encode(['ok' => true, 'destino' => $_POST['accion_destino'] ?? '/']);
+    exit;
+}
+$renderTs = (int)($_POST['form_render_ts'] ?? 0);
+if ($renderTs && (time() - $renderTs) < 2) {
+    echo json_encode(['ok' => false, 'mensaje' => 'Envío demasiado rápido']);
+    exit;
+}
+
+// ─── 2. Validación de campos ────────────────────────────────────────
+$nombre  = trim($_POST['nombre'] ?? '');
+$email   = trim($_POST['email'] ?? '');
+$ciudad  = trim($_POST['ciudad'] ?? '');
+$servicio = trim($_POST['servicio'] ?? '');
+$tamano  = trim($_POST['mascota_tamano'] ?? '');
+$mensaje = trim($_POST['mensaje'] ?? '');
+$countryCode    = trim($_POST['country_code'] ?? '');
+$phoneCode      = trim($_POST['phone_code'] ?? '');
+$whatsappNumber = trim($_POST['whatsapp_number'] ?? '');
+
+$channelType    = trim($_POST['channel_type'] ?? '');        // tel | wa | maps | web
+$accionDestino  = trim($_POST['accion_destino'] ?? '');      // URL final
+$crematorioId   = (int)($_POST['crematorio_id'] ?? 0) ?: null;
+$crematorioName = trim($_POST['crematorio_nombre'] ?? '');
+$phoneAgent     = trim($_POST['phone_agent'] ?? '');
+$paginaOrigen   = trim($_POST['pagina_origen'] ?? '');
+
+if ($nombre === '' || $email === '' || $whatsappNumber === '' || $ciudad === '') {
+    echo json_encode(['ok' => false, 'mensaje' => 'Completa nombre, email, WhatsApp y ciudad.']);
+    exit;
+}
+if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    echo json_encode(['ok' => false, 'mensaje' => 'Email no válido.']);
+    exit;
+}
+if (!in_array($channelType, ['tel', 'wa', 'maps', 'web', ''], true)) {
+    $channelType = ''; // ignorar valor inesperado
+}
+
+$ip        = $_SERVER['REMOTE_ADDR'] ?? null;
+$userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
+$referrer  = $_SERVER['HTTP_REFERER'] ?? null;
+
+// UTMs (si vienen del query string original guardado por JS en el form)
+$utmSource   = trim($_POST['utm_source'] ?? '');
+$utmMedium   = trim($_POST['utm_medium'] ?? '');
+$utmCampaign = trim($_POST['utm_campaign'] ?? '');
+
+// ─── 3. Insertar lead en leads_b2c ──────────────────────────────────
+$pdo = obtenerConexion();
+if (!$pdo) {
+    echo json_encode(['ok' => false, 'mensaje' => 'Error de conexión BD.']);
+    exit;
+}
+
+$sql = "INSERT INTO leads_b2c
+    (channel_type, accion_destino, crematorio_id, crematorio_nombre, phone_agent, pagina_origen,
+     servicio, mascota_tamano, nombre, email, country_code, phone_code, whatsapp_number, ciudad_lead, mensaje,
+     ip, user_agent, utm_source, utm_medium, utm_campaign, referrer)
+    VALUES
+    (:channel_type, :accion_destino, :crematorio_id, :crematorio_nombre, :phone_agent, :pagina_origen,
+     :servicio, :mascota_tamano, :nombre, :email, :country_code, :phone_code, :whatsapp_number, :ciudad_lead, :mensaje,
+     :ip, :user_agent, :utm_source, :utm_medium, :utm_campaign, :referrer)";
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute([
+    ':channel_type'      => $channelType ?: null,
+    ':accion_destino'    => $accionDestino ?: null,
+    ':crematorio_id'     => $crematorioId,
+    ':crematorio_nombre' => $crematorioName ?: null,
+    ':phone_agent'       => $phoneAgent ?: null,
+    ':pagina_origen'     => $paginaOrigen ?: null,
+    ':servicio'          => $servicio ?: null,
+    ':mascota_tamano'    => $tamano ?: null,
+    ':nombre'            => $nombre,
+    ':email'             => $email,
+    ':country_code'      => $countryCode ?: null,
+    ':phone_code'        => $phoneCode ?: null,
+    ':whatsapp_number'   => $whatsappNumber,
+    ':ciudad_lead'       => $ciudad ?: null,
+    ':mensaje'           => $mensaje ?: null,
+    ':ip'                => $ip,
+    ':user_agent'        => $userAgent,
+    ':utm_source'        => $utmSource ?: null,
+    ':utm_medium'        => $utmMedium ?: null,
+    ':utm_campaign'      => $utmCampaign ?: null,
+    ':referrer'          => $referrer,
+]);
+$leadId = (int)$pdo->lastInsertId();
+
+// ─── 4. Insertar evento en outbound_clicks (modal_action=sent) ──────
+$pdo->prepare("INSERT INTO outbound_clicks
+    (crematorio_id, accion, destino_url, pagina_origen, modal_action, ip, user_agent, referrer, lead_b2c_id)
+    VALUES (?, ?, ?, ?, 'sent', ?, ?, ?, ?)")
+    ->execute([$crematorioId, $channelType ?: 'unknown', $accionDestino, $paginaOrigen, $ip, $userAgent, $referrer, $leadId]);
+
+// ─── 5. Mapear channel_type al `channelType` legacy del widget Lycapolis ─
+// tel→phone, wa→whatsapp, maps→maps, web→web
+$channelTypeLegacy = [
+    'tel'  => 'phone',
+    'wa'   => 'whatsapp',
+    'maps' => 'maps',
+    'web'  => 'web',
+][$channelType] ?? $channelType;
+
+// ─── 6. Construir payload del webhook (compat con widget Lycapolis) ──
+$utmParams = http_build_query(array_filter([
+    'utm_source'   => $utmSource,
+    'utm_medium'   => $utmMedium,
+    'utm_campaign' => $utmCampaign,
+]));
+
+$payload = [
+    'idWidget'              => 'cmas-lead-capture-interno',
+    'idAgent'               => $crematorioId ? 'crematorio-' . $crematorioId : 'generico',
+    'channelType'           => $channelTypeLegacy,
+    'phoneAgent'            => $phoneAgent,
+    'idStat'                => (string)$leadId,
+    'referrer'              => $referrer ?? '',
+    'referrerArrival'       => $paginaOrigen,
+    'sentDateUTC'           => gmdate('c'),
+    'utmParams'             => $utmParams,
+    'utmParams2'            => '',
+    'priceCurrency'         => 'EUR',
+    'idService'             => $crematorioId ? (string)$crematorioId : 'NA',
+    'Servicio'              => $servicio,
+    'Tamaño de la Mascota'  => $tamano,
+    'Nombre'                => $nombre,
+    'Email'                 => $email,
+    'countryCode'           => $countryCode,
+    'phoneCode'             => $phoneCode,
+    'WhatsApp Number'       => $whatsappNumber,
+    'Ciudad'                => $ciudad,
+    'Mensaje'               => $mensaje,
+    'ip'                    => $ip,
+    // ── Campos nuevos contextuales (backward compat: extras al final) ──
+    'crematorio_id'         => $crematorioId,
+    'crematorio_nombre'     => $crematorioName,
+    'pagina_origen'         => $paginaOrigen,
+    'destino_url'           => $accionDestino,
+    'lead_source'           => 'cmas_interno_' . ($channelType ?: 'desconocido'),
+];
+
+// ─── 7. Enviar a webhooks configurados ─────────────────────────────
+$webhookOk    = false;
+$webhookError = null;
+$webhookUrls  = json_decode(WEBHOOK_URLS, true) ?: [];
+
+foreach ($webhookUrls as $url) {
+    if (!$url) continue;
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+        CURLOPT_POSTFIELDS     => json_encode([$payload], JSON_UNESCAPED_UNICODE),
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_CONNECTTIMEOUT => 5,
+    ]);
+    $resp     = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err      = curl_error($ch);
+    curl_close($ch);
+
+    if ($httpCode >= 200 && $httpCode < 300) {
+        $webhookOk = true;
+    } else {
+        $webhookError = "HTTP $httpCode" . ($err ? " — $err" : '');
+    }
+}
+
+// ─── 8. Actualizar lead con resultado del webhook ───────────────────
+$pdo->prepare("UPDATE leads_b2c SET webhook_enviado = ?, webhook_error = ? WHERE id = ?")
+    ->execute([$webhookOk ? 1 : 0, $webhookError, $leadId]);
+
+// ─── 9. Notificación al negocio (solo si tier elegible + opt-in) ────
+// No bloqueante: cualquier error se loguea pero no afecta la respuesta.
+if ($crematorioId) {
+    try {
+        notificarNegocioLead($pdo, $leadId);
+    } catch (\Throwable $e) {
+        error_log("[procesar-lead-b2c] notif negocio falló: " . $e->getMessage());
+    }
+}
+
+// ─── 10. Devolver destino al frontend ───────────────────────────────
+echo json_encode([
+    'ok'      => true,
+    'destino' => $accionDestino ?: '/',
+    'lead_id' => $leadId,
+], JSON_UNESCAPED_UNICODE);

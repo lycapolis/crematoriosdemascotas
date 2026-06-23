@@ -3,14 +3,6 @@
  * ═══════════════════════════════════════════════════════════
  * HOME - CREMATORIOS DE MASCOTAS
  * ═══════════════════════════════════════════════════════════
- *
- * Autor: Facundo M. Campos
- * Empresa: Lycapolis LLC
- * Web: https://lycapolis.com
- *
- * Versión: 04
- * Fecha: Enero 2026
- * ═══════════════════════════════════════════════════════════
  */
 
 $titulo_pagina = 'Crematorios de Mascotas - Directorio España';
@@ -18,369 +10,236 @@ $pagina_actual = 'inicio';
 include 'includes/header.php';
 
 // ═══════════════════════════════════════════════════════════
-// OBTENER DATOS DINÁMICOS
+// DATOS DINÁMICOS
 // ═══════════════════════════════════════════════════════════
 $comunidades = obtenerComunidades();
-$provincias = obtenerProvincias();
-$destacados = obtenerDestacados(DESTACADOS_HOME);
+$provincias  = obtenerProvincias();
+$destacados  = obtenerDestacados(DESTACADOS_HOME);
+$ciudadesDropdown = obtenerCiudadesGlobal();
 
-// Obtener ciudades únicas con crematorios (limitado a 20)
-$pdo = obtenerConexion();
-$ciudades = [];
-if ($pdo) {
-    $sqlCiudades = "SELECT DISTINCT
-                        ciudad AS nombre,
-                        LOWER(REPLACE(REPLACE(ciudad, ' ', '-'), ',', '')) AS slug,
-                        p.slug AS provincia_slug,
-                        COUNT(*) AS total
-                    FROM crematorios c
-                    LEFT JOIN provincias p ON c.provincia_id = p.id
-                    WHERE ciudad IS NOT NULL AND ciudad != ''
-                    GROUP BY ciudad, p.slug
-                    ORDER BY total DESC, ciudad ASC
-                    LIMIT 20";
-    $ciudades = $pdo->query($sqlCiudades)->fetchAll();
+// Provincias agrupadas por CCAA para los <optgroup> del dropdown unificado
+$provinciasPorCCAA = [];
+foreach ($provincias as $prov) {
+    $cid = (int)($prov['comunidad_id'] ?? 0);
+    if ($cid > 0) $provinciasPorCCAA[$cid][] = $prov;
 }
+
+// La nube de ciudades ahora la maneja el partial includes/componentes/nube-ciudades.php
+// (se incluye más abajo en este mismo archivo)
 ?>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         HERO
-         ═══════════════════════════════════════════════════════════ -->
-    <section class="hero">
-        <div class="contenedor">
-            <p class="seccion__subtitulo">Un adiós con amor y dignidad</p>
+<style>
+    /* Hero con tarjeta de búsqueda consolidada (estilo idealista) */
+    .home-hero {
+        background: linear-gradient(135deg, var(--color-cinco) 0%, var(--color-cuatro) 100%);
+        padding: var(--espacio-cinco) var(--espacio-cuatro) var(--espacio-seis);
+        text-align: center;
+    }
+    .home-hero h1 { margin: 0 0 var(--espacio-cuatro); }
 
-            <h1>
-                Encuentra el lugar perfecto para despedir a tu mascota
-            </h1>
+    /* Tarjeta de búsqueda */
+    .filtros-horizontal-01 {
+        max-width: 980px;
+        margin: var(--espacio-cuatro) auto 0;
+        padding: var(--espacio-cuatro);
+        background: var(--admin-superficie);
+        border: 1px solid var(--admin-linea);
+        border-radius: var(--radio-dos);
+        box-shadow: var(--admin-sombra-suave);
+        text-align: left;
+        display: flex;
+        flex-direction: column;
+        gap: var(--espacio-tres);
+    }
+    .filtros-horizontal-01__row { display: grid; gap: var(--espacio-tres); grid-template-columns: 1fr; }
 
-            <h2 class="seccion__descripcion estilo-h5 seis">
-                Conectamos familias con crematorios de mascotas de confianza.
-                Servicios profesionales, respetuosos y llenos de compasión para
-                honrar la memoria de tu compañero fiel.
-            </h2>
+    /* Input de búsqueda con icono prefijo */
+    .filtros-horizontal-01__buscar { position: relative; }
+    .filtros-horizontal-01__buscar input {
+        width: 100%;
+        padding: 0.75rem 0.9rem 0.75rem 2.6rem;
+        border: 1px solid var(--admin-linea-fuerte);
+        border-radius: var(--admin-r-sm);
+        font-family: var(--fuente-texto);
+        font-size: var(--admin-body-sm);
+        color: var(--admin-tinta-fuerte);
+        background: var(--admin-superficie);
+        transition: border-color 150ms ease, box-shadow 150ms ease;
+    }
+    .filtros-horizontal-01__buscar input:focus {
+        outline: none;
+        border-color: var(--admin-brand);
+        box-shadow: var(--admin-sombra-foco);
+    }
+    .filtros-horizontal-01__buscar .icono {
+        position: absolute; top: 50%; left: var(--espacio-tres);
+        transform: translateY(-50%);
+        width: 18px; height: 18px;
+        color: var(--color-seis-claro);
+        pointer-events: none;
+    }
 
-            <form action="directorio.php" method="GET" class="buscador" style="max-width: 700px; width: 100%; display: flex; align-items: center; gap: var(--espacio-dos); margin: var(--espacio-cinco) auto 0;">
-                <input
-                    type="text"
-                    name="busqueda"
-                    class="campo"
-                    style="border-radius: var(--radio-full); flex: 1; height: 48px;"
-                    placeholder="Buscar por nombre o ciudad..."
-                    aria-label="Buscar crematorios"
-                >
-                <button type="submit" class="boton uno" style="border-radius: var(--radio-full); height: 48px;">
+    .filtros-horizontal-01__chips { display: flex; flex-wrap: wrap; gap: var(--espacio-dos); }
+
+    /* (Estilo de la nube de ciudades ahora vive en componentes.css como .nube-ciudades — reusable en home + páginas geo + ficha) */
+
+    @media (min-width: 600px) {
+        .filtros-horizontal-01__row--principal { grid-template-columns: 1fr auto; align-items: center; }
+    }
+    @media (min-width: 768px) {
+        .filtros-horizontal-01__row--dropdowns { grid-template-columns: repeat(2, 1fr); }
+        .filtros-horizontal-01__row--extras    { grid-template-columns: auto 1fr; align-items: center; }
+    }
+    @media (min-width: 1024px) {
+        .filtros-horizontal-01__row--dropdowns { grid-template-columns: repeat(4, 1fr); }
+    }
+
+</style>
+
+<!-- ═══════════════════════════════════════════════════════════
+     HERO  —  Búsqueda + filtros + cerca de mí, todo consolidado
+     ═══════════════════════════════════════════════════════════ -->
+<section class="home-hero">
+    <div class="contenedor">
+        <h1>Encuentra el lugar perfecto para despedir a tu mascota</h1>
+
+        <form action="directorio.php" method="GET" class="filtros-horizontal-01">
+            <!-- Fila 1: buscador por palabra + botón principal -->
+            <div class="filtros-horizontal-01__row filtros-horizontal-01__row--principal">
+                <div class="filtros-horizontal-01__buscar">
+                    <i data-lucide="search" class="icono"></i>
+                    <input
+                        type="text"
+                        name="busqueda"
+                        placeholder="Buscar por nombre, ciudad o servicio…"
+                        aria-label="Buscar crematorios"
+                    >
+                </div>
+                <button type="submit" class="boton uno" style="height:44px;">
                     <i data-lucide="search" class="icono"></i>
                     Buscar
                 </button>
-            </form>
-        </div>
-    </section>
+            </div>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         FILTROS AVANZADOS
-         ═══════════════════════════════════════════════════════════ -->
-    <section class="seccion uno">
-        <div class="contenedor">
-            <form action="directorio.php" method="GET">
-                <!-- Filtros superiores -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--espacio-cuatro); margin-bottom: var(--espacio-cuatro);">
-                    <!-- Comunidad Autónoma -->
-                    <div class="formulario-grupo" style="margin-bottom: 0;">
-                        <label for="comunidad" class="formulario-etiqueta">Comunidad Autónoma</label>
-                        <div class="seleccion-contenedor">
-                            <select name="comunidad_id" id="comunidad" class="seleccion">
-                                <option value="">Todas las comunidades</option>
-                                <?php foreach ($comunidades as $com): ?>
-                                <option value="<?php echo $com['id']; ?>"><?php echo limpiar($com['nombre']); ?> (<?php echo $com['total_crematorios']; ?>)</option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Provincia -->
-                    <div class="formulario-grupo" style="margin-bottom: 0;">
-                        <label for="provincia" class="formulario-etiqueta">Provincia</label>
-                        <div class="seleccion-contenedor">
-                            <select name="provincia_id" id="provincia" class="seleccion">
-                                <option value="">Todas las provincias</option>
-                                <?php foreach ($provincias as $prov): ?>
-                                <option value="<?php echo $prov['id']; ?>"><?php echo limpiar($prov['nombre']); ?> (<?php echo $prov['total_crematorios']; ?>)</option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Valoración Mínima -->
-                    <div class="formulario-grupo" style="margin-bottom: 0;">
-                        <label for="valoracion" class="formulario-etiqueta">Valoración Mínima</label>
-                        <div class="seleccion-contenedor">
-                            <select name="valoracion_minima" id="valoracion" class="seleccion">
-                                <option value="">Todas las valoraciones</option>
-                                <option value="5">5 estrellas</option>
-                                <option value="4">4+ estrellas</option>
-                                <option value="3">3+ estrellas</option>
-                                <option value="2">2+ estrellas</option>
-                                <option value="1">1+ estrellas</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Ordenar por -->
-                    <div class="formulario-grupo" style="margin-bottom: 0;">
-                        <label for="orden" class="formulario-etiqueta">Ordenar Por</label>
-                        <div class="seleccion-contenedor">
-                            <select name="orden" id="orden" class="seleccion">
-                                <option value="">Mejor valorados</option>
-                                <option value="nombre">Nombre A-Z</option>
-                                <option value="calificacion">Calificación</option>
-                                <option value="recientes">Más recientes</option>
-                            </select>
-                        </div>
-                    </div>
+            <!-- Fila 2: 4 dropdowns -->
+            <div class="filtros-horizontal-01__row filtros-horizontal-01__row--dropdowns">
+                <!-- Geo: CCAA + Provincia en un solo dropdown con optgroups -->
+                <div class="field" style="margin-bottom:0;">
+                    <label for="h-geo" class="field__label">Comunidad o provincia</label>
+                    <select name="geo" id="h-geo" class="field__select field__select--enhanced" data-placeholder="Toda España">
+                        <option value="">Toda España</option>
+                        <?php foreach ($comunidades as $com): ?>
+                        <optgroup label="<?php echo limpiar($com['nombre']); ?>">
+                            <option value="ccaa:<?php echo $com['id']; ?>">Toda <?php echo limpiar($com['nombre']); ?> (<?php echo $com['total_crematorios']; ?>)</option>
+                            <?php foreach ($provinciasPorCCAA[$com['id']] ?? [] as $prov): ?>
+                            <option value="prov:<?php echo $prov['id']; ?>" data-comunidad-id="<?php echo $com['id']; ?>">
+                                <?php echo limpiar($prov['nombre']); ?> (<?php echo $prov['total_crematorios']; ?>)
+                            </option>
+                            <?php endforeach; ?>
+                        </optgroup>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
-
-                <!-- Filtros de servicios -->
-                <div style="margin-bottom: var(--espacio-cuatro);">
-                    <div class="formulario-etiqueta">Servicios</div>
-                    <div style="display: flex; flex-wrap: wrap; gap: var(--espacio-dos);">
-                        <label class="casilla-verificacion">
-                            <input type="checkbox" name="servicio_cremacion" value="1">
-                            <span class="casilla-verificacion__texto">Cremación</span>
-                        </label>
-
-                        <label class="casilla-verificacion">
-                            <input type="checkbox" name="servicio_24h" value="1">
-                            <span class="casilla-verificacion__texto">24 Horas</span>
-                        </label>
-
-                        <label class="casilla-verificacion">
-                            <input type="checkbox" name="servicio_velatorio" value="1">
-                            <span class="casilla-verificacion__texto">Velatorio</span>
-                        </label>
-
-                        <label class="casilla-verificacion">
-                            <input type="checkbox" name="servicio_recogida" value="1">
-                            <span class="casilla-verificacion__texto">Recogida a domicilio</span>
-                        </label>
-
-                        <label class="casilla-verificacion">
-                            <input type="checkbox" name="servicio_cementerio" value="1">
-                            <span class="casilla-verificacion__texto">Cementerio</span>
-                        </label>
-                    </div>
+                <!-- Ciudad — más granular, en cascada con geo -->
+                <div class="field" style="margin-bottom:0;">
+                    <label for="h-ciudad" class="field__label">Ciudad</label>
+                    <select name="ciudad" id="h-ciudad" class="field__select field__select--enhanced" data-placeholder="Todas">
+                        <option value="">Todas las ciudades</option>
+                        <?php foreach ($ciudadesDropdown as $ciu): ?>
+                        <option value="<?php echo htmlspecialchars($ciu['nombre'], ENT_QUOTES); ?>"
+                                data-comunidad-id="<?php echo (int)($ciu['comunidad_id'] ?? 0); ?>"
+                                data-provincia-id="<?php echo (int)($ciu['provincia_id'] ?? 0); ?>">
+                            <?php echo limpiar($ciu['nombre']); ?> (<?php echo $ciu['total_crematorios']; ?>)
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
-
-                <!-- Acciones -->
-                <div style="display: flex; gap: var(--espacio-tres); justify-content: center;">
-                    <button type="submit" class="boton uno">
-                        <i data-lucide="search" class="icono"></i>
-                        Buscar
-                    </button>
-
-                    <button type="button" class="boton cuatro" onclick="limpiarFiltros()">
-                        Limpiar filtros
-                    </button>
+                <div class="field" style="margin-bottom:0;">
+                    <label for="h-valoracion" class="field__label">Valoración mín.</label>
+                    <select name="valoracion_minima" id="h-valoracion" class="field__select field__select--enhanced" data-ts-search="off">
+                        <option value="">Todas</option>
+                        <option value="5">5 estrellas</option>
+                        <option value="4">4+ estrellas</option>
+                        <option value="3">3+ estrellas</option>
+                        <option value="2">2+ estrellas</option>
+                        <option value="1">1+ estrellas</option>
+                    </select>
                 </div>
-            </form>
+                <div class="field" style="margin-bottom:0;">
+                    <label for="h-orden" class="field__label">Ordenar por</label>
+                    <select name="orden" id="h-orden" class="field__select field__select--enhanced" data-ts-search="off">
+                        <option value="">Mejor valorados</option>
+                        <option value="mas_resenas">Más reseñas</option>
+                        <option value="calificacion">Calificación</option>
+                        <option value="recientes">Más recientes</option>
+                        <option value="nombre">Nombre A-Z</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Fila 3: Cerca de mí (izquierda, diagonal con el del header) + servicios -->
+            <div class="filtros-horizontal-01__row filtros-horizontal-01__row--extras">
+                <button id="btn-cerca" type="button" onclick="irACerca(this)" class="boton dos">
+                    <i data-lucide="map-pin" class="icono"></i>
+                    Cerca de mí
+                </button>
+                <div class="filtros-horizontal-01__chips">
+                    <label class="field__opcion"><input type="checkbox" class="field__check" name="abiertos_ahora" value="1"><span>Abiertos ahora</span></label>
+                    <label class="field__opcion tiene-tooltip" data-tooltip="Un miembro del equipo se contactó con el crematorio para verificar la información publicada (contactos, servicios, dirección)."><input type="checkbox" class="field__check" name="verificado" value="1"><span>Verificado</span></label>
+                    <label class="field__opcion"><input type="checkbox" class="field__check" name="cremacion_individual" value="1"><span>Cremación individual</span></label>
+                    <label class="field__opcion"><input type="checkbox" class="field__check" name="cremacion_colectiva" value="1"><span>Cremación colectiva</span></label>
+                    <label class="field__opcion"><input type="checkbox" class="field__check" name="recogida_domicilio" value="1"><span>Recogida a domicilio</span></label>
+                    <label class="field__opcion"><input type="checkbox" class="field__check" name="entrega_domicilio" value="1"><span>Entrega a domicilio</span></label>
+                    <label class="field__opcion"><input type="checkbox" class="field__check" name="atencion_24h" value="1"><span>Atención 24/7</span></label>
+                    <label class="field__opcion"><input type="checkbox" class="field__check" name="sala_velatoria" value="1"><span>Sala velatoria</span></label>
+                    <label class="field__opcion"><input type="checkbox" class="field__check" name="urna" value="1"><span>Urna incluida</span></label>
+                    <label class="field__opcion"><input type="checkbox" class="field__check" name="souvenires" value="1"><span>Souvenirs</span></label>
+                    <label class="field__opcion"><input type="checkbox" class="field__check" name="carta" value="1"><span>Carta de condolencias</span></label>
+                    <label class="field__opcion"><input type="checkbox" class="field__check" name="molde" value="1"><span>Molde de huella</span></label>
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     CREMATORIOS DESTACADOS  (usa el partial compartido)
+     Filtros avanzados eliminados de home: duplicaban los de directorio.php
+     donde tienen su contexto natural. Más espacio para que las tarjetas
+     queden por encima del scroll inicial.
+     ═══════════════════════════════════════════════════════════ -->
+<section class="seccion">
+    <div class="contenedor">
+        <div class="seccion__encabezado">
+            <h2 class="seccion__titulo">Crematorios de mascotas destacados</h2>
         </div>
-    </section>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         CREMATORIOS DESTACADOS
-         ═══════════════════════════════════════════════════════════ -->
-    <section class="seccion">
-        <div class="contenedor">
-            <div class="seccion__encabezado">
-                <p class="seccion__subtitulo">Recomendados</p>
-                <h2 class="seccion__titulo">Crematorios Destacados</h2>
-                <p class="seccion__descripcion">
-                    Los crematorios mejor valorados por las familias que han confiado en sus servicios.
-                </p>
-            </div>
-
-            <div class="grid-tarjetas">
-                <?php if (empty($destacados)): ?>
-                <p style="text-align: center; grid-column: 1 / -1;">No hay crematorios destacados disponibles.</p>
-                <?php else: ?>
-                <?php foreach ($destacados as $crem): ?>
-                <article class="tarjeta">
-                    <div class="tarjeta__imagen">
-                        <?php if (!empty($crem['foto_principal'])): ?>
-                        <img
-                            src="<?php echo limpiar($crem['foto_principal']); ?>"
-                            alt="<?php echo limpiar($crem['nombre']); ?>"
-                            loading="lazy"
-                            onerror="this.parentElement.innerHTML='<div class=\'tarjeta__imagen--placeholder\'><i data-lucide=\'heart\' class=\'icono\'></i></div><span class=\'tarjeta__destacado\'>Destacado</span>'; lucide.createIcons();"
-                        >
-                        <?php else: ?>
-                        <div class="tarjeta__imagen--placeholder">
-                            <i data-lucide="heart" class="icono"></i>
-                        </div>
-                        <?php endif; ?>
-                        <span class="tarjeta__destacado">Destacado</span>
-                    </div>
-
-                    <div class="tarjeta__contenido">
-                        <h3 class="tarjeta__titulo">
-                            <a href="<?php echo generarUrl('crematorio', $crem['slug']); ?>">
-                                <?php echo limpiar($crem['nombre']); ?>
-                            </a>
-                        </h3>
-
-                        <p class="tarjeta__ubicacion">
-                            <i data-lucide="map-pin" class="icono"></i>
-                            <?php echo limpiar($crem['ciudad']); ?>, <?php echo limpiar($crem['provincia_nombre']); ?>
-                        </p>
-
-                        <p class="tarjeta__descripcion">
-                            <?php echo limpiar($crem['descripcion_corta'] ?? 'Servicios de cremación de mascotas profesional y respetuoso.'); ?>
-                        </p>
-
-                        <div class="tarjeta__footer">
-                            <?php if ($crem['rating'] > 0): ?>
-                            <div class="tarjeta__valoracion">
-                                <?php for ($i = 1; $i <= 5; $i++): ?>
-                                <i data-lucide="star" class="icono <?php echo $i <= round($crem['rating']) ? 'icono--llena' : ''; ?>"></i>
-                                <?php endfor; ?>
-                                <span><?php echo number_format($crem['rating'], 1); ?></span>
-                            </div>
-                            <span style="font-size: var(--fs-uno); color: var(--color-seis-claro);">(<?php echo $crem['reviews_total'] ?? 0; ?> reseñas)</span>
-                            <?php else: ?>
-                            <span style="font-size: var(--fs-uno); color: var(--color-seis-claro);">Sin valoraciones</span>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </article>
-                <?php endforeach; ?>
-                <?php endif; ?>
-            </div>
-
-            <!-- Botón ver todos -->
-            <div style="text-align: center; margin-top: var(--espacio-seis);">
-                <a href="directorio.php" class="boton dos grande">
-                    Ver todos los crematorios
-                    <i data-lucide="arrow-right" class="icono"></i>
-                </a>
-            </div>
+        <div class="grid-tarjetas <?php echo claseGridTarjetas(count($destacados)); ?>">
+            <?php if (empty($destacados)): ?>
+            <p style="text-align: center; grid-column: 1 / -1;">No hay crematorios destacados disponibles.</p>
+            <?php else: foreach ($destacados as $crem): ?>
+                <?php include __DIR__ . '/includes/componentes/tarjeta-crematorio.php'; ?>
+            <?php endforeach; endif; ?>
         </div>
-    </section>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         POR QUÉ USAR NUESTRO DIRECTORIO
-         ═══════════════════════════════════════════════════════════ -->
-    <section class="seccion uno">
-        <div class="contenedor">
-            <div class="seccion__encabezado">
-                <p class="seccion__subtitulo">Nuestro compromiso</p>
-                <h2 class="seccion__titulo">¿Por qué usar nuestro directorio?</h2>
-            </div>
-
-            <div class="grid-tarjetas">
-                <!-- Característica 1 -->
-                <article class="tarjeta">
-                    <div class="tarjeta__contenido" style="text-align: center;">
-                        <div class="caracteristica__icono">
-                            <i data-lucide="shield-check" class="icono"></i>
-                        </div>
-                        <h3 class="tarjeta__titulo">Crematorios Verificados</h3>
-                        <p class="tarjeta__descripcion">
-                            Todos los crematorios en nuestro directorio pasan por un proceso de verificación
-                            para garantizar la calidad y profesionalismo de sus servicios.
-                        </p>
-                    </div>
-                </article>
-
-                <!-- Característica 2 -->
-                <article class="tarjeta">
-                    <div class="tarjeta__contenido" style="text-align: center;">
-                        <div class="caracteristica__icono">
-                            <i data-lucide="star" class="icono"></i>
-                        </div>
-                        <h3 class="tarjeta__titulo">Reseñas Reales</h3>
-                        <p class="tarjeta__descripcion">
-                            Lee las experiencias de otras familias para tomar la mejor decisión.
-                            Todas las reseñas son de personas que han utilizado los servicios.
-                        </p>
-                    </div>
-                </article>
-
-                <!-- Característica 3 -->
-                <article class="tarjeta">
-                    <div class="tarjeta__contenido" style="text-align: center;">
-                        <div class="caracteristica__icono">
-                            <i data-lucide="clock" class="icono"></i>
-                        </div>
-                        <h3 class="tarjeta__titulo">Disponibilidad 24/7</h3>
-                        <p class="tarjeta__descripcion">
-                            Muchos de nuestros crematorios ofrecen servicio las 24 horas.
-                            Encuentra ayuda cuando más la necesitas, sin importar la hora.
-                        </p>
-                    </div>
-                </article>
-            </div>
-        </div>
-    </section>
-
-    <!-- ═══════════════════════════════════════════════════════════
-         CREMATORIOS POR CIUDAD
-         ═══════════════════════════════════════════════════════════ -->
-    <section class="seccion">
-        <div class="contenedor">
-            <div class="seccion__encabezado">
-                <p class="seccion__subtitulo">Cobertura</p>
-                <h2 class="seccion__titulo">Crematorios por Ciudad</h2>
-                <p class="seccion__descripcion">
-                    Encuentra crematorios de mascotas cerca de ti.
-                </p>
-            </div>
-
-            <div class="ciudades-grid">
-                <?php if (empty($ciudades)): ?>
-                <p style="text-align: center; grid-column: 1 / -1;">No hay ciudades disponibles.</p>
-                <?php else: ?>
-                <?php foreach ($ciudades as $ciudad): ?>
-                <a href="<?php echo generarUrl('ciudad', $ciudad['slug'], $ciudad['provincia_slug']); ?>" class="boton tres">
-                    <?php echo limpiar($ciudad['nombre']); ?>
-                </a>
-                <?php endforeach; ?>
-                <?php endif; ?>
-            </div>
-        </div>
-    </section>
-
-    <!-- ═══════════════════════════════════════════════════════════
-         CTA FINAL
-         ═══════════════════════════════════════════════════════════ -->
-    <section class="seccion tres">
-        <div class="contenedor" style="text-align: center;">
-            <h2 style="color: var(--color-ocho); margin-bottom: var(--espacio-cuatro);">
-                ¿Tienes un crematorio de mascotas?
-            </h2>
-            <p class="seccion__descripcion" style="color: var(--color-ocho-claro); max-width: 600px; margin: 0 auto var(--espacio-seis);">
-                Únete a nuestro directorio y conecta con familias que buscan
-                servicios de cremación para sus mascotas. Es gratis y fácil de usar.
-            </p>
-            <a href="registrar-negocio.php" class="boton tres grande">
-                Registrar mi Crematorio
+        <div style="text-align: center; margin-top: var(--espacio-cinco);">
+            <a href="directorio.php" class="boton cuatro grande">
+                Ver todos los crematorios
                 <i data-lucide="arrow-right" class="icono"></i>
             </a>
         </div>
-    </section>
+    </div>
+</section>
 
-    <!-- Script específico de la página -->
-    <script>
-        // Limpiar filtros
-        function limpiarFiltros() {
-            document.getElementById('comunidad').value = '';
-            document.getElementById('provincia').value = '';
-            document.getElementById('valoracion').value = '';
-            document.getElementById('orden').value = '';
-
-            // Desmarcar checkboxes
-            const checkboxes = document.querySelectorAll('.casilla-verificacion input[type="checkbox"]');
-            checkboxes.forEach(cb => cb.checked = false);
-        }
-    </script>
+<!-- ═══════════════════════════════════════════════════════════
+     NUBE DE CIUDADES  —  Internal linking SEO + nav rápida
+     (partial reusable: includes/componentes/nube-ciudades.php)
+     ═══════════════════════════════════════════════════════════ -->
+<?php
+$nubeScope  = 'todas';
+$nubeTitulo = 'Crematorios de mascotas por ciudad';
+$nubeLimite = 30;
+include ROOT_PATH . '/includes/componentes/nube-ciudades.php';
+?>
 
 <?php include 'includes/footer.php'; ?>

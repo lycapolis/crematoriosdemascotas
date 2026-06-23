@@ -7,6 +7,7 @@
 
 require_once dirname(__DIR__) . '/includes/config.php';
 require_once dirname(__DIR__) . '/includes/conexion_db.php';
+require_once dirname(__DIR__) . '/includes/permisos.php';
 
 // Iniciar sesión si no está iniciada
 if (session_status() === PHP_SESSION_NONE) {
@@ -43,7 +44,12 @@ function intentarLogin($email, $password) {
         return ['ok' => false, 'mensaje' => 'Error de conexión'];
     }
 
-    $stmt = $pdo->prepare("SELECT id, nombre, password_hash FROM admins WHERE email = :email AND activo = 1 LIMIT 1");
+    // Cargar rol/etiquetas si las columnas existen (post-migración 17)
+    $cols = array_column($pdo->query("SHOW COLUMNS FROM admins")->fetchAll(PDO::FETCH_ASSOC), 'Field');
+    $tieneRol = in_array('rol', $cols, true) && in_array('etiquetas', $cols, true);
+    $selectExtra = $tieneRol ? ', rol, etiquetas' : '';
+
+    $stmt = $pdo->prepare("SELECT id, nombre, password_hash{$selectExtra} FROM admins WHERE email = :email AND activo = 1 LIMIT 1");
     $stmt->execute([':email' => $email]);
     $admin = $stmt->fetch();
 
@@ -56,9 +62,11 @@ function intentarLogin($email, $password) {
     }
 
     // Login exitoso - Crear sesión
-    $_SESSION['admin_id'] = $admin['id'];
+    $_SESSION['admin_id']     = $admin['id'];
     $_SESSION['admin_nombre'] = $admin['nombre'];
-    $_SESSION['admin_email'] = $email;
+    $_SESSION['admin_email']  = $email;
+    $_SESSION['admin_rol']    = $admin['rol'] ?? 'admin';
+    $_SESSION['admin_etiquetas'] = $admin['etiquetas'] ?? null;
 
     // Actualizar último login
     $stmt = $pdo->prepare("UPDATE admins SET ultimo_login = NOW() WHERE id = :id");
@@ -86,8 +94,10 @@ function obtenerAdminActual() {
     }
 
     return [
-        'id' => $_SESSION['admin_id'],
-        'nombre' => $_SESSION['admin_nombre'],
-        'email' => $_SESSION['admin_email']
+        'id'        => $_SESSION['admin_id'],
+        'nombre'    => $_SESSION['admin_nombre'],
+        'email'     => $_SESSION['admin_email'],
+        'rol'       => $_SESSION['admin_rol']       ?? 'admin',
+        'etiquetas' => $_SESSION['admin_etiquetas'] ?? null,
     ];
 }

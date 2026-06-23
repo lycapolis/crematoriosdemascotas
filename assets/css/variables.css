@@ -50,9 +50,10 @@
        TIPOGRAFÍA
        ───────────────────────────────────────────────────────── */
 
-    /* Fuentes */
-    --fuente-titulo: 'Playfair Display', Georgia, serif;
-    --fuente-texto: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    /* Fuentes — una sola familia (Roboto) para texto y títulos, parejo en todo
+       el sitio (público + admin). Sin Playfair. */
+    --fuente-titulo: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --fuente-texto: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
     /* 8 TAMAÑOS DE FUENTE (en REM para accesibilidad) */
     --fs-uno: 0.75rem;     /* 12px - Textos muy pequeños, legales, footnotes */

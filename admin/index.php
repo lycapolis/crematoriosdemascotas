@@ -2,5 +2,5 @@
 /**
  * Redirect a panel de reseñas
  */
-header('Location: resenas.php');
+header('Location: dashboard.php');
 exit;

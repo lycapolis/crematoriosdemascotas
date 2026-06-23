@@ -8,220 +8,89 @@
  * Empresa: Lycapolis LLC
  * Web: https://lycapolis.com
  *
- * Versión: 03
- * Fecha: Enero 2026
+ * Versión: 04 — refresh Fase 6 (España operativo + teaser otros)
  *
- * Lista todos los países disponibles
+ * Solo España es clickeable (es lo único operativo). Otros países
+ * aparecen como teaser "próximamente" sin enlaces. Cuando se sumen
+ * países reales, agregarlos al array $proximos pasándolos a operativos.
+ *
  * URL: /paises/
  * ═══════════════════════════════════════════════════════════
  */
 
-$titulo_pagina = 'Crematorios de Mascotas - Directorio Internacional';
+require_once 'includes/config.php';
+require_once 'includes/conexion_db.php';
+require_once 'includes/funciones.php';
+
+// España operativa: contar de la BD
+$pdo = obtenerConexion();
+$total_espana = (int) $pdo->query("SELECT COUNT(*) FROM crematorios")->fetchColumn();
+$total_provincias = (int) $pdo->query("SELECT COUNT(DISTINCT provincia_id) FROM crematorios WHERE provincia_id IS NOT NULL")->fetchColumn();
+
+// Países próximamente (sin enlaces — solo teaser visual)
+$proximos = [
+    'Europa'         => ['Portugal', 'Francia', 'Italia', 'Andorra'],
+    'Latinoamérica'  => ['México', 'Argentina', 'Colombia', 'Chile', 'Perú', 'Ecuador', 'Uruguay', 'Brasil'],
+];
+
+$titulo_pagina = 'Países - Directorio de Crematorios de Mascotas';
 $pagina_actual = 'directorio';
 include 'includes/header.php';
-
-// Datos de ejemplo (en producción vendrían de la base de datos)
-$total_paises = 15;
-$total_crematorios = 156;
 ?>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         BREADCRUMBS
-         ═══════════════════════════════════════════════════════════ -->
-    <nav class="breadcrumbs" aria-label="Breadcrumb" style="padding: var(--espacio-tres) 0; background: var(--color-cinco);">
-        <div class="contenedor">
-            <ol style="display: flex; flex-wrap: wrap; align-items: center; gap: var(--espacio-dos); list-style: none; padding: 0; margin: 0; font-size: var(--fs-uno);">
-                <li style="display: flex; align-items: center; gap: var(--espacio-dos);">
-                    <a href="<?php echo $base_url; ?>/" style="color: var(--color-seis-claro); text-decoration: none;">Inicio</a>
-                    <i data-lucide="chevron-right" class="icono" style="width: 14px; height: 14px; color: var(--color-seis-claro);"></i>
-                </li>
-                <li style="color: var(--color-seis); font-weight: var(--peso-medio);">
-                    <span>Países</span>
-                </li>
-            </ol>
-        </div>
-    </nav>
+<?php
+$migas = [
+    ['Inicio', BASE_URL . '/'],
+    ['Países', null],
+];
+$tituloH1   = 'Directorio internacional de crematorios';
+$badgeTotal = $total_espana . ' crematorio' . ($total_espana !== 1 ? 's' : '') . ' en España';
+$descripcion = 'Por ahora solo cubrimos España. Estamos trabajando para sumar más países pronto.';
+include ROOT_PATH . '/includes/componentes/encabezado-geo.php';
+?>
 
-    <!-- ═══════════════════════════════════════════════════════════
-         CONTENIDO PRINCIPAL
-         ═══════════════════════════════════════════════════════════ -->
-    <main class="seccion">
-        <div class="contenedor">
+<div class="contenedor seccion">
 
-            <!-- Header -->
-            <header style="text-align: center; margin-bottom: var(--espacio-siete);">
-                <h1 style="font-size: var(--fs-cuatro); color: var(--color-dos); margin-bottom: var(--espacio-dos);">Directorio Internacional de Crematorios</h1>
-                <p class="seccion__descripcion">
-                    <?php echo $total_crematorios; ?> crematorios en <?php echo $total_paises; ?> países
-                </p>
-            </header>
-
-            <!-- Europa -->
-            <section style="margin-bottom: var(--espacio-siete);">
-                <h2 style="font-size: var(--fs-tres); color: var(--color-dos); margin-bottom: var(--espacio-cuatro); padding-bottom: var(--espacio-dos); border-bottom: 2px solid var(--color-cinco);">Europa</h2>
-
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--espacio-cuatro);">
-
-                    <!-- España -->
-                    <a href="<?php echo $base_url; ?>/espana/" class="item-tres" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between;">
-                        <div>
-                            <h3 style="font-size: var(--fs-dos); font-weight: var(--peso-negrita); color: var(--color-dos); margin-bottom: var(--espacio-uno);">España</h3>
-                            <span style="font-size: var(--fs-uno); color: var(--color-seis-claro);">24 crematorios</span>
-                        </div>
-                        <i data-lucide="chevron-right" class="icono" style="color: var(--color-uno); width: 24px; height: 24px;"></i>
-                    </a>
-
-                    <!-- Portugal -->
-                    <a href="<?php echo $base_url; ?>/portugal/" class="item-tres" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between;">
-                        <div>
-                            <h3 style="font-size: var(--fs-dos); font-weight: var(--peso-negrita); color: var(--color-dos); margin-bottom: var(--espacio-uno);">Portugal</h3>
-                            <span style="font-size: var(--fs-uno); color: var(--color-seis-claro);">8 crematorios</span>
-                        </div>
-                        <i data-lucide="chevron-right" class="icono" style="color: var(--color-uno); width: 24px; height: 24px;"></i>
-                    </a>
-
-                    <!-- Francia -->
-                    <a href="<?php echo $base_url; ?>/francia/" class="item-tres" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between;">
-                        <div>
-                            <h3 style="font-size: var(--fs-dos); font-weight: var(--peso-negrita); color: var(--color-dos); margin-bottom: var(--espacio-uno);">Francia</h3>
-                            <span style="font-size: var(--fs-uno); color: var(--color-seis-claro);">12 crematorios</span>
-                        </div>
-                        <i data-lucide="chevron-right" class="icono" style="color: var(--color-uno); width: 24px; height: 24px;"></i>
-                    </a>
-
-                    <!-- Italia -->
-                    <a href="<?php echo $base_url; ?>/italia/" class="item-tres" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between;">
-                        <div>
-                            <h3 style="font-size: var(--fs-dos); font-weight: var(--peso-negrita); color: var(--color-dos); margin-bottom: var(--espacio-uno);">Italia</h3>
-                            <span style="font-size: var(--fs-uno); color: var(--color-seis-claro);">10 crematorios</span>
-                        </div>
-                        <i data-lucide="chevron-right" class="icono" style="color: var(--color-uno); width: 24px; height: 24px;"></i>
-                    </a>
-
-                    <!-- Andorra -->
-                    <a href="<?php echo $base_url; ?>/andorra/" class="item-tres" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between;">
-                        <div>
-                            <h3 style="font-size: var(--fs-dos); font-weight: var(--peso-negrita); color: var(--color-dos); margin-bottom: var(--espacio-uno);">Andorra</h3>
-                            <span style="font-size: var(--fs-uno); color: var(--color-seis-claro);">1 crematorio</span>
-                        </div>
-                        <i data-lucide="chevron-right" class="icono" style="color: var(--color-uno); width: 24px; height: 24px;"></i>
-                    </a>
-
+    <!-- ─── España (único operativo) ─── -->
+    <section style="margin-bottom: var(--espacio-cinco);">
+        <h2 class="estilo-h4" style="margin-bottom: var(--espacio-tres);">Disponible ahora</h2>
+        <div class="lista-geo">
+            <a href="<?php echo BASE_URL; ?>/espana/" class="lista-geo__item">
+                <div>
+                    <h3 class="lista-geo__item-titulo">España</h3>
+                    <span class="lista-geo__item-meta"><?php echo $total_espana; ?> crematorio<?php echo $total_espana !== 1 ? 's' : ''; ?> en <?php echo $total_provincias; ?> provincia<?php echo $total_provincias !== 1 ? 's' : ''; ?></span>
                 </div>
-            </section>
-
-            <!-- Latinoamérica -->
-            <section style="margin-bottom: var(--espacio-siete);">
-                <h2 style="font-size: var(--fs-tres); color: var(--color-dos); margin-bottom: var(--espacio-cuatro); padding-bottom: var(--espacio-dos); border-bottom: 2px solid var(--color-cinco);">Latinoamérica</h2>
-
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--espacio-cuatro);">
-
-                    <!-- México -->
-                    <a href="<?php echo $base_url; ?>/mexico/" class="item-tres" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between;">
-                        <div>
-                            <h3 style="font-size: var(--fs-dos); font-weight: var(--peso-negrita); color: var(--color-dos); margin-bottom: var(--espacio-uno);">México</h3>
-                            <span style="font-size: var(--fs-uno); color: var(--color-seis-claro);">18 crematorios</span>
-                        </div>
-                        <i data-lucide="chevron-right" class="icono" style="color: var(--color-uno); width: 24px; height: 24px;"></i>
-                    </a>
-
-                    <!-- Argentina -->
-                    <a href="<?php echo $base_url; ?>/argentina/" class="item-tres" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between;">
-                        <div>
-                            <h3 style="font-size: var(--fs-dos); font-weight: var(--peso-negrita); color: var(--color-dos); margin-bottom: var(--espacio-uno);">Argentina</h3>
-                            <span style="font-size: var(--fs-uno); color: var(--color-seis-claro);">15 crematorios</span>
-                        </div>
-                        <i data-lucide="chevron-right" class="icono" style="color: var(--color-uno); width: 24px; height: 24px;"></i>
-                    </a>
-
-                    <!-- Colombia -->
-                    <a href="<?php echo $base_url; ?>/colombia/" class="item-tres" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between;">
-                        <div>
-                            <h3 style="font-size: var(--fs-dos); font-weight: var(--peso-negrita); color: var(--color-dos); margin-bottom: var(--espacio-uno);">Colombia</h3>
-                            <span style="font-size: var(--fs-uno); color: var(--color-seis-claro);">12 crematorios</span>
-                        </div>
-                        <i data-lucide="chevron-right" class="icono" style="color: var(--color-uno); width: 24px; height: 24px;"></i>
-                    </a>
-
-                    <!-- Chile -->
-                    <a href="<?php echo $base_url; ?>/chile/" class="item-tres" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between;">
-                        <div>
-                            <h3 style="font-size: var(--fs-dos); font-weight: var(--peso-negrita); color: var(--color-dos); margin-bottom: var(--espacio-uno);">Chile</h3>
-                            <span style="font-size: var(--fs-uno); color: var(--color-seis-claro);">9 crematorios</span>
-                        </div>
-                        <i data-lucide="chevron-right" class="icono" style="color: var(--color-uno); width: 24px; height: 24px;"></i>
-                    </a>
-
-                    <!-- Perú -->
-                    <a href="<?php echo $base_url; ?>/peru/" class="item-tres" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between;">
-                        <div>
-                            <h3 style="font-size: var(--fs-dos); font-weight: var(--peso-negrita); color: var(--color-dos); margin-bottom: var(--espacio-uno);">Perú</h3>
-                            <span style="font-size: var(--fs-uno); color: var(--color-seis-claro);">7 crematorios</span>
-                        </div>
-                        <i data-lucide="chevron-right" class="icono" style="color: var(--color-uno); width: 24px; height: 24px;"></i>
-                    </a>
-
-                    <!-- Ecuador -->
-                    <a href="<?php echo $base_url; ?>/ecuador/" class="item-tres" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between;">
-                        <div>
-                            <h3 style="font-size: var(--fs-dos); font-weight: var(--peso-negrita); color: var(--color-dos); margin-bottom: var(--espacio-uno);">Ecuador</h3>
-                            <span style="font-size: var(--fs-uno); color: var(--color-seis-claro);">5 crematorios</span>
-                        </div>
-                        <i data-lucide="chevron-right" class="icono" style="color: var(--color-uno); width: 24px; height: 24px;"></i>
-                    </a>
-
-                    <!-- Venezuela -->
-                    <a href="<?php echo $base_url; ?>/venezuela/" class="item-tres" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between;">
-                        <div>
-                            <h3 style="font-size: var(--fs-dos); font-weight: var(--peso-negrita); color: var(--color-dos); margin-bottom: var(--espacio-uno);">Venezuela</h3>
-                            <span style="font-size: var(--fs-uno); color: var(--color-seis-claro);">6 crematorios</span>
-                        </div>
-                        <i data-lucide="chevron-right" class="icono" style="color: var(--color-uno); width: 24px; height: 24px;"></i>
-                    </a>
-
-                    <!-- Uruguay -->
-                    <a href="<?php echo $base_url; ?>/uruguay/" class="item-tres" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between;">
-                        <div>
-                            <h3 style="font-size: var(--fs-dos); font-weight: var(--peso-negrita); color: var(--color-dos); margin-bottom: var(--espacio-uno);">Uruguay</h3>
-                            <span style="font-size: var(--fs-uno); color: var(--color-seis-claro);">4 crematorios</span>
-                        </div>
-                        <i data-lucide="chevron-right" class="icono" style="color: var(--color-uno); width: 24px; height: 24px;"></i>
-                    </a>
-
-                    <!-- Brasil -->
-                    <a href="<?php echo $base_url; ?>/brasil/" class="item-tres" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between;">
-                        <div>
-                            <h3 style="font-size: var(--fs-dos); font-weight: var(--peso-negrita); color: var(--color-dos); margin-bottom: var(--espacio-uno);">Brasil</h3>
-                            <span style="font-size: var(--fs-uno); color: var(--color-seis-claro);">22 crematorios</span>
-                        </div>
-                        <i data-lucide="chevron-right" class="icono" style="color: var(--color-uno); width: 24px; height: 24px;"></i>
-                    </a>
-
-                    <!-- Costa Rica -->
-                    <a href="<?php echo $base_url; ?>/costa-rica/" class="item-tres" style="text-decoration: none; display: flex; align-items: center; justify-content: space-between;">
-                        <div>
-                            <h3 style="font-size: var(--fs-dos); font-weight: var(--peso-negrita); color: var(--color-dos); margin-bottom: var(--espacio-uno);">Costa Rica</h3>
-                            <span style="font-size: var(--fs-uno); color: var(--color-seis-claro);">3 crematorios</span>
-                        </div>
-                        <i data-lucide="chevron-right" class="icono" style="color: var(--color-uno); width: 24px; height: 24px;"></i>
-                    </a>
-
-                </div>
-            </section>
-
-            <!-- Información SEO -->
-            <section style="background: var(--color-cinco); padding: var(--espacio-seis); border-radius: var(--radio-dos);">
-                <h2 style="font-size: var(--fs-dos); color: var(--color-dos); margin-bottom: var(--espacio-cuatro);">Servicios de cremación de mascotas en el mundo</h2>
-                <p style="color: var(--color-seis); line-height: 1.7; margin-bottom: var(--espacio-tres);">
-                    En nuestro directorio internacional encontrarás los mejores crematorios de mascotas en Europa y Latinoamérica.
-                    Todos los servicios listados ofrecen un trato digno y respetuoso para tu compañero fiel.
-                </p>
-                <p style="color: var(--color-seis); line-height: 1.7; margin: 0;">
-                    Selecciona tu país para ver las provincias y ciudades con crematorios disponibles en tu zona.
-                </p>
-            </section>
-
+                <i data-lucide="chevron-right" class="icono lista-geo__item-flecha"></i>
+            </a>
         </div>
-    </main>
+    </section>
+
+    <!-- ─── Próximamente (teaser sin enlaces) ─── -->
+    <section style="margin-bottom: var(--espacio-cinco);">
+        <h2 class="estilo-h4" style="margin-bottom: var(--espacio-tres);">Próximamente</h2>
+        <p style="color: var(--color-seis-claro); margin-bottom: var(--espacio-cuatro);">
+            Estamos trabajando para sumar nuevos países al directorio. Si tenés un crematorio fuera de España y querés estar en la lista cuando habilitemos tu país, escribinos.
+        </p>
+
+        <?php foreach ($proximos as $region => $paises): ?>
+        <div style="margin-bottom: var(--espacio-cuatro);">
+            <h3 class="estilo-h5" style="color: var(--color-seis-claro); margin-bottom: var(--espacio-dos);"><?php echo $region; ?></h3>
+            <div style="display: flex; flex-wrap: wrap; gap: var(--espacio-dos);">
+                <?php foreach ($paises as $pais): ?>
+                <span class="boton tres" style="opacity:.55; cursor:not-allowed; pointer-events:none;">
+                    <?php echo limpiar($pais); ?>
+                </span>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </section>
+
+    <a href="<?php echo BASE_URL; ?>/contacto.php" class="boton uno" style="display:inline-flex; align-items:center; gap:var(--espacio-uno);">
+        <i data-lucide="mail" class="icono"></i>
+        Solicitar que sumemos tu país
+    </a>
+
+</div>
 
 <?php include 'includes/footer.php'; ?>

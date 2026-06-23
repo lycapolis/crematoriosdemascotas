@@ -26,72 +26,93 @@ include 'includes/header.php';
        MÓVIL (Base: 0-767px) - Filtros verticales arriba
        ═══════════════════════════════════════════════════════════ */
 
+    /* Layout encabezado: en mobile stack vertical; en desktop 2 columnas 50/50
+       (izquierda = directorio-encabezado, derecha = directorio-orden) */
+    .directorio-encabezado-layout {
+        display: flex;
+        flex-direction: column;
+        gap: var(--espacio-tres);
+        padding: var(--espacio-tres) var(--espacio-cuatro) 0;
+    }
+
+    /* Bloque derecho: orden — alineado al final (right) en su mitad */
+    .directorio-orden {
+        display: flex;
+        align-items: center;
+        gap: var(--espacio-dos);
+    }
+
+    .directorio-orden__label {
+        font-size: var(--fs-uno);
+        color: var(--color-seis-claro);
+        white-space: nowrap;
+        margin: 0;
+    }
+
+    .directorio-orden .ts-wrapper,
+    .directorio-orden > select {
+        min-width: 180px;
+        max-width: 240px;
+    }
+
     .directorio-layout {
         display: flex;
         flex-direction: column;
-        gap: var(--espacio-cuatro);
-        padding: var(--espacio-cuatro) var(--espacio-tres);
+        gap: var(--espacio-tres);
+        padding: var(--espacio-tres) var(--espacio-cuatro);
     }
 
-    .directorio-filtros {
+    .filtros-sidebar-01 {
         background: var(--color-ocho);
         border: 1px solid var(--color-cinco);
         border-radius: var(--radio-dos);
-        padding: var(--espacio-cuatro);
+        padding: var(--espacio-tres);
     }
 
-    .directorio-filtros__titulo {
-        font-size: var(--fs-tres);
-        border-bottom: 2px solid var(--color-uno);
-        padding-bottom: var(--espacio-tres);
-        margin-bottom: var(--espacio-cuatro);
+    .filtros-sidebar-01__borrar {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--espacio-uno);
+        font-family: inherit;
+        font-size: var(--fs-uno);
+        color: var(--color-uno);
+        text-decoration: none;
+        padding: var(--espacio-uno) var(--espacio-dos);
+        border: 1px solid var(--color-cinco);
+        border-radius: var(--radio-uno);
+        background: var(--color-ocho);
+        cursor: pointer;
+        transition: all .15s ease;
+        width: 100%;
+        justify-content: center;
     }
 
-    .directorio-filtros__form {
+    .filtros-sidebar-01__borrar:hover {
+        background: var(--color-uno-claro);
+        border-color: var(--color-uno);
+    }
+
+    .filtros-sidebar-01__borrar .icono {
+        width: 14px;
+        height: 14px;
+    }
+
+    .filtros-sidebar-01__form {
         display: flex;
         flex-direction: column;
         gap: var(--espacio-tres);
     }
 
-    .directorio-filtros__acciones {
-        display: flex;
-        flex-direction: column;
-        gap: var(--espacio-dos);
-        margin-top: var(--espacio-cuatro);
-        padding-top: var(--espacio-cuatro);
-        border-top: 1px solid var(--color-cinco);
+    /* "Cerca de mí" arriba del todo, sin separador */
+    .filtros-sidebar-01__cerca {
+        width: 100%;
+        justify-content: center;
     }
 
     .directorio-main {
         display: flex;
         flex-direction: column;
         gap: var(--espacio-cuatro);
-    }
-
-    /* Header de resultados (como provincia.php) */
-    .directorio-resultados__header {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        text-align: center;
-        /*margin-bottom: var(--espacio-cinco);*/
-        gap: var(--espacio-tres);
-    }
-
-    .directorio-resultados__titulo {
-        font-size: var(--fs-tres);
-        color: var(--color-dos);
-        margin: 0;
-    }
-
-    .directorio-resultados__badge {
-        color: var(--color-uno);
-        margin: 0;
-        font-size: var(--fs-dos);
-        padding: var(--espacio-dos) var(--espacio-tres);
-        background: var(--color-uno-claro);
-        border-radius: var(--radio-uno);
     }
 
     .directorio-vacio {
@@ -107,8 +128,21 @@ include 'includes/header.php';
     }
 
     .directorio-vacio p {
-        font-size: var(--fs-tres);
-        color: var(--color-seis-claro);
+        font-size: var(--fs-cuatro);
+        font-weight: var(--peso-negrita);
+        color: var(--color-dos);
+        margin-bottom: var(--espacio-cuatro);
+    }
+
+    .directorio-vacio .boton.dos {
+        background: var(--color-uno);
+        border-color: var(--color-uno);
+        color: var(--color-ocho);
+    }
+    .directorio-vacio .boton.dos:hover {
+        background: var(--color-dos);
+        border-color: var(--color-dos);
+        color: var(--color-ocho);
     }
 
     .paginacion__enlace.deshabilitado {
@@ -120,23 +154,23 @@ include 'includes/header.php';
        TABLET (768px - 1023px) - Filtros en 3 filas centradas
        ═══════════════════════════════════════════════════════════ */
     @media (min-width: 768px) {
+        .directorio-encabezado-layout {
+            padding: var(--espacio-tres) 0 0;
+        }
+
         .directorio-layout {
-            padding: var(--espacio-cuatro) 0;
+            padding: var(--espacio-tres) 0;
         }
 
         /* Tarjeta sin esquinas ni bordes laterales */
-        .directorio-filtros {
+        .filtros-sidebar-01 {
             border-radius: 0;
             border-left: none;
             border-right: none;
         }
 
-        .directorio-filtros__titulo {
-            display: none;
-        }
-
         /* Form en columna centrada */
-        .directorio-filtros__form {
+        .filtros-sidebar-01__form {
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -144,42 +178,26 @@ include 'includes/header.php';
         }
 
         /* Input búsqueda más ancho (fila 1) */
-        .directorio-filtros__form > .formulario-grupo:first-child {
+        .filtros-sidebar-01__form > .field:first-child {
             width: 100%;
             max-width: 450px;
         }
 
         /* Contenedor dropdowns centrados (fila 2) */
-        .directorio-filtros__dropdowns {
+        .filtros-sidebar-01__dropdowns {
             display: flex;
             justify-content: center;
             gap: var(--espacio-tres);
             flex-wrap: wrap;
         }
 
-        /* Botones centrados (fila 3) */
-        .directorio-filtros__acciones {
-            flex-direction: row;
-            justify-content: center;
-            border-top: none;
-            margin-top: 0;
-            padding-top: 0;
-        }
-
-        .directorio-filtros .formulario-etiqueta {
+        .filtros-sidebar-01 .field__label {
             display: none;
         }
 
-        .directorio-filtros__acciones .boton {
-            white-space: nowrap;
-            padding: var(--espacio-dos) var(--espacio-cuatro);
-        }
-
-        /* Header en fila centrado */
-        .directorio-resultados__header {
-            flex-direction: row;
-            justify-content: center;
-            gap: var(--espacio-cinco);
+        .filtros-sidebar-01__cerca {
+            max-width: 220px;
+            margin: 0 auto;
         }
     }
 
@@ -187,56 +205,49 @@ include 'includes/header.php';
        DESKTOP (1024px+) - Sidebar lateral
        ═══════════════════════════════════════════════════════════ */
     @media (min-width: 1024px) {
+        /* 50/50: izquierda = encabezado, derecha = orden right-aligned.
+           Asegura que el orden quede en su propia mitad → no se sobresale más
+           a la derecha que las tarjetas. */
+        .directorio-encabezado-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--espacio-cuatro);
+            align-items: center;
+        }
+
+        .directorio-orden {
+            justify-content: flex-end;
+        }
+
         .directorio-layout {
             display: grid;
-            grid-template-columns: 280px 1fr;
+            grid-template-columns: 260px 1fr;
             gap: var(--espacio-cuatro);
         }
 
-        .directorio-resultados__header {
-            margin-bottom: var(--espacio-cuatro);
-        }
-
-        .directorio-filtros {
+        .filtros-sidebar-01 {
             height: fit-content;
-            position: sticky;
-            top: 100px;
             border-radius: var(--radio-dos);
             border: 1px solid var(--color-cinco);
         }
 
-        .directorio-filtros__titulo {
-            display: block;
-        }
-
-        .directorio-filtros__form {
+        .filtros-sidebar-01__form {
             display: flex;
             flex-direction: column;
+            gap: var(--espacio-tres);
         }
 
-        .directorio-filtros__acciones {
-            flex-direction: column;
-            border-top: 1px solid var(--color-cinco);
-            margin-top: var(--espacio-cuatro);
-            padding-top: var(--espacio-cuatro);
-        }
-
-        .directorio-filtros .formulario-etiqueta {
+        .filtros-sidebar-01 .field__label {
             display: block;
         }
 
-        .directorio-filtros__form .formulario-grupo {
+        .filtros-sidebar-01__form .field {
             width: 100%;
         }
 
-        .directorio-resultados__header {
-            flex-direction: row;
-            justify-content: center;
-            gap: var(--espacio-cinco);
-        }
-
-        .grid-tarjetas {
-            justify-content: space-evenly;
+        .filtros-sidebar-01__cerca {
+            max-width: none;
+            margin: 0;
         }
     }
 </style>
@@ -254,17 +265,33 @@ if ($busqueda !== '') {
     $filtros['busqueda'] = $busqueda;
 }
 
-// Filtro de comunidad
+// Geo unificado (dropdown con optgroups: "ccaa:N" o "prov:N")
+// Retrocompatible con links que traigan ?comunidad_id / ?provincia_id sueltos
 $comunidadId = (int)($_GET['comunidad_id'] ?? 0);
-if ($comunidadId > 0) {
-    $filtros['comunidad_id'] = $comunidadId;
+$provinciaId = (int)($_GET['provincia_id'] ?? 0);
+
+$geoRaw = trim($_GET['geo'] ?? '');
+if ($geoRaw !== '') {
+    if (str_starts_with($geoRaw, 'ccaa:')) {
+        $comunidadId = (int)substr($geoRaw, 5);
+        $provinciaId = 0;
+    } elseif (str_starts_with($geoRaw, 'prov:')) {
+        $provinciaId = (int)substr($geoRaw, 5);
+        $comunidadId = 0;
+    }
 }
 
-// Filtro de provincia
-$provinciaId = (int)($_GET['provincia_id'] ?? 0);
-if ($provinciaId > 0) {
-    $filtros['provincia_id'] = $provinciaId;
-}
+if ($comunidadId > 0) $filtros['comunidad_id'] = $comunidadId;
+if ($provinciaId > 0) $filtros['provincia_id'] = $provinciaId;
+
+// Valor actual del dropdown geo (para el `selected`)
+$geoActual = '';
+if ($provinciaId > 0)       $geoActual = 'prov:' . $provinciaId;
+elseif ($comunidadId > 0)   $geoActual = 'ccaa:' . $comunidadId;
+
+// Filtro ciudad (texto libre, valor = nombre exacto)
+$ciudadFiltro = trim($_GET['ciudad'] ?? '');
+if ($ciudadFiltro !== '') $filtros['ciudad'] = $ciudadFiltro;
 
 // Filtro de valoración mínima
 $valoracionMin = (int)($_GET['valoracion_minima'] ?? 0);
@@ -272,29 +299,84 @@ if ($valoracionMin > 0) {
     $filtros['valoracion_min'] = $valoracionMin;
 }
 
+// Filtros de servicios (booleanos) — nombres = columnas en BD
+$serviciosFiltrables = [
+    'verificado',
+    'cremacion_individual', 'cremacion_colectiva',
+    'atencion_24h', 'sala_velatoria',
+    'recogida_domicilio', 'entrega_domicilio',
+    'urna', 'souvenires', 'carta', 'molde',
+];
+foreach ($serviciosFiltrables as $sk) {
+    if (!empty($_GET[$sk])) $filtros[$sk] = 1;
+}
+
+// Filtro "abiertos ahora" (PHP-side, lee horarios JSON de cada ficha)
+if (!empty($_GET['abiertos_ahora'])) $filtros['abiertos_ahora'] = 1;
+
+// Orden — pasamos directo el value del dropdown ('', 'nombre', 'calificacion', 'recientes', 'mas_resenas')
+$ordenActual = $_GET['orden'] ?? '';
+if ($ordenActual !== '') $filtros['orden'] = $ordenActual;
+
 // ═══════════════════════════════════════════════════════════
 // OBTENER DATOS
 // ═══════════════════════════════════════════════════════════
 $comunidades = obtenerComunidades();
 $provincias = obtenerProvincias();
+$ciudades = obtenerCiudadesGlobal();
+
+// Provincias agrupadas por CCAA para los <optgroup> del dropdown unificado
+$provinciasPorCCAA = [];
+foreach ($provincias as $prov) {
+    $cid = (int)($prov['comunidad_id'] ?? 0);
+    if ($cid > 0) $provinciasPorCCAA[$cid][] = $prov;
+}
+
 $resultado = obtenerCrematorios($filtros, $pagina, ITEMS_POR_PAGINA);
 
 $crematorios = $resultado['datos'];
 $totalCrematorios = $resultado['total'];
 $totalPaginas = $resultado['paginas'];
+
+// ¿Hay filtros activos? (para mostrar "Borrar filtros")
+$hayFiltros = !empty($filtros) || !empty($_GET['orden']);
 ?>
 
     <!-- ═══════════════════════════════════════════════════════════
-         HEADER DIRECTORIO
+         ENCABEZADO 2 COLUMNAS (50/50 desktop, stack mobile):
+         IZQUIERDA: directorio-encabezado (breadcrumb + título + badge + subtítulo)
+         DERECHA:   directorio-orden        (label + dropdown right-aligned)
          ═══════════════════════════════════════════════════════════ -->
-    <section class="hero hero-cuatro">
-        <div class="contenedor">
-            <h1>Directorio de Crematorios</h1>
-            <h2 class="seccion__descripcion estilo-h5 seis">
-                Encuentra el crematorio ideal para despedir a tu mascota con dignidad
-            </h2>
+    <div class="contenedor directorio-encabezado-layout">
+        <div class="directorio-encabezado">
+            <?php
+            $migas = [
+                ['Inicio',     BASE_URL . '/'],
+                ['Directorio', null],
+            ];
+            include ROOT_PATH . '/includes/componentes/breadcrumb.php';
+            ?>
+            <div class="directorio-encabezado__fila">
+                <h1 class="directorio-encabezado__titulo">Directorio de crematorios de mascotas</h1>
+                <span class="directorio-encabezado__badge"><?php echo $totalCrematorios; ?> crematorio<?php echo $totalCrematorios !== 1 ? 's' : ''; ?> encontrado<?php echo $totalCrematorios !== 1 ? 's' : ''; ?></span>
+            </div>
+            <p class="directorio-encabezado__descripcion">Encuentra el crematorio ideal para despedir a tu mascota con dignidad.</p>
         </div>
-    </section>
+
+        <div class="directorio-orden">
+            <label for="orden" class="directorio-orden__label">Ordenar por:</label>
+            <select id="orden" name="orden"
+                    form="form-filtros-directorio"
+                    class="field__select field__select--enhanced"
+                    data-ts-search="off" data-ts-autosubmit="1">
+                <option value=""             <?php echo $ordenActual === '' ? 'selected' : ''; ?>>Mejor valorados</option>
+                <option value="mas_resenas"  <?php echo $ordenActual === 'mas_resenas' ? 'selected' : ''; ?>>Más reseñas</option>
+                <option value="calificacion" <?php echo $ordenActual === 'calificacion' ? 'selected' : ''; ?>>Calificación</option>
+                <option value="recientes"    <?php echo $ordenActual === 'recientes' ? 'selected' : ''; ?>>Más recientes</option>
+                <option value="nombre"       <?php echo $ordenActual === 'nombre' ? 'selected' : ''; ?>>Nombre A-Z</option>
+            </select>
+        </div>
+    </div>
 
     <!-- ═══════════════════════════════════════════════════════════
          LAYOUT PRINCIPAL
@@ -302,118 +384,145 @@ $totalPaginas = $resultado['paginas'];
     <div class="contenedor directorio-layout">
 
         <!-- Filtros -->
-        <div class="directorio-filtros">
-            <h2 class="directorio-filtros__titulo">Filtros</h2>
+        <div class="filtros-sidebar-01">
+            <form action="<?php echo BASE_URL; ?>/directorio.php" method="GET" class="filtros-sidebar-01__form" id="form-filtros-directorio">
+                <!-- Acción rápida arriba del todo (no es un filtro, lleva a /cerca) -->
+                <button type="button" id="btn-cerca-dir" class="boton dos filtros-sidebar-01__cerca" onclick="irACerca(this)">
+                    <i data-lucide="map-pin" class="icono"></i>
+                    Cerca de mí
+                </button>
 
-            <form action="directorio.php" method="GET" class="directorio-filtros__form">
+                <?php if ($hayFiltros): ?>
+                <!-- Borrar filtros: navega forzosamente a la URL limpia (sin params).
+                     type="button" para que no submitea el form; window.location asegura
+                     que el href absoluto no pueda ser sobrescrito por nada. -->
+                <button type="button" class="filtros-sidebar-01__borrar"
+                        onclick="window.location.href='<?php echo BASE_URL; ?>/directorio.php'; return false;">
+                    <i data-lucide="x" class="icono"></i>
+                    Borrar filtros
+                </button>
+                <?php endif; ?>
+
                 <!-- Búsqueda -->
-                <div class="formulario-grupo">
-                    <label for="busqueda" class="formulario-etiqueta">Buscar</label>
-                    <input
-                        type="text"
-                        id="busqueda"
-                        name="busqueda"
-                        class="campo"
-                        placeholder="Nombre, ciudad o servicio..."
-                        value="<?php echo limpiar($busqueda); ?>"
-                    >
+                <div class="field" style="margin-bottom: 0;">
+                    <label for="busqueda" class="field__label">Buscar</label>
+                    <div class="field__clear-wrap<?php echo $busqueda !== '' ? ' field__clear-wrap--has-value' : ''; ?>">
+                        <input
+                            type="text"
+                            id="busqueda"
+                            name="busqueda"
+                            class="field__input"
+                            placeholder="Nombre, ciudad o servicio…"
+                            value="<?php echo limpiar($busqueda); ?>"
+                        >
+                        <button type="button" class="field__clear-btn" id="busqueda-clear" aria-label="Limpiar búsqueda" title="Limpiar búsqueda">
+                            <i data-lucide="x" class="icono"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Dropdowns en fila (tablet) -->
-                <div class="directorio-filtros__dropdowns">
+                <div class="filtros-sidebar-01__dropdowns">
 
-                <!-- Comunidad Autónoma -->
-                <div class="formulario-grupo">
-                    <label for="comunidad" class="formulario-etiqueta">Comunidad Autónoma</label>
-                    <div class="seleccion-contenedor">
-                        <select id="comunidad" name="comunidad_id" class="seleccion">
-                            <option value="">Todas las comunidades</option>
-                            <?php foreach ($comunidades as $com): ?>
-                            <option value="<?php echo $com['id']; ?>" <?php echo $comunidadId == $com['id'] ? 'selected' : ''; ?>>
-                                <?php echo limpiar($com['nombre']); ?> (<?php echo $com['total_crematorios']; ?>)
+                <!-- Geo: CCAA + Provincia en un solo dropdown con optgroups -->
+                <div class="field" style="margin-bottom: 0;">
+                    <label for="geo" class="field__label">Comunidad o provincia</label>
+                    <select id="geo" name="geo" class="field__select field__select--enhanced" data-placeholder="Toda España" data-ts-autosubmit="1">
+                        <option value="">Toda España</option>
+                        <?php foreach ($comunidades as $com): ?>
+                        <optgroup label="<?php echo limpiar($com['nombre']); ?>">
+                            <option value="ccaa:<?php echo $com['id']; ?>"
+                                    <?php echo $geoActual === 'ccaa:' . $com['id'] ? 'selected' : ''; ?>>
+                                Toda <?php echo limpiar($com['nombre']); ?> (<?php echo $com['total_crematorios']; ?>)
                             </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Provincia -->
-                <div class="formulario-grupo">
-                    <label for="provincia" class="formulario-etiqueta">Provincia</label>
-                    <div class="seleccion-contenedor">
-                        <select id="provincia" name="provincia_id" class="seleccion">
-                            <option value="">Todas las provincias</option>
-                            <?php foreach ($provincias as $prov): ?>
-                            <option value="<?php echo $prov['id']; ?>"
-                                    data-comunidad-id="<?php echo $prov['comunidad_id'] ?? ''; ?>"
-                                    <?php echo $provinciaId == $prov['id'] ? 'selected' : ''; ?>>
+                            <?php foreach ($provinciasPorCCAA[$com['id']] ?? [] as $prov): ?>
+                            <option value="prov:<?php echo $prov['id']; ?>"
+                                    data-comunidad-id="<?php echo $com['id']; ?>"
+                                    <?php echo $geoActual === 'prov:' . $prov['id'] ? 'selected' : ''; ?>>
                                 <?php echo limpiar($prov['nombre']); ?> (<?php echo $prov['total_crematorios']; ?>)
                             </option>
                             <?php endforeach; ?>
-                        </select>
+                        </optgroup>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <!-- Ciudad — más granular, en cascada con geo -->
+                <div class="field" style="margin-bottom: 0;">
+                    <label for="ciudad" class="field__label">Ciudad</label>
+                    <select id="ciudad" name="ciudad" class="field__select field__select--enhanced" data-placeholder="Todas las ciudades" data-ts-autosubmit="1">
+                        <option value="">Todas las ciudades</option>
+                        <?php foreach ($ciudades as $ciu):
+                            // Cascade server-side: si ya hay geo elegida, filtrar
+                            if ($provinciaId > 0 && (int)$ciu['provincia_id'] !== $provinciaId) continue;
+                            if ($comunidadId > 0 && (int)$ciu['comunidad_id'] !== $comunidadId) continue;
+                        ?>
+                        <option value="<?php echo htmlspecialchars($ciu['nombre'], ENT_QUOTES); ?>"
+                                data-comunidad-id="<?php echo (int)($ciu['comunidad_id'] ?? 0); ?>"
+                                data-provincia-id="<?php echo (int)($ciu['provincia_id'] ?? 0); ?>"
+                                <?php echo $ciudadFiltro === $ciu['nombre'] ? 'selected' : ''; ?>>
+                            <?php echo limpiar($ciu['nombre']); ?> (<?php echo $ciu['total_crematorios']; ?>)
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="field" style="margin-bottom: 0;">
+                    <label for="valoracion" class="field__label">Valoración mínima</label>
+                    <select id="valoracion" name="valoracion_minima" class="field__select field__select--enhanced" data-ts-search="off" data-ts-autosubmit="1">
+                        <option value="">Todas las valoraciones</option>
+                        <option value="5" <?php echo $valoracionMin == 5 ? 'selected' : ''; ?>>5 estrellas</option>
+                        <option value="4" <?php echo $valoracionMin == 4 ? 'selected' : ''; ?>>4+ estrellas</option>
+                        <option value="3" <?php echo $valoracionMin == 3 ? 'selected' : ''; ?>>3+ estrellas</option>
+                        <option value="2" <?php echo $valoracionMin == 2 ? 'selected' : ''; ?>>2+ estrellas</option>
+                        <option value="1" <?php echo $valoracionMin == 1 ? 'selected' : ''; ?>>1+ estrellas</option>
+                    </select>
+                </div>
+
+                </div><!-- /.filtros-sidebar-01__dropdowns -->
+
+                <!-- Chips de servicios (los 10 booleanos de BD + Abiertos ahora) -->
+                <div class="filtros-sidebar-01__chips">
+                    <div class="field__label" style="margin-bottom: var(--espacio-dos);">Servicios</div>
+                    <div style="display:flex; flex-wrap:wrap; gap:var(--espacio-dos);">
+                        <?php
+                        // Chips servicios: cada uno es [label, tooltip]. tooltip='' = sin tooltip
+                        $chipsServicios = [
+                            'abiertos_ahora'       => ['Abiertos ahora',        ''],
+                            'verificado'           => ['Verificado',            'Un miembro del equipo se contactó con el crematorio para verificar la información publicada (contactos, servicios, dirección).'],
+                            'cremacion_individual' => ['Cremación individual',  ''],
+                            'cremacion_colectiva'  => ['Cremación colectiva',   ''],
+                            'atencion_24h'         => ['Atención 24/7',         ''],
+                            'sala_velatoria'       => ['Sala velatoria',        ''],
+                            'recogida_domicilio'   => ['Recogida a domicilio',  ''],
+                            'entrega_domicilio'    => ['Entrega a domicilio',   ''],
+                            'urna'                 => ['Urna incluida',         ''],
+                            'souvenires'           => ['Souvenirs',             ''],
+                            'carta'                => ['Carta de condolencias', ''],
+                            'molde'                => ['Molde de huella',       ''],
+                        ];
+                        foreach ($chipsServicios as $name => [$label, $tooltip]):
+                            $checked = !empty($_GET[$name]) ? 'checked' : '';
+                            // Bug fix: NO repetir atributo class — concatenar dentro del único class=
+                            $clases = 'field__opcion' . ($tooltip ? ' tiene-tooltip' : '');
+                            $dataTip = $tooltip ? ' data-tooltip="' . htmlspecialchars($tooltip, ENT_QUOTES) . '"' : '';
+                        ?>
+                        <label class="<?php echo $clases; ?>"<?php echo $dataTip; ?>>
+                            <input type="checkbox" class="field__check" name="<?php echo $name; ?>" value="1" <?php echo $checked; ?> onchange="document.getElementById('form-filtros-directorio').submit()">
+                            <span><?php echo $label; ?></span>
+                        </label>
+                        <?php endforeach; ?>
                     </div>
                 </div>
 
-                <!-- Valoración Mínima -->
-                <div class="formulario-grupo">
-                    <label for="valoracion" class="formulario-etiqueta">Valoración Mínima</label>
-                    <div class="seleccion-contenedor">
-                        <select id="valoracion" name="valoracion_minima" class="seleccion">
-                            <option value="">Todas las valoraciones</option>
-                            <option value="5" <?php echo $valoracionMin == 5 ? 'selected' : ''; ?>>5 estrellas</option>
-                            <option value="4" <?php echo $valoracionMin == 4 ? 'selected' : ''; ?>>4+ estrellas</option>
-                            <option value="3" <?php echo $valoracionMin == 3 ? 'selected' : ''; ?>>3+ estrellas</option>
-                            <option value="2" <?php echo $valoracionMin == 2 ? 'selected' : ''; ?>>2+ estrellas</option>
-                            <option value="1" <?php echo $valoracionMin == 1 ? 'selected' : ''; ?>>1+ estrellas</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Ordenar -->
-                <div class="formulario-grupo">
-                    <label for="orden" class="formulario-etiqueta">Ordenar por</label>
-                    <div class="seleccion-contenedor">
-                        <select id="orden" name="orden" class="seleccion">
-                            <option value="">Mejor valorados</option>
-                            <option value="nombre">Nombre A-Z</option>
-                            <option value="calificacion">Calificación</option>
-                            <option value="recientes">Más recientes</option>
-                        </select>
-                    </div>
-                </div>
-
-                </div><!-- /.directorio-filtros__dropdowns -->
-
-                <!-- Botones -->
-                <div class="directorio-filtros__acciones">
-                    <button type="submit" class="boton uno">
-                        <i data-lucide="filter" class="icono"></i>
-                        Aplicar filtros
-                    </button>
-
-                    <a href="directorio.php" class="boton dos">
-                        <i data-lucide="x" class="icono"></i>
-                        Limpiar filtros
-                    </a>
-                </div>
             </form>
         </div>
 
         <!-- MAIN - Resultados -->
         <div class="directorio-main">
 
-            <!-- Header de resultados -->
-            <div class="directorio-resultados__header">
-                <h2 class="directorio-resultados__titulo">
-                    Crematorios en el Directorio
-                </h2>
-                <p class="directorio-resultados__badge">
-                    <?php echo $totalCrematorios; ?> crematorio<?php echo $totalCrematorios !== 1 ? 's' : ''; ?> encontrado<?php echo $totalCrematorios !== 1 ? 's' : ''; ?>
-                </p>
-            </div>
-
             <!-- Lista de crematorios -->
-            <div class="grid-tarjetas">
+            <div class="grid-tarjetas <?php echo claseGridTarjetas(count($crematorios), 3); ?>">
                 <?php if (empty($crematorios)): ?>
                 <div class="directorio-vacio">
                     <i data-lucide="search-x" class="icono"></i>
@@ -422,52 +531,7 @@ $totalPaginas = $resultado['paginas'];
                 </div>
                 <?php else: ?>
                 <?php foreach ($crematorios as $crem): ?>
-                <article class="tarjeta">
-                    <div class="tarjeta__imagen">
-                        <?php if (!empty($crem['foto_principal'])): ?>
-                        <img
-                            src="<?php echo limpiar($crem['foto_principal']); ?>"
-                            alt="<?php echo limpiar($crem['nombre']); ?>"
-                            loading="lazy"
-                            onerror="this.parentElement.innerHTML='<div class=\'tarjeta__imagen--placeholder\'><i data-lucide=\'heart\' class=\'icono\'></i></div><?php if (!empty($crem['destacado'])): ?><span class=\'tarjeta__destacado\'>Destacado</span><?php endif; ?>'; lucide.createIcons();"
-                        >
-                        <?php else: ?>
-                        <div class="tarjeta__imagen--placeholder">
-                            <i data-lucide="heart" class="icono"></i>
-                        </div>
-                        <?php endif; ?>
-                        <?php if (!empty($crem['destacado'])): ?>
-                        <span class="tarjeta__destacado">Destacado</span>
-                        <?php endif; ?>
-                    </div>
-
-                    <div class="tarjeta__contenido">
-                        <h3 class="tarjeta__titulo">
-                            <a href="<?php echo generarUrl('crematorio', $crem['slug']); ?>">
-                                <?php echo limpiar($crem['nombre']); ?>
-                            </a>
-                        </h3>
-
-                        <p class="tarjeta__ubicacion">
-                            <i data-lucide="map-pin" class="icono"></i>
-                            <?php echo limpiar($crem['ciudad']); ?>, <?php echo limpiar($crem['provincia_nombre']); ?>
-                        </p>
-
-                        <p class="tarjeta__descripcion corta">
-                            <?php echo limpiar($crem['descripcion_corta'] ?? 'Servicios de cremación de mascotas profesional y respetuoso.'); ?>
-                        </p>
-
-                        <div class="tarjeta__footer">
-                            <div class="tarjeta__valoracion">
-                                <i data-lucide="star" class="icono icono--llena"></i>
-                                <span><?php echo number_format($crem['rating'] ?? 0, 1); ?></span>
-                            </div>
-                            <a href="<?php echo generarUrl('crematorio', $crem['slug']); ?>" class="boton uno pequeno">
-                                Ver detalles
-                            </a>
-                        </div>
-                    </div>
-                </article>
+                    <?php include __DIR__ . '/includes/componentes/tarjeta-crematorio.php'; ?>
                 <?php endforeach; ?>
                 <?php endif; ?>
             </div>
@@ -537,43 +601,46 @@ $totalPaginas = $resultado['paginas'];
 
     <!-- Script específico de la página -->
     <script>
-        // Filtrado dinámico de provincias según comunidad
         document.addEventListener('DOMContentLoaded', function() {
-            const comunidadSelect = document.getElementById('comunidad');
-            const provinciaSelect = document.getElementById('provincia');
+            // Debounced auto-submit del input de búsqueda (estilo Amazon: enter o pausa)
+            // + Botón X para limpiar el input rápidamente
+            const form = document.getElementById('form-filtros-directorio');
+            const inputBusqueda = document.getElementById('busqueda');
+            const clearBtn = document.getElementById('busqueda-clear');
+            const wrapBusqueda = inputBusqueda ? inputBusqueda.closest('.field__clear-wrap') : null;
 
-            if (comunidadSelect && provinciaSelect) {
-                // Guardar todas las provincias
-                const todasProvincias = Array.from(provinciaSelect.options).slice(1);
+            function toggleClearBtn() {
+                if (wrapBusqueda) {
+                    wrapBusqueda.classList.toggle('field__clear-wrap--has-value', inputBusqueda.value.length > 0);
+                }
+            }
 
-                comunidadSelect.addEventListener('change', function() {
-                    const comunidadId = this.value;
-
-                    // Limpiar provincias
-                    provinciaSelect.innerHTML = '<option value="">Todas las provincias</option>';
-
-                    if (comunidadId) {
-                        // Filtrar provincias de la comunidad seleccionada
-                        todasProvincias.forEach(option => {
-                            if (option.dataset.comunidadId === comunidadId) {
-                                provinciaSelect.appendChild(option.cloneNode(true));
-                            }
-                        });
-
-                        // Si no hay provincias, mostrar todas
-                        if (provinciaSelect.options.length === 1) {
-                            todasProvincias.forEach(option => {
-                                provinciaSelect.appendChild(option.cloneNode(true));
-                            });
-                        }
-                    } else {
-                        // Restaurar todas
-                        todasProvincias.forEach(option => {
-                            provinciaSelect.appendChild(option.cloneNode(true));
-                        });
+            if (form && inputBusqueda) {
+                let debounceId;
+                inputBusqueda.addEventListener('input', function() {
+                    toggleClearBtn();
+                    clearTimeout(debounceId);
+                    debounceId = setTimeout(() => form.submit(), 600);
+                });
+                inputBusqueda.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        clearTimeout(debounceId);
+                        form.submit();
                     }
                 });
+                // Click en la X → limpia y refresca resultados
+                if (clearBtn) {
+                    clearBtn.addEventListener('click', function() {
+                        inputBusqueda.value = '';
+                        toggleClearBtn();
+                        clearTimeout(debounceId);
+                        form.submit();
+                    });
+                }
             }
+
+            // "Cerca de mí" usa la función global irACerca() definida en header.php
+            // (única implementación para los 4 botones del sitio).
         });
     </script>
 

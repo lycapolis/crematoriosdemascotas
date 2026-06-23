@@ -1,0 +1,1013 @@
+/* ═══════════════════════════════════════════════════════════
+   FORMS — capa compartida admin + público
+   ═══════════════════════════════════════════════════════════
+
+   Diseño: paleta cálida (terracota / marrón / crema).
+   Tipografía: Lato.
+   Tokens: usa --admin-* como naming convention.
+
+   Load order:
+   - Admin:   variables.css → componentes.css → forms.css → admin.css
+              (admin.css sobrescribe los tokens fallback de forms.css)
+   - Público: variables.css → componentes.css → forms.css
+              (los tokens fallback de forms.css quedan activos)
+
+   Cobertura actual (Fase 1): selects (Tom Select), inputs, textareas, password.
+   Pendiente próximas fases: checkboxes, radios, search input, file upload.
+   ═══════════════════════════════════════════════════════════ */
+
+
+/* ─────────────────────────────────────────────────────────
+   TOKENS FALLBACK — se usan cuando admin.css no está cargado.
+   En admin, admin.css redefine estos mismos tokens (load order
+   lo garantiza), así que forms.css queda visualmente idéntico
+   en ambos contextos.
+   ───────────────────────────────────────────────────────── */
+:root {
+    /* Superficies */
+    --admin-superficie:        #FFFFFF;
+    --admin-papel-alt:         #FAF4ED;
+    --admin-linea-fuerte:      #D9CAB5;
+
+    /* Tinta */
+    --admin-tinta-fuerte:      #2C2417;
+    --admin-tinta:             #4A3B2A;
+    --admin-tinta-suave:       #5A4B36;
+    --admin-tinta-tenue:       #76664C;
+
+    /* Brand */
+    --admin-brand:             #B8704F;
+    --admin-brand-hover:       #A45F40;
+    --admin-brand-soft:        rgba(184, 112, 79, 0.08);
+
+    /* Sombras */
+    --admin-sombra-alta:  0 4px 8px rgba(74, 59, 42, 0.08),
+                          0 20px 40px rgba(74, 59, 42, 0.10);
+    --admin-sombra-foco:  0 0 0 3px rgba(184, 112, 79, 0.18);
+
+    /* Radios */
+    --admin-r-sm:   6px;
+    --admin-r-md:   10px;
+    --admin-r-pill: 9999px;
+
+    /* Líneas sutiles + sombra suave (paneles, separadores, listas) */
+    --admin-linea:        #ECE2D4;
+    --admin-sombra-suave: 0 1px 2px rgba(74, 59, 42, 0.04),
+                          0 2px 6px rgba(74, 59, 42, 0.05);
+
+    /* Type scale local */
+    --admin-body-sm: 0.875rem;
+    --admin-kicker:  0.75rem;
+    --admin-caption: 0.75rem;
+    --admin-h4:      1.1875rem; /* 19px — títulos de panel/sección */
+}
+
+
+/* ─── Field container ─────────────────────────────────────── */
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: 1.25rem;
+}
+
+.field__label {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 0.55rem;
+    font-size: var(--admin-body-sm); /* 14px */
+    font-weight: 600;
+    letter-spacing: 0;
+    color: var(--admin-tinta-fuerte);
+}
+
+.field__req {
+    font-size: var(--admin-kicker); /* 12px */
+    font-weight: 500;
+    color: var(--admin-tinta-suave);
+    background: var(--admin-papel-alt);
+    padding: 0.15rem 0.55rem;
+    border-radius: var(--admin-r-pill);
+    text-transform: lowercase;
+}
+
+/* Label invisible que reserva el mismo espacio que un .field__label normal.
+   Útil cuando ponés algo al costado de inputs en un grid (ej: botón "Filtrar"
+   junto a selects). Da homogeneidad de altura → todo el row se alinea solo. */
+.field__label--spacer {
+    visibility: hidden;
+    user-select: none;
+    pointer-events: none;
+}
+
+.field__hint {
+    font-size: var(--admin-body-sm);
+    color: var(--admin-tinta-suave);
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* ─── Input / textarea / select base ──────────────────────────
+   Scope con tag para no afectar el wrapper de Tom Select
+   (el wrapper hereda las clases del <select> original al inicializar). */
+input.field__input,
+textarea.field__textarea,
+select.field__select {
+    width: 100%;
+    padding: 0.65rem 0.9rem;
+    font-family: var(--fuente-texto);
+    font-size: var(--admin-body-sm);
+    color: var(--admin-tinta-fuerte);
+    background: var(--admin-superficie);
+    border: 1px solid var(--admin-linea-fuerte);
+    border-radius: var(--admin-r-sm);
+    transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
+}
+input.field__input:hover,
+textarea.field__textarea:hover,
+select.field__select:hover {
+    border-color: var(--admin-tinta-suave);
+}
+input.field__input:focus,
+textarea.field__textarea:focus,
+select.field__select:focus {
+    outline: none;
+    border-color: var(--admin-brand);
+    box-shadow: var(--admin-sombra-foco);
+}
+textarea.field__textarea {
+    resize: vertical;
+    min-height: 96px;
+    line-height: 1.55;
+}
+
+/* ─── Input con botón "limpiar" (X) — para inputs de búsqueda ─
+   Patrón reusable: wrapper .field__clear-wrap + input + botón X. */
+.field__clear-wrap {
+    position: relative;
+}
+.field__clear-wrap input.field__input {
+    padding-right: 36px;
+}
+.field__clear-btn {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--admin-tinta-suave);
+    cursor: pointer;
+    border-radius: 50%;
+    padding: 0;
+    transition: background 120ms ease, color 120ms ease;
+}
+.field__clear-btn .icono {
+    width: 14px;
+    height: 14px;
+}
+.field__clear-btn:hover {
+    background: var(--color-cinco);
+    color: var(--color-uno);
+}
+.field__clear-wrap--has-value .field__clear-btn {
+    display: inline-flex;
+}
+
+/* Móvil: fuente ≥16px en controles. Si es <16px, iOS hace zoom
+   automático al enfocar el campo (UX rota en formularios). Solo
+   afecta pantallas chicas — desktop/admin quedan igual. */
+@media (max-width: 640px) {
+    input.field__input,
+    textarea.field__textarea,
+    select.field__select {
+        font-size: 16px;
+    }
+    /* Tarjetas más compactas en móvil (menos padding lateral acumulado) */
+    .panel { padding: var(--espacio-tres); }
+}
+
+/* ─── Estados error / success por campo ───────────────────────
+   Aplicables vía clase (.field__input--error) o vía atributo
+   accesible (aria-invalid="true"). El atributo gana solo. */
+input.field__input--error,
+textarea.field__textarea--error,
+input.field__input[aria-invalid="true"],
+textarea.field__textarea[aria-invalid="true"] {
+    border-color: var(--color-siete);
+}
+input.field__input--error:focus,
+textarea.field__textarea--error:focus,
+input.field__input[aria-invalid="true"]:focus,
+textarea.field__textarea[aria-invalid="true"]:focus {
+    border-color: var(--color-siete);
+    box-shadow: 0 0 0 3px rgba(196, 105, 91, 0.18);
+}
+input.field__input--success,
+textarea.field__textarea--success {
+    border-color: var(--admin-tone-exito-fg, #3F5A2C);
+}
+input.field__input--success:focus,
+textarea.field__textarea--success:focus {
+    border-color: var(--admin-tone-exito-fg, #3F5A2C);
+    box-shadow: 0 0 0 3px rgba(63, 90, 44, 0.16);
+}
+
+/* Mensaje de error inline debajo del campo */
+.field__error {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: var(--admin-body-sm);
+    color: var(--color-siete);
+    line-height: 1.4;
+    margin: 0;
+}
+.field__error .icono {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+/* ─── Adornos prefix / suffix (icono o texto dentro del input) ─
+   <div class="field__group">
+       <span class="field__prefix"><i data-lucide="search"></i></span>
+       <input class="field__input" ...>
+       <span class="field__suffix">€</span>
+   </div>
+   El input ajusta su padding solo según haya prefix/suffix. */
+.field__group {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.field__group .field__input {
+    width: 100%;
+}
+.field__prefix,
+.field__suffix {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    color: var(--admin-tinta-tenue);
+    font-size: var(--admin-body-sm);
+    pointer-events: none;
+    z-index: 1;
+}
+.field__prefix { left: 0.85rem; }
+.field__suffix { right: 0.85rem; }
+.field__prefix .icono,
+.field__suffix .icono {
+    width: 16px;
+    height: 16px;
+}
+/* El input deja hueco para el adorno */
+.field__group:has(.field__prefix) .field__input { padding-left: 2.4rem; }
+.field__group:has(.field__suffix) .field__input { padding-right: 2.4rem; }
+/* Suffix interactivo (ej: botón clear) — permitir click */
+.field__suffix--accion {
+    pointer-events: auto;
+    cursor: pointer;
+    background: none;
+    border: 0;
+    padding: 0.2rem;
+    border-radius: var(--admin-r-sm);
+    transition: color 140ms ease-out, background 140ms ease-out;
+}
+.field__suffix--accion:hover {
+    color: var(--admin-brand);
+    background: var(--admin-brand-soft);
+}
+
+/* ─── Search input con clear button (Fase 4) ──────────────────
+   Patrón: .field__group con prefix lupa + .field__clear (botón x).
+   El botón aparece SOLO cuando el input tiene contenido — visibilidad
+   100% CSS vía :placeholder-shown (sin JS). Requiere que el input
+   tenga atributo placeholder. La acción de limpiar es un onclick
+   inline self-contained (no necesita función global). */
+.field__clear {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: none;            /* oculto por default */
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--admin-r-pill);
+    background: none;
+    color: var(--admin-tinta-tenue);
+    cursor: pointer;
+    z-index: 2;
+    transition: color 140ms ease-out, background 140ms ease-out;
+}
+.field__clear .icono {
+    width: 15px;
+    height: 15px;
+}
+.field__clear:hover {
+    color: var(--color-siete);
+    background: var(--admin-papel-alt);
+}
+.field__clear:focus-visible {
+    outline: none;
+    color: var(--admin-brand);
+    box-shadow: var(--admin-sombra-foco);
+}
+/* Mostrar el botón solo cuando el input tiene contenido
+   (:not(:placeholder-shown) = hay texto escrito o value pre-cargado) */
+.field__group .field__input:not(:placeholder-shown) ~ .field__clear {
+    display: flex;
+}
+/* Dejar hueco a la derecha para el botón x */
+.field__group:has(.field__clear) .field__input {
+    padding-right: 2.4rem;
+}
+/* Si conviven prefix + clear, el padding-left lo da la regla del prefix */
+
+/* ─── Select native (sin Tom Select): chevron custom ──────────
+   IMPORTANTE: scope con `select.field__select` (no solo .field__select)
+   porque Tom Select copia las clases del <select> original al wrapper
+   <div>. Sin el selector de elemento, el wrapper recibiría el chevron
+   nativo además del de Tom Select → doble flecha visible. */
+select.field__select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    padding-right: 2.5rem;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%235A4B36' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 0.95rem center;
+    background-size: 14px 14px;
+    cursor: pointer;
+}
+select.field__select:focus {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23B8704F' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+}
+select.field__select::-ms-expand {
+    display: none;
+}
+
+/* ─── Password input con toggle ojo ───────────────────────── */
+.field__password {
+    position: relative;
+}
+.field__password .field__input {
+    padding-right: 2.5rem;
+}
+.field__pwd-toggle {
+    position: absolute;
+    right: 0.35rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: var(--admin-r-sm);
+    cursor: pointer;
+    color: var(--admin-tinta-suave);
+    transition: background 150ms ease-out, color 150ms ease-out;
+}
+.field__pwd-toggle:hover {
+    background: var(--admin-brand-soft);
+    color: var(--admin-brand-hover);
+}
+.field__pwd-toggle:focus-visible {
+    outline: 2px solid var(--admin-brand);
+    outline-offset: 1px;
+}
+.field__pwd-toggle .icono {
+    width: 16px;
+    height: 16px;
+}
+
+/* ─── Row grid (varios campos en línea) ───────────────────── */
+.field-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem 1.5rem;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOM SELECT — tema custom matcheando paleta cálida
+   ═══════════════════════════════════════════════════════════
+   Override del tema base de Tom Select. Hace que .ts-control
+   se vea idéntico a .field__select (mismo border, radius, padding,
+   font, focus ring). El dropdown panel sigue las mismas sombras
+   y radios del sistema (--admin-sombra-media, --admin-r-md). */
+
+.ts-wrapper {
+    margin: 0;
+    width: 100%; /* el <select.field__select> nativo es width:100%; el wrapper
+                    de Tom Select debe igualarlo (no hereda estilos del select). */
+}
+
+.ts-wrapper.single .ts-control,
+.ts-wrapper.multi .ts-control {
+    position: relative; /* ancla el chevron ::after al control, no al wrapper
+                            (si no, con dropdown abierto dentro del wrapper el
+                            chevron caía sobre la 1ra opción) */
+    background: var(--admin-superficie);
+    border: 1px solid var(--admin-linea-fuerte);
+    border-radius: var(--admin-r-sm);
+    box-shadow: none;
+    padding: 0.5rem 2.4rem 0.5rem 0.9rem;
+    min-height: 0;
+    font-family: var(--fuente-texto);
+    font-size: var(--admin-body-sm);
+    color: var(--admin-tinta-fuerte);
+    line-height: 1.45;
+    transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
+    cursor: pointer;
+}
+.ts-wrapper.single .ts-control:hover,
+.ts-wrapper.multi  .ts-control:hover {
+    border-color: var(--admin-tinta-suave);
+}
+/* Foco/abierto: UN solo borde (brand 1px) + UN solo ring. El !important
+   neutraliza el box-shadow/borde extra que mete el tema base de tom-select.css
+   (era el "tercer borde" de 2px que se veía al activar). Cubre focus,
+   input-active y dropdown-active para que sea consistente en todo el ciclo. */
+.ts-wrapper.focus .ts-control,
+.ts-wrapper.input-active .ts-control,
+.ts-wrapper.dropdown-active .ts-control {
+    border-color: var(--admin-brand);
+    box-shadow: var(--admin-sombra-foco) !important;
+    outline: none;
+}
+.ts-control,
+.ts-control input {
+    box-shadow: none;
+    outline: none;
+}
+.ts-wrapper.disabled .ts-control {
+    background: var(--admin-papel-alt);
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+/* Texto del item seleccionado */
+.ts-wrapper.single .ts-control > .item {
+    color: var(--admin-tinta-fuerte);
+}
+
+/* Cuando el dropdown está abierto Y hay input de búsqueda, ocultar el item
+   seleccionado para que el input quede limpio. Sin esto, al escribir queda
+   visible el texto del item ("Todas mad" en vez de "mad").
+   IMPORTANTE: el `:has(input)` evita ocultar el item cuando data-ts-search="off"
+   (sin input) — en ese caso si lo ocultamos el control colapsa de altura. */
+.ts-wrapper.single.dropdown-active .ts-control:has(input) > .item {
+    display: none;
+}
+
+/* Input de búsqueda dentro del control */
+.ts-control input {
+    font-family: var(--fuente-texto);
+    font-size: var(--admin-body-sm);
+    color: var(--admin-tinta-fuerte);
+}
+.ts-control input::placeholder {
+    color: var(--admin-tinta-tenue);
+    opacity: 1;
+}
+
+/* Chevron de Tom Select — SVG custom, mismo estilo que .field__select */
+.ts-wrapper.single .ts-control::after {
+    content: "";
+    position: absolute;
+    right: 0.95rem;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    transform: translateY(-50%);
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%235A4B36' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>") center/14px no-repeat;
+    pointer-events: none;
+    transition: transform 180ms ease-out;
+}
+.ts-wrapper.single.dropdown-active .ts-control::after {
+    transform: translateY(-50%) rotate(180deg);
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23B8704F' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>") center/14px no-repeat;
+}
+
+/* Dropdown panel (el menú que se abre) */
+.ts-dropdown {
+    background: var(--admin-superficie);
+    border: 1px solid var(--admin-linea-fuerte);
+    border-radius: var(--admin-r-md);
+    box-shadow: var(--admin-sombra-alta);
+    padding: 0.3rem 0;
+    margin-top: 0.35rem;
+    font-family: var(--fuente-texto);
+}
+
+.ts-dropdown .option {
+    padding: 0.55rem 0.9rem;
+    font-size: var(--admin-body-sm);
+    color: var(--admin-tinta);
+    line-height: 1.45;
+    cursor: pointer;
+    transition: background 100ms ease-out, color 100ms ease-out;
+}
+.ts-dropdown .option:hover,
+.ts-dropdown .option.active {
+    background: var(--admin-brand-soft);
+    color: var(--admin-brand-hover);
+}
+.ts-dropdown .option.selected {
+    background: var(--admin-brand);
+    color: #fff;
+    font-weight: 600;
+}
+.ts-dropdown .option.selected.active {
+    background: var(--admin-brand-hover);
+}
+
+/* "Sin resultados" mensaje */
+.ts-dropdown .no-results {
+    padding: 0.7rem 0.9rem;
+    font-size: var(--admin-body-sm);
+    color: var(--admin-tinta-tenue);
+    font-style: italic;
+}
+
+/* Optgroup header (si se usa) */
+.ts-dropdown .optgroup-header {
+    padding: 0.5rem 0.9rem 0.3rem;
+    font-size: var(--admin-kicker);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--admin-tinta-suave);
+    background: var(--admin-papel-alt);
+}
+
+/* Multi-select: tags/pills */
+.ts-wrapper.multi .ts-control > .item {
+    background: var(--admin-brand-soft);
+    color: var(--admin-brand-hover);
+    border: 1px solid var(--admin-brand);
+    border-radius: var(--admin-r-pill);
+    padding: 0.1rem 0.55rem;
+    font-size: var(--admin-body-sm);
+    font-weight: 500;
+    margin: 0.15rem 0.3rem 0.15rem 0;
+}
+.ts-wrapper.multi .ts-control > .item.active {
+    background: var(--admin-brand);
+    color: #fff;
+}
+
+/* Clear / remove button (plugin clear_button / remove_button) */
+.ts-wrapper .clear-button {
+    color: var(--admin-tinta-tenue);
+    opacity: 0.6;
+    transition: opacity 150ms;
+}
+.ts-wrapper .clear-button:hover {
+    opacity: 1;
+    color: var(--admin-brand);
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   FASE 2 — CHECKBOX / RADIO / SWITCH custom
+
+   Patrón: el <input> real se mantiene (appearance:none), es el
+   propio control visible. No requiere spans extra → markup mínimo:
+   solo agregar la clase al input. JS hooks (onchange, name, id,
+   data-*, hidden inputs) intactos. Accesible: el input sigue
+   focusable, submitea y lo leen los screen readers.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ─── Label contenedor (opción clickeable) ─── */
+.field__opcion {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    cursor: pointer;
+    user-select: none;
+    font-size: var(--admin-body-sm);
+    color: var(--admin-tinta-fuerte);
+    line-height: 1.4;
+}
+.field__opcion:has(input:disabled) {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* ─── Base común checkbox + radio ─── */
+.field__check,
+.field__radio {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    display: inline-grid;
+    place-content: center;
+    background: var(--admin-superficie);
+    border: 1.5px solid var(--admin-linea-fuerte);
+    cursor: pointer;
+    transition: background 140ms ease-out, border-color 140ms ease-out, box-shadow 140ms ease-out;
+}
+.field__check { border-radius: 5px; }
+.field__radio { border-radius: 50%; }
+
+.field__check:hover,
+.field__radio:hover {
+    border-color: var(--admin-brand);
+}
+
+.field__check:focus-visible,
+.field__radio:focus-visible {
+    outline: none;
+    border-color: var(--admin-brand);
+    box-shadow: var(--admin-sombra-foco);
+}
+
+/* Checkbox: tilde dibujada con ::after (rectángulo rotado), animada */
+.field__check::after {
+    content: "";
+    width: 5px;
+    height: 9px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg) scale(0);
+    transform-origin: center;
+    transition: transform 140ms ease-out;
+    margin-top: -1px;
+}
+.field__check:checked {
+    background: var(--admin-brand);
+    border-color: var(--admin-brand);
+}
+.field__check:checked::after {
+    transform: rotate(45deg) scale(1);
+}
+
+/* Radio: punto central animado */
+.field__radio::after {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #fff;
+    transform: scale(0);
+    transition: transform 140ms ease-out;
+}
+.field__radio:checked {
+    background: var(--admin-brand);
+    border-color: var(--admin-brand);
+}
+.field__radio:checked::after {
+    transform: scale(1);
+}
+
+/* Variante error (rojo semántico — ej: "Es SPAM") */
+.field__check--error:hover,
+.field__check--error:focus-visible {
+    border-color: var(--color-siete);
+}
+.field__check--error:checked {
+    background: var(--color-siete);
+    border-color: var(--color-siete);
+}
+
+/* Estado disabled */
+.field__check:disabled,
+.field__radio:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* ─── Switch (toggle on/off) ─── */
+.field__switch {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    flex-shrink: 0;
+    position: relative;
+    width: 40px;
+    height: 22px;
+    margin: 0;
+    border-radius: 999px;
+    background: var(--admin-linea-fuerte);
+    border: none;
+    cursor: pointer;
+    transition: background 160ms ease-out, box-shadow 140ms ease-out;
+}
+.field__switch::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(74, 59, 42, 0.25);
+    transition: left 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.field__switch:hover {
+    background: var(--admin-tinta-tenue);
+}
+.field__switch:checked {
+    background: var(--admin-brand);
+}
+.field__switch:checked:hover {
+    background: var(--admin-brand-hover);
+}
+.field__switch:checked::before {
+    left: 20px;
+}
+.field__switch:focus-visible {
+    outline: none;
+    box-shadow: var(--admin-sombra-foco);
+}
+.field__switch:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   FASE 6 — FEEDBACK UNIFICADO
+
+   Notyf (toasts) + Micromodal (confirmaciones). Tematizados a
+   la paleta cálida. El comportamiento vive en assets/js/feedback.js
+   (wrapper API: toast.ok/error/info, confirmar()).
+   ═══════════════════════════════════════════════════════════ */
+
+/* ─── Notyf (toasts) ─── */
+.notyf {
+    font-family: var(--fuente-texto);
+    /* La esquina inferior derecha la ocupa el widget flotante de WhatsApp.
+       Notyf v3 fija su posición internamente (bottom no le hace efecto),
+       así que subimos TODO el contenedor con transform — esto Notyf no lo
+       pisa. ~110px despeja la burbuja "Enviar Mensaje" con margen. */
+    transform: translateY(-110px) !important;
+}
+.notyf__toast {
+    border-radius: var(--admin-r-md);
+    box-shadow: var(--admin-sombra-alta);
+    padding: 0;
+    max-width: 420px;
+}
+.notyf__wrapper {
+    padding: 0.85rem 1.1rem;
+    gap: 0.65rem;
+}
+.notyf__message {
+    font-size: var(--admin-body-sm);
+    line-height: 1.45;
+}
+.notyf__icon {
+    width: 22px;
+    height: 22px;
+}
+/* Ocultamos el botón de cerrar de la derecha (se veía como un artefacto
+   tenue, además de redundar con el icono circular de la izquierda). El
+   cierre se hace clickeando el toast (ver feedback.js). */
+.notyf__dismiss { display: none !important; }
+.notyf__toast { cursor: pointer; }
+/* Ripple/fondo de cada tipo — colores cálidos del sistema */
+.notyf__toast--success .notyf__ripple { background: var(--admin-tone-exito-fg, #3F5A2C); }
+.notyf__toast--error   .notyf__ripple { background: var(--color-siete); }
+.notyf__toast--success { background: var(--admin-tone-exito-fg, #3F5A2C); }
+.notyf__toast--error   { background: var(--color-siete); }
+
+/* ─── Micromodal (confirmaciones) — headless, todo el CSS es nuestro ─── */
+.modal {
+    display: none;
+}
+.modal.is-open {
+    display: block;
+}
+.modal__overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(28, 20, 12, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--espacio-cuatro);
+    z-index: 300;
+}
+.modal__container {
+    background: var(--admin-superficie);
+    border: 1px solid var(--admin-linea-fuerte);
+    border-radius: var(--admin-r-lg, 14px);
+    box-shadow: var(--admin-sombra-alta);
+    width: 100%;
+    max-width: 440px;
+    padding: var(--espacio-cuatro);
+    overflow: hidden;
+}
+.modal__header {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    margin-bottom: 0.65rem;
+}
+.modal__icono {
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--admin-r-pill);
+    background: var(--admin-brand-soft);
+    color: var(--admin-brand);
+}
+.modal__icono--peligro {
+    background: rgba(196, 105, 91, 0.14);
+    color: var(--color-siete);
+}
+.modal__icono .icono { width: 19px; height: 19px; }
+.modal__title {
+    font-family: var(--fuente-texto);
+    font-size: var(--admin-h4);
+    font-weight: 700;
+    color: var(--admin-tinta-fuerte);
+    margin: 0;
+    line-height: 1.3;
+    align-self: center;
+}
+.modal__content {
+    font-size: var(--admin-body-sm);
+    color: var(--admin-tinta);
+    line-height: 1.55;
+    margin-bottom: var(--espacio-cuatro);
+}
+.modal__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.6rem;
+}
+/* Botón destructivo del modal (rojo) — variante contenida al modal */
+.modal__footer .boton--peligro {
+    background: var(--color-siete);
+    color: #fff;
+    border-color: var(--color-siete);
+}
+.modal__footer .boton--peligro:hover {
+    filter: brightness(0.94);
+}
+
+/* Animación slide+fade (clase micromodal-slide en el wrapper) */
+@keyframes mm-fade-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mm-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes mm-slide-in { from { transform: translateY(12px); } to { transform: translateY(0); } }
+@keyframes mm-slide-out{ from { transform: translateY(0); } to { transform: translateY(12px); } }
+.micromodal-slide.is-open { display: block; }
+.micromodal-slide[aria-hidden="false"] .modal__overlay { animation: mm-fade-in 200ms cubic-bezier(0,0,.2,1); }
+.micromodal-slide[aria-hidden="false"] .modal__container { animation: mm-slide-in 240ms cubic-bezier(0,0,.2,1); }
+.micromodal-slide[aria-hidden="true"]  .modal__overlay { animation: mm-fade-out 160ms cubic-bezier(0,0,.2,1); }
+.micromodal-slide[aria-hidden="true"]  .modal__container { animation: mm-slide-out 160ms cubic-bezier(0,0,.2,1); }
+.micromodal-slide .modal__container,
+.micromodal-slide .modal__overlay { will-change: transform; }
+
+@media (prefers-reduced-motion: reduce) {
+    .micromodal-slide [class*="modal__"] { animation: none !important; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   FASE 5 — FILE UPLOAD (selector de archivos)
+
+   Patrón: <input type=file> oculto + botón "Elegir" + caja que
+   muestra la selección + botón limpiar + lista de archivos.
+   Estructura:
+     <div class="field__file">
+       <input type="file" class="field__file-input" ...>
+       <button class="boton uno field__file-btn">Elegir archivos</button>
+       <div class="field__file-display">Ningún archivo…</div>
+       <button class="field__file-clear">x</button>
+     </div>
+     <div class="field__file-list">…</div>
+   ═══════════════════════════════════════════════════════════ */
+.field__file {
+    display: flex;
+    gap: 0.6rem;
+    align-items: stretch;
+    flex-wrap: wrap;
+}
+.field__file-input { display: none; }
+.field__file-btn { flex-shrink: 0; white-space: nowrap; }
+.field__file-display {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.85rem;
+    border: 1px dashed var(--admin-linea-fuerte);
+    border-radius: var(--admin-r-sm);
+    background: var(--admin-papel-alt);
+    font-size: var(--admin-body-sm);
+    color: var(--admin-tinta-tenue);
+}
+.field__file-display.tiene-archivos {
+    border-style: solid;
+    color: var(--admin-tinta-fuerte);
+    font-weight: 600;
+}
+.field__file-clear {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--admin-r-sm);
+    background: var(--admin-papel-alt);
+    color: var(--admin-tinta-suave);
+    cursor: pointer;
+    transition: background 140ms ease-out, color 140ms ease-out;
+}
+.field__file-clear:hover { background: var(--admin-brand-soft); color: var(--color-siete); }
+.field__file-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    margin-top: 0.4rem;
+    padding: 0.5rem 0.7rem;
+    background: var(--admin-papel-alt);
+    border: 1px solid var(--admin-linea);
+    border-radius: var(--admin-r-sm);
+    font-size: var(--admin-caption);
+    color: var(--admin-tinta-suave);
+}
+
+
+/* ─────────────────────────────────────────────────────────
+   PANELES / CALLOUTS COMPARTIDOS
+   Mismo lenguaje visual que el admin (.ficha-card). Disponibles
+   en público y admin (forms.css es capa compartida). Usar .panel
+   para agrupar secciones de formulario/contenido.
+   ───────────────────────────────────────────────────────── */
+.panel {
+    background: var(--admin-superficie);
+    border: 1px solid var(--admin-linea);
+    border-radius: var(--admin-r-md);
+    box-shadow: var(--admin-sombra-suave);
+    padding: var(--espacio-cuatro);
+}
+/* El ritmo entre paneles lo da el gap del contenedor (flex/grid), igual
+   que el #main-form del admin. No usar margin entre paneles. */
+
+.panel__title {
+    font-family: var(--fuente-texto);
+    font-size: var(--admin-h4);
+    font-weight: 700;
+    color: var(--admin-tinta-fuerte);
+    margin: 0 0 var(--espacio-cuatro);
+    display: flex;
+    align-items: center;
+    gap: var(--espacio-dos);
+    flex-wrap: wrap;
+}
+.panel__title .icono { width: 18px; height: 18px; color: var(--admin-brand); }
+
+/* Texto introductorio bajo el título de un panel */
+.panel__intro {
+    font-size: var(--admin-body-sm);
+    color: var(--admin-tinta-suave);
+    line-height: 1.5;
+    margin: 0 0 var(--espacio-cuatro);
+}
+
+/* Aviso destacado (buenas prácticas, notas importantes) */
+.callout {
+    display: flex;
+    gap: var(--espacio-tres);
+    padding: var(--espacio-cuatro);
+    border: 1px solid var(--admin-linea);
+    border-radius: var(--admin-r-md);
+    background: var(--admin-brand-soft);
+}
+.callout__icon { color: var(--admin-brand); flex-shrink: 0; width: 22px; height: 22px; }
+.callout__body {
+    font-size: var(--admin-body-sm);
+    color: var(--admin-tinta);
+    line-height: 1.6;
+}
+.callout__body strong { color: var(--admin-tinta-fuerte); }
+.callout__body ul { margin: var(--espacio-dos) 0 0; padding-left: 1.1rem; }
+.callout__body li + li { margin-top: 0.25rem; }

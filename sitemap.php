@@ -14,6 +14,7 @@
 
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/conexion_db.php';
+require_once __DIR__ . '/includes/funciones.php';  // slugificar()
 
 // Header XML
 header('Content-Type: application/xml; charset=utf-8');
@@ -97,24 +98,29 @@ if ($pdo) {
     }
 
     // -----------------------------------------------------------
-    // CIUDADES (únicas desde crematorios)
+    // CIUDADES (únicas desde crematorios) — solo con fichas activas.
+    // El slug se calcula con slugificar() en PHP (normaliza acentos);
+    // el viejo REPLACE SQL generaba URLs rotas como /barcelona/polinyà.
     // -----------------------------------------------------------
     $sql = "SELECT DISTINCT
-                LOWER(REPLACE(REPLACE(c.ciudad, ' ', '-'), ',', '')) AS ciudad_slug,
+                c.ciudad,
                 p.slug AS provincia_slug,
                 MAX(c.updated_at) AS updated_at
             FROM crematorios c
             INNER JOIN provincias p ON c.provincia_id = p.id
             WHERE c.ciudad IS NOT NULL AND c.ciudad != ''
-            GROUP BY ciudad_slug, provincia_slug
-            ORDER BY p.slug, ciudad_slug";
+              AND c.estado = 'activa'
+            GROUP BY c.ciudad, p.slug
+            ORDER BY p.slug, c.ciudad";
     $stmt = $pdo->query($sql);
     $ciudades = $stmt->fetchAll();
 
     foreach ($ciudades as $ciudad) {
-        $lastmod = !empty($ciudad['updated_at']) ? date('Y-m-d', strtotime($ciudad['updated_at'])) : $hoy;
+        $lastmod    = !empty($ciudad['updated_at']) ? date('Y-m-d', strtotime($ciudad['updated_at'])) : $hoy;
+        $ciudadSlug = slugificar($ciudad['ciudad']);
+        if ($ciudadSlug === '') continue;
         echo '  <url>' . PHP_EOL;
-        echo '    <loc>' . htmlspecialchars($baseUrl . '/espana/' . $ciudad['provincia_slug'] . '/' . $ciudad['ciudad_slug']) . '</loc>' . PHP_EOL;
+        echo '    <loc>' . htmlspecialchars($baseUrl . '/espana/' . $ciudad['provincia_slug'] . '/' . $ciudadSlug) . '</loc>' . PHP_EOL;
         echo '    <lastmod>' . $lastmod . '</lastmod>' . PHP_EOL;
         echo '    <changefreq>weekly</changefreq>' . PHP_EOL;
         echo '    <priority>0.7</priority>' . PHP_EOL;
@@ -122,9 +128,13 @@ if ($pdo) {
     }
 
     // -----------------------------------------------------------
-    // FICHAS DE CREMATORIOS
+    // FICHAS DE CREMATORIOS — solo activas y cerradas.
+    // Las pausadas/archivadas dan 404 → no deben ir al sitemap.
+    // Las cerradas siguen visibles (con aviso) → se mantienen indexables.
     // -----------------------------------------------------------
-    $sql = "SELECT slug, updated_at FROM crematorios ORDER BY nombre";
+    $sql = "SELECT slug, updated_at FROM crematorios
+            WHERE estado IN ('activa', 'cerrada')
+            ORDER BY nombre";
     $stmt = $pdo->query($sql);
     $crematorios = $stmt->fetchAll();
 

@@ -1,39 +1,79 @@
 # ═══════════════════════════════════════════════════════════
 # GITIGNORE - Crematorios de Mascotas
 # ═══════════════════════════════════════════════════════════
+# El repo contiene solo el CÓDIGO de la plataforma pública.
+# Datos, secretos, herramientas de desarrollo y docs internas
+# quedan fuera. Ver DEPLOY.md para qué se sube al servidor
+# (que NO es lo mismo que lo que entra al repo).
+#
+# NOTA: git NO soporta comentarios al final de línea. Cada
+# comentario va en su propia línea, nunca después de un patrón.
 
-# Archivos específicos de entorno (NO subir a Git)
+# ─── Secretos / configuración de entorno ───────────────────
+# Van al SERVIDOR manualmente, nunca al repo.
 includes/config.php
+includes/config.production.php
+.env
+.env.production
 .htaccess
+.htaccess.production
 
-# Archivos del sistema
+# ─── Datos / uploads ───────────────────────────────────────
+# Las imágenes viven en el servidor. Se suben por FTP en el cutover.
+uploads/
+
+# ─── Herramientas de desarrollo (NO van a producción) ──────
+# scripts: seed, migraciones one-off, debug, bulk LLM local
+scripts/
+# sql: estructura monolítica, seed, backups, CSV crudo
+sql/
+# docs: documentación interna, ejemplos, guía de estilos
+docs/
+# plantillas: mockups huérfanos (sin uso en producción)
+plantillas/
+
+# ─── Archivos sueltos de desarrollo / notas internas ───────
+test.php
+rules.md
+plan-indexacion-google.md
+
+# ─── Markdown: ignorar notas internas, conservar los del repo ─
+*.md
+!DEPLOY.md
+!README.md
+
+# ─── SQL: ignorar dumps/backups, conservar migraciones ─────
+*.sql
+!admin/migrations/*.sql
+
+# ─── Dump generado para deploy (NO al repo) ────────────────
+deploy_db.sql
+
+# ─── Archivos del sistema ──────────────────────────────────
 .DS_Store
 Thumbs.db
 desktop.ini
 *.log
+nul
 
-# IDE y editores
+# ─── IDE y editores ────────────────────────────────────────
 .vscode/
 .idea/
 *.sublime-project
 *.sublime-workspace
 
-# Backups locales
+# ─── Backups locales ───────────────────────────────────────
 *.bak
 *.backup
-sql/backup_*.sql
 
-# Dependencias (si las hubiera)
-/vendor/
-/node_modules/
+# ─── Dependencias externas ─────────────────────────────────
+node_modules/
 
-# Archivos temporales
+# ─── Temporales ────────────────────────────────────────────
 *.tmp
 *.temp
 *.swp
 *~
-nul
 
-# Claude
+# ─── Claude / IA ───────────────────────────────────────────
 .claude/
-plan-indexacion-google.md
