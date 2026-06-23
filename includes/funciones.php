@@ -598,8 +598,14 @@ function slugificar(string $texto): string
     if (function_exists('transliterator_transliterate')) {
         $texto = transliterator_transliterate('Any-Latin; Latin-ASCII; Lower()', $texto);
     } else {
-        // Fallback sin intl: tabla manual
-        $texto = strtolower($texto);
+        // Fallback sin intl: tabla manual completa.
+        // Usar mb_strtolower (UTF-8-aware) ANTES del strtolower nativo, porque
+        // strtolower() de PHP NO maneja multi-byte (deja 'Ú' como 'Ú' en vez de 'ú').
+        if (function_exists('mb_strtolower')) {
+            $texto = mb_strtolower($texto, 'UTF-8');
+        } else {
+            $texto = strtolower($texto);
+        }
         $texto = strtr($texto, [
             'á'=>'a','à'=>'a','ä'=>'a','â'=>'a','ã'=>'a','å'=>'a',
             'é'=>'e','è'=>'e','ë'=>'e','ê'=>'e',
@@ -607,6 +613,13 @@ function slugificar(string $texto): string
             'ó'=>'o','ò'=>'o','ö'=>'o','ô'=>'o','õ'=>'o',
             'ú'=>'u','ù'=>'u','ü'=>'u','û'=>'u',
             'ñ'=>'n','ç'=>'c',
+            // Defensa por si mb_strtolower no estaba disponible y quedó alguna mayúscula tildada
+            'Á'=>'a','À'=>'a','Ä'=>'a','Â'=>'a','Ã'=>'a','Å'=>'a',
+            'É'=>'e','È'=>'e','Ë'=>'e','Ê'=>'e',
+            'Í'=>'i','Ì'=>'i','Ï'=>'i','Î'=>'i',
+            'Ó'=>'o','Ò'=>'o','Ö'=>'o','Ô'=>'o','Õ'=>'o',
+            'Ú'=>'u','Ù'=>'u','Ü'=>'u','Û'=>'u',
+            'Ñ'=>'n','Ç'=>'c',
         ]);
     }
     // Reemplazos finales: cualquier no-alfanumérico → guión, colapsar guiones

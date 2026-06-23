@@ -104,27 +104,118 @@ function crearSlug($texto) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// FUNCIÓN: Generar slug único para crematorio
+// FUNCIÓN: Generar slug único y SEO-friendly
 // ═══════════════════════════════════════════════════════════════════════════
+// Lógica (regen 2026-06-23):
+//   1. Si nombre > 40 chars → LLM (Claude Haiku) lo acorta + sugiere keyword.
+//   2. Si nombre ≤ 40 chars → se usa tal cual + detección local de keyword.
+//   3. Si el slug contiene palabra ambigua (funeraria/crematorio/tanatorio/etc.)
+//      sin "mascotas"/"pets"/"animal" → se inserta "mascotas" para clarificar.
+//   4. slug = nombre_corto + keyword (si hace falta) + ciudad.
+//   5. Si hay colisión exacta → sufijo numérico (-2, -3...).
+// Patrón documentado en BITACORA.md (entrada 2026-06-23).
 function generarSlugUnico($pdo, $nombre, $ciudad) {
-    $baseSlug = crearSlug($nombre . ' ' . $ciudad);
+    $nombreCorto = $nombre;
+    $kwSugerida  = null;
+    $tieneKw     = false;
 
-    // Verificar si existe
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM crematorios WHERE slug = :slug");
-    $stmt->execute([':slug' => $baseSlug]);
+    // ─── Paso 1: si el nombre es largo, acortar con LLM ───────────────
+    if (mb_strlen($nombre) > 40 && defined('CLAUDE_API_KEY') && CLAUDE_API_KEY !== '') {
+        $prompt = "Analizá este negocio del rubro \"crematorios de mascotas\" y respondé en formato JSON estricto.
 
-    if ($stmt->fetchColumn() == 0) {
-        return $baseSlug;
+Negocio:
+- Nombre original: " . $nombre . "
+- Ciudad: " . $ciudad . "
+
+Devolvé un JSON con estos 3 campos:
+
+1. \"nombre_corto\": versión acortada del nombre, óptima para URL.
+   - Máximo 5 palabras (idealmente 2-3)
+   - Mantener nombre propio/marca del negocio
+   - Quitar texto descriptivo redundante (ej. 'Tanatorio Crematorio de Mascotas', '24 horas', 'incinerar perros gatos')
+   - NO incluir ciudad
+   - Sin puntuación, símbolos
+
+2. \"tiene_contexto_nicho\": true si el nombre_corto YA contiene una palabra clave del nicho (mascotas/pets/crematorio/tanatorio/funeraria/incineración/animal/canino). false si NO.
+
+3. \"keyword_sugerida\": qué keyword agregar si tiene_contexto_nicho es false. Opciones: crematorio-mascotas / tanatorio-mascotas / funeraria-mascotas / eutanasia-mascotas / mascotas. Si tiene_contexto_nicho es true: null.
+
+Respondé SOLO el JSON, sin markdown:
+{\"nombre_corto\": \"...\", \"tiene_contexto_nicho\": true/false, \"keyword_sugerida\": \"...\" o null}";
+
+        if (function_exists('llamarClaudeApi')) {
+            $res = llamarClaudeApi($prompt, 'claude-haiku-4-5-20251001', 200);
+            if (!empty($res['ok']) && !empty($res['texto'])) {
+                $texto = trim($res['texto']);
+                $texto = preg_replace('/^```(?:json)?\s*/', '', $texto);
+                $texto = preg_replace('/\s*```$/', '', $texto);
+                $data  = json_decode($texto, true);
+                if (is_array($data)) {
+                    $nombreCorto = trim($data['nombre_corto'] ?? $nombre);
+                    $tieneKw     = (bool)($data['tiene_contexto_nicho'] ?? false);
+                    $kwSugerida  = $data['keyword_sugerida'] ?? null;
+                }
+            }
+        }
+    } else {
+        // Detección local cuando el nombre ya es corto.
+        $slugTmp = slugificar($nombreCorto);
+        $palabrasNicho = ['mascotas', 'mascota', 'pets', 'pet', 'animal', 'canino',
+                          'crematorio', 'tanatorio', 'funeraria', 'incineradora'];
+        $tieneKw = false;
+        foreach ($palabrasNicho as $pal) {
+            if (str_contains($slugTmp, $pal)) { $tieneKw = true; break; }
+        }
+        if (!$tieneKw) {
+            $kwSugerida = 'crematorio-mascotas'; // default
+        }
     }
 
-    // Agregar sufijo numérico
+    // ─── Paso 2: evitar doble ciudad si el nombre la trae ─────────────
+    $ciudadSlug = slugificar($ciudad);
+    if ($ciudadSlug && str_contains(slugificar($nombreCorto), $ciudadSlug)) {
+        $nombreCorto = trim(preg_replace('/\b' . preg_quote($ciudad, '/') . '\b/iu', '', $nombreCorto));
+        $nombreCorto = preg_replace('/\s+/', ' ', $nombreCorto);
+    }
+
+    // ─── Paso 3: construir slug base ──────────────────────────────────
+    $partes = [$nombreCorto];
+    if (!$tieneKw && $kwSugerida) {
+        $partes[] = $kwSugerida;
+    }
+    $partes[] = $ciudad;
+    $baseSlug = slugificar(implode(' ', $partes));
+
+    // ─── Paso 4: clarificación de palabras ambiguas ───────────────────
+    // Si el slug ya tiene funeraria/crematorio/tanatorio/incineradora pero NO
+    // tiene "mascotas/pets/animal" en otro lugar, insertamos "mascotas" después
+    // para clarificar el nicho (caso: "Funeraria San Antonio Abad" sin contexto
+    // podría confundirse con funeraria de personas).
+    $ambiguas    = ['funeraria', 'crematorio', 'tanatorio', 'incineradora', 'cementerio'];
+    $aclaradoras = ['mascotas', 'mascota', 'pets', 'pet-', '-pet', 'animal', 'canino'];
+    $tieneAclaracion = false;
+    foreach ($aclaradoras as $a) {
+        if (str_contains($baseSlug, $a)) { $tieneAclaracion = true; break; }
+    }
+    if (!$tieneAclaracion) {
+        foreach ($ambiguas as $amb) {
+            if (str_contains($baseSlug, $amb . '-')) {
+                $baseSlug = preg_replace('/' . $amb . '-/', $amb . '-mascotas-', $baseSlug, 1);
+                break;
+            }
+        }
+    }
+
+    // ─── Paso 5: garantizar unicidad ──────────────────────────────────
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM crematorios WHERE slug = :slug");
+    $stmt->execute([':slug' => $baseSlug]);
+    if ($stmt->fetchColumn() == 0) return $baseSlug;
+
     $i = 2;
     while (true) {
         $slug = $baseSlug . '-' . $i;
         $stmt->execute([':slug' => $slug]);
-        if ($stmt->fetchColumn() == 0) {
-            return $slug;
-        }
+        if ($stmt->fetchColumn() == 0) return $slug;
         $i++;
     }
 }
