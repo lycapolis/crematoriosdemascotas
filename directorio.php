@@ -13,7 +13,7 @@
  * ═══════════════════════════════════════════════════════════
  */
 
-$titulo_pagina = 'Directorio de Crematorios - Crematorios de Mascotas';
+$titulo_pagina = 'Directorio de Crematorios de Mascotas - España';
 $pagina_actual = 'directorio';
 include 'includes/header.php';
 ?>
@@ -526,8 +526,8 @@ $hayFiltros = !empty($filtros) || !empty($_GET['orden']);
                 <?php if (empty($crematorios)): ?>
                 <div class="directorio-vacio">
                     <i data-lucide="search-x" class="icono"></i>
-                    <p>No se encontraron crematorios con los filtros seleccionados.</p>
-                    <a href="directorio.php" class="boton dos">Ver todos los crematorios</a>
+                    <p>No se encontraron crematorios de mascotas con los filtros seleccionados.</p>
+                    <a href="directorio.php" class="boton dos">Ver todos los crematorios de mascotas</a>
                 </div>
                 <?php else: ?>
                 <?php foreach ($crematorios as $crem): ?>

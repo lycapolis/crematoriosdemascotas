@@ -1062,7 +1062,7 @@ include 'includes/header.php';
 
                 <!-- Descripción -->
                 <section class="tarjeta simple" style="padding: var(--espacio-cuatro); margin-bottom: var(--espacio-cuatro);">
-                    <h2 class="ficha-h2"><i data-lucide="info" class="icono"></i> Sobre el Crematorio</h2>
+                    <h2 class="ficha-h2"><i data-lucide="info" class="icono"></i> Sobre el Crematorio de Mascotas</h2>
                     <div style="color: var(--color-seis); line-height: 1.8;">
                         <?php if ($descripcion): ?>
                         <?php echo formatearDescripcionPublica($descripcion); ?>

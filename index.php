@@ -216,7 +216,7 @@ foreach ($provincias as $prov) {
 
         <div class="grid-tarjetas <?php echo claseGridTarjetas(count($destacados)); ?>">
             <?php if (empty($destacados)): ?>
-            <p style="text-align: center; grid-column: 1 / -1;">No hay crematorios destacados disponibles.</p>
+            <p style="text-align: center; grid-column: 1 / -1;">No hay crematorios de mascotas destacados disponibles.</p>
             <?php else: foreach ($destacados as $crem): ?>
                 <?php include __DIR__ . '/includes/componentes/tarjeta-crematorio.php'; ?>
             <?php endforeach; endif; ?>

@@ -143,7 +143,7 @@ include ROOT_PATH . '/includes/componentes/encabezado-geo.php';
     <!-- ─── Listado de crematorios paginado ─── -->
     <?php if ($total_crematorios > 0): ?>
     <section style="margin-bottom: var(--espacio-cinco);">
-        <h2 class="estilo-h4" style="margin-bottom: var(--espacio-tres);">Todos los crematorios</h2>
+        <h2 class="estilo-h4" style="margin-bottom: var(--espacio-tres);">Todos los crematorios de mascotas</h2>
         <div class="grid-tarjetas <?php echo claseGridTarjetas(count($crematorios)); ?>">
             <?php foreach ($crematorios as $crem): ?>
                 <?php include ROOT_PATH . '/includes/componentes/tarjeta-crematorio.php'; ?>

@@ -104,7 +104,7 @@ if (!empty($serviciosActivos['abiertos_ahora'])) {
 $total = count($crematorios);
 $hayFiltros = $valoracionMin > 0 || !empty($serviciosActivos);
 
-$titulo_pagina    = 'Crematorios cerca de mí — vista mapa';
+$titulo_pagina    = 'Crematorios de Mascotas cerca de mí — vista mapa';
 $meta_descripcion = 'Encuentra el crematorio de mascotas más cercano con vista mapa estilo Booking.';
 $pagina_actual    = 'directorio';
 $usar_leaflet_mapa = true;

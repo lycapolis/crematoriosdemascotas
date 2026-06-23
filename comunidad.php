@@ -166,8 +166,8 @@ include ROOT_PATH . '/includes/componentes/encabezado-geo.php';
     <?php else: ?>
     <div style="text-align: center; padding: var(--espacio-seis) 0;">
         <i data-lucide="map-pin-off" class="icono" style="width: 48px; height: 48px; color: var(--color-cinco); margin-bottom: var(--espacio-tres);"></i>
-        <h2 class="estilo-h4" style="margin-bottom: var(--espacio-tres);">Sin crematorios en esta comunidad</h2>
-        <p style="color: var(--color-seis-claro); margin-bottom: var(--espacio-cuatro);">Actualmente no hay crematorios registrados en <?php echo limpiar($comunidad_nombre); ?>.</p>
+        <h2 class="estilo-h4" style="margin-bottom: var(--espacio-tres);">Sin crematorios de mascotas en esta comunidad</h2>
+        <p style="color: var(--color-seis-claro); margin-bottom: var(--espacio-cuatro);">Actualmente no hay crematorios de mascotas registrados en <?php echo limpiar($comunidad_nombre); ?>.</p>
         <a href="<?php echo BASE_URL; ?>/espana/" class="boton uno">Ver todas las provincias</a>
     </div>
     <?php endif; ?>
@@ -175,7 +175,7 @@ include ROOT_PATH . '/includes/componentes/encabezado-geo.php';
     <!-- ─── Listado de crematorios ─── -->
     <?php if ($total_crematorios > 0): ?>
     <section style="margin-bottom: var(--espacio-cinco);">
-        <h2 class="estilo-h4" style="margin-bottom: var(--espacio-tres);">Crematorios en <?php echo limpiar($comunidad_nombre); ?></h2>
+        <h2 class="estilo-h4" style="margin-bottom: var(--espacio-tres);">Crematorios de mascotas en <?php echo limpiar($comunidad_nombre); ?></h2>
         <div class="grid-tarjetas <?php echo claseGridTarjetas(count($crematorios)); ?>">
             <?php foreach ($crematorios as $crem): ?>
                 <?php include ROOT_PATH . '/includes/componentes/tarjeta-crematorio.php'; ?>
@@ -200,7 +200,7 @@ include ROOT_PATH . '/includes/componentes/encabezado-geo.php';
 <?php
 $nubeScope      = 'comunidad';
 $nubeContextoId = $comunidad['id'];
-$nubeTitulo     = 'Ciudades con crematorios en ' . $comunidad_nombre;
+$nubeTitulo     = 'Ciudades con crematorios de mascotas en ' . $comunidad_nombre;
 $nubeLimite     = 30;
 include ROOT_PATH . '/includes/componentes/nube-ciudades.php';
 ?>

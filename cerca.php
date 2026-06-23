@@ -50,7 +50,7 @@ $crematorios_cerca = $stmt->fetchAll(PDO::FETCH_ASSOC);
 enriquecerConFotoLocal($crematorios_cerca);
 $total = count($crematorios_cerca);
 
-$titulo_pagina    = 'Crematorios cerca de mí';
+$titulo_pagina    = 'Crematorios de Mascotas cerca de mí';
 $meta_descripcion = 'Encuentra el crematorio de mascotas más cercano a tu ubicación actual.';
 $pagina_actual    = 'directorio';
 $usar_leaflet_mapa = true;
@@ -171,7 +171,7 @@ include 'includes/header.php';
         include ROOT_PATH . '/includes/componentes/breadcrumb.php';
         ?>
         <div class="directorio-encabezado__fila">
-            <h1 class="directorio-encabezado__titulo">Crematorios cerca de ti</h1>
+            <h1 class="directorio-encabezado__titulo">Crematorios de Mascotas cerca de ti</h1>
             <span class="directorio-encabezado__badge">
                 <?php echo $total > 0
                     ? $total . ' encontrado' . ($total !== 1 ? 's' : '') . ' en ' . $radio . ' km'

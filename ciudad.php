@@ -53,7 +53,7 @@ if (empty($crematorios)) {
         <div class="contenedor">
             <i data-lucide="map-pin-off" style="width: 64px; height: 64px; color: var(--color-cinco); margin-bottom: var(--espacio-cuatro);"></i>
             <h1 style="color: var(--color-dos); margin-bottom: var(--espacio-tres);">Ciudad no encontrada</h1>
-            <p style="color: var(--color-seis-claro); margin-bottom: var(--espacio-cinco);">No hay crematorios registrados en esta ciudad.</p>
+            <p style="color: var(--color-seis-claro); margin-bottom: var(--espacio-cinco);">No hay crematorios de mascotas registrados en esta ciudad.</p>
             <a href="<?php echo generarUrl('provincia', $provincia_slug); ?>" class="boton uno">Ver ciudades en <?php echo limpiar($provincia['nombre']); ?></a>
         </div>
     </section>

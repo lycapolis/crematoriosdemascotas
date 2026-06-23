@@ -72,7 +72,7 @@ include 'includes/header.php';
         <h2 class="err-404__titulo">Página no encontrada</h2>
         <p class="err-404__texto">
             Lo sentimos, la página que buscas no existe o ha sido movida.
-            Puedes volver al inicio o explorar nuestro directorio de crematorios.
+            Puedes volver al inicio o explorar nuestro directorio de crematorios de mascotas.
         </p>
         <div class="err-404__acciones">
             <a href="<?php echo BASE_URL; ?>/" class="boton uno">

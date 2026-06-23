@@ -29,7 +29,7 @@ $termino = isset($_GET['q']) ? htmlspecialchars($_GET['q']) : 'Madrid';
     <section class="hero" style="background: var(--color-cuatro); padding: var(--espacio-seis) var(--espacio-cinco);">
         <div class="contenedor" style="max-width: var(--contenedor-tres);">
 
-            <h1 style="font-size: var(--fs-tres); color: var(--color-dos); margin-bottom: var(--espacio-tres);">Buscar crematorios</h1>
+            <h1 style="font-size: var(--fs-tres); color: var(--color-dos); margin-bottom: var(--espacio-tres);">Buscar crematorios de mascotas</h1>
 
             <form class="buscador" action="<?php echo $base_url; ?>/buscador.php" method="get" style="background: var(--color-blanco); padding: var(--espacio-dos); border-radius: var(--radio-dos); border: 1px solid var(--color-cinco);">
                 <input
