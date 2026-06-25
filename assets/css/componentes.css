@@ -1240,6 +1240,20 @@ h6 { font-size: var(--fs-dos); margin-bottom: var(--espacio-dos); }      /* 14px
     .footer__enlace  { justify-content: flex-start; }
 }
 
+/* Mobile (≤767px): logo del footer (primera sección, h3 con icono + texto)
+   centrado y 20% más grande. El style inline del HTML pone display:flex sin
+   justify-content (default: flex-start) → aquí lo forzamos al centro. */
+@media (max-width: 767px) {
+    .footer__seccion:first-child .footer__titulo {
+        justify-content: center;
+        font-size: calc(var(--fs-dos) * 1.2);
+    }
+    .footer__seccion:first-child .footer__titulo .icono {
+        width: 26px !important;
+        height: 26px !important;
+    }
+}
+
 .footer__cta-negocios {
     display: flex;
     align-items: center;

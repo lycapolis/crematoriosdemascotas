@@ -135,6 +135,28 @@ include 'includes/header.php';
     .map-popup-wrap .map-popup__foto { height: 120px; }
     .map-popup-wrap .map-popup__cuerpo { padding: var(--espacio-dos) var(--espacio-tres); }
 
+    /* ─── Mobile (≤768px): UX adaptada ─── */
+    @media (max-width: 768px) {
+        /* Botón "Ver en el mapa" oculto en mobile: el mapa abajo ya está visible */
+        .cerca-radios__ver-mapa { display: none !important; }
+
+        /* Chips de radios centrados — antes flotaban a la izquierda */
+        .cerca-radios { justify-content: center; }
+        .cerca-radios__chips { justify-content: center; flex: 1 1 100%; }
+        .cerca-radios__label { width: 100%; text-align: center; }
+
+        /* Mapa cuadrado 1:1 a ancho completo (sin esquinas redondeadas que
+           se ven mal cuando el mapa ocupa todo el viewport). Override del
+           border-radius y altura inline del HTML. */
+        #mapa-cerca {
+            height: 100vw !important;
+            max-height: 500px;
+            border-radius: 0 !important;
+        }
+        /* El contenedor que envuelve el mapa también pierde su padding lateral */
+        section:has(#mapa-cerca) .contenedor { padding-left: 0; padding-right: 0; }
+    }
+
     @media (min-width: 768px) {
         .cerca-encabezado-layout {
             padding: var(--espacio-tres) 0;
@@ -194,7 +216,7 @@ include 'includes/header.php';
         <a href="<?php echo BASE_URL; ?>/cerca-mapa.php?lat=<?php echo $lat; ?>&lng=<?php echo $lng; ?>&radio=<?php echo $radio; ?>"
            class="cerca-radios__ver-mapa">
             <i data-lucide="map" class="icono"></i>
-            Ver con mapa
+            Ver en el mapa
             <i data-lucide="arrow-right" class="icono cerca-radios__ver-mapa-arrow"></i>
         </a>
     </div>

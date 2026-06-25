@@ -265,10 +265,8 @@ $schema_data = $schema_data ?? null;
             <i data-lucide="x" class="icono"></i>
         </button>
 
-        <a href="<?php echo $base_url; ?>/" class="header__logo <?php echo $pagina_actual === 'inicio' ? 'activo' : ''; ?>">
-            <i data-lucide="paw-print" class="icono"></i>
-            Crematorios de Mascotas
-        </a>
+        <!-- Logo dentro del menú móvil eliminado: ya se muestra en el header
+             principal (que sigue visible detrás del overlay), aparecía doble. -->
 
         <!-- Acciones: las 2 formas de encontrar un crematorio -->
         <form class="header__buscador" action="<?php echo $base_url; ?>/directorio.php" method="GET" role="search" style="width: 100%; max-width: 320px;">
