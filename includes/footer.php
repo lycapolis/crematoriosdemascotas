@@ -103,10 +103,22 @@
         // Inicializar iconos Lucide
         lucide.createIcons();
 
-        // Toggle menú móvil
+        // Toggle menú móvil — también cambia el ícono del botón entre ☰ y ✕.
+        // El header sigue visible por encima del menú overlay (z-index 1600 vs
+        // 1500), así que el mismo botón sirve para abrir y cerrar.
+        // OJO: lucide convierte el <i data-lucide> en <svg> al cargar la página.
+        // Cambiar el atributo data-lucide del SVG no actualiza nada; hay que
+        // reemplazar el innerHTML del botón con un <i> nuevo y volver a llamar
+        // a lucide.createIcons() para que lo procese.
         function toggleMenu() {
             const menu = document.getElementById('menu-movil');
-            menu.classList.toggle('activo');
+            const btn  = document.getElementById('btn-menu-movil');
+            const abierto = menu.classList.toggle('activo');
+            if (btn) {
+                btn.innerHTML = '<i data-lucide="' + (abierto ? 'x' : 'menu') + '" class="icono"></i>';
+                btn.setAttribute('aria-label', abierto ? 'Cerrar menú' : 'Abrir menú');
+                if (window.lucide) lucide.createIcons();
+            }
         }
     </script>
 
@@ -264,7 +276,17 @@
         $_lcBubbleNum = preg_replace('/[^0-9]/', '', WHATSAPP_SOPORTE);
     }
     if ($_lcBubbleNum):
-        $_lcBubbleUrl = 'https://wa.me/' . $_lcBubbleNum . '?text=' . urlencode('Hola, me gustaría obtener información.');
+        // Mensaje inicial del wa.me — SOLO se usa si el usuario evita el modal
+        // (skip) y va directo. Si llena el form, procesar-lead-b2c.php lo
+        // reemplaza por uno rico. Le damos contexto si hay ficha (no datos
+        // personales que aún no tenemos).
+        if ($_lcBubbleName !== '') {
+            $_lcBubbleTexto = 'Hola, vi su ficha de ' . $_lcBubbleName
+                            . ' en Crematoriosdemascotas.com y me gustaría obtener información.';
+        } else {
+            $_lcBubbleTexto = 'Hola, me gustaría obtener información sobre servicios de cremación para mascotas.';
+        }
+        $_lcBubbleUrl = 'https://wa.me/' . $_lcBubbleNum . '?text=' . urlencode($_lcBubbleTexto);
     ?>
     <a href="<?php echo $_lcBubbleUrl; ?>"
        class="lc-bubble"
@@ -415,10 +437,35 @@
             .then(function (d) {
                 if (d.ok) {
                     if (window.MicroModal) MicroModal.close('modal-promocionar');
-                    if (window.toast) toast.ok('¡Gracias! Recibimos tu consulta y te contactamos pronto.');
+                    if (window.toast) toast.ok('¡Gracias! Recibimos tu consulta. Te abrimos WhatsApp con tu mensaje precargado para acelerar el contacto.');
                     document.getElementById('form-promocionar').reset();
+                    // ─── Redirigir a WhatsApp con mensaje rico al soporte comercial ──
+                    // Plantilla C: cliente B2B (dueño de negocio) presentándose para
+                    // promocionar su crematorio. Castellano neutral.
+                    var partes = [];
+                    partes.push('Hola, soy ' + nombre + ' de ' + negocio + '.');
+                    partes.push('');
+                    partes.push('Estoy interesado en promocionar mi crematorio en Crematoriosdemascotas.com.');
+                    if (mensaje) {
+                        partes.push('');
+                        partes.push(mensaje);
+                    }
+                    partes.push('');
+                    partes.push('📞 Mis datos:');
+                    if (telefono) partes.push('Teléfono: ' + telefono);
+                    if (email)    partes.push('Email: ' + email);
+                    if (ciudad)   partes.push('Ciudad: ' + ciudad);
+                    partes.push('');
+                    partes.push('— Lead comercial vía Crematoriosdemascotas.com');
+                    var texto = partes.join('\n');
+                    var waSoporte = '<?php echo defined("WHATSAPP_SOPORTE") ? preg_replace("/[^0-9]/", "", WHATSAPP_SOPORTE) : ""; ?>';
+                    if (waSoporte) {
+                        var waUrl = 'https://wa.me/' + waSoporte + '?text=' + encodeURIComponent(texto);
+                        // Pequeño delay para que el usuario vea el toast antes de cambiar de pestaña
+                        setTimeout(function () { window.open(waUrl, '_blank', 'noopener'); }, 800);
+                    }
                 } else {
-                    if (window.toast) toast.error(d.mensaje || 'No se pudo enviar. Probá de nuevo.');
+                    if (window.toast) toast.error(d.mensaje || 'No se pudo enviar. Intentalo de nuevo.');
                 }
             })
             .catch(function () {

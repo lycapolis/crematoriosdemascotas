@@ -72,14 +72,17 @@ $termino = isset($_GET['q']) ? htmlspecialchars($_GET['q']) : 'Madrid';
             <div class="grid-tarjetas" style="grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: var(--espacio-seis);">
 
                 <!-- Crematorio 1 -->
-                <article class="tarjeta">
+                <article class="tarjeta destacada">
                     <div class="tarjeta__imagen">
                         <img
                             src="https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=600&h=400&fit=crop"
                             alt="Crematorio ejemplo"
                             loading="lazy"
                         >
-                        <span class="tarjeta__destacado">Destacado</span>
+                        <span class="tarjeta__destacado">
+                            <i data-lucide="bookmark" class="icono"></i>
+                            Destacado
+                        </span>
                     </div>
 
                     <div class="tarjeta__contenido">

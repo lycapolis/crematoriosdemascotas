@@ -140,10 +140,17 @@ include 'includes/header.php';
         /* Botón "Ver en el mapa" oculto en mobile: el mapa abajo ya está visible */
         .cerca-radios__ver-mapa { display: none !important; }
 
+        /* Label "Radio:" oculto en mobile — se sobreentiende viendo las pastillas */
+        .cerca-radios__label { display: none; }
+
+        /* H2 "Crematorios de mascotas en N km a la redonda" oculto en mobile:
+           redundante con el badge "X encontrados en N km" y el h1 que están
+           justo arriba. Ahorra espacio vertical. */
+        .cerca-titulo-listado { display: none; }
+
         /* Chips de radios centrados — antes flotaban a la izquierda */
         .cerca-radios { justify-content: center; }
         .cerca-radios__chips { justify-content: center; flex: 1 1 100%; }
-        .cerca-radios__label { width: 100%; text-align: center; }
 
         /* Mapa cuadrado 1:1 a ancho completo (sin esquinas redondeadas que
            se ven mal cuando el mapa ocupa todo el viewport). Override del
@@ -313,7 +320,7 @@ include 'includes/header.php';
 <!-- ─── Listado ─── -->
 <div class="contenedor seccion">
     <?php if ($total > 0): ?>
-    <h2 class="estilo-h4" style="margin-bottom: var(--espacio-tres);">
+    <h2 class="estilo-h4 cerca-titulo-listado" style="margin-bottom: var(--espacio-tres);">
         Crematorios de mascotas en <?php echo $radio; ?> km a la redonda
     </h2>
     <div class="grid-tarjetas <?php echo claseGridTarjetas($total); ?>">

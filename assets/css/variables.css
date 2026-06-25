@@ -29,6 +29,22 @@
     --color-nueve: #25D366;  /* Verde WhatsApp - Botón de contacto */
     --color-diez: #f59e0b;   /* Amarillo - Calificaciones con estrellas */
 
+    /* ─── LLM/IA (extraídos de hardcodes en editar-ficha-negocio.php) ──
+       Violeta vibrante por FUERA de la paleta tierra: marca intervención
+       de IA y, en público, también el tono "premium" (destacados). */
+    --llm-violet:          #7C3AED;
+    --llm-violet-hover:    #6D28D9;
+    --llm-violet-soft:     #EDE9FE;
+    --llm-violet-disabled: #C4B5FD;
+    --llm-violet-fg:       #6B21A8;
+
+    /* ─── Tono "premium" — destacados / pauta paga (público) ────────
+       Reusa el violeta de IA (consistencia visual) + verde fuerte
+       (mismo que origen "manual_negocio" en admin). */
+    --tone-premium-bord: var(--llm-violet);    /* #7C3AED */
+    --tone-premium-bg:   #15803D;               /* green-700 */
+    --tone-premium-fg:   #FFFFFF;
+
     /* ─────────────────────────────────────────────────────────
        VARIANTES CON OPACIDAD (claro/oscuro)
        ───────────────────────────────────────────────────────── */

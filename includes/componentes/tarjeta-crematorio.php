@@ -49,14 +49,14 @@ if ($descCorta !== null && $descCorta !== '') {
     $descMostrar = 'Servicios de cremación de mascotas profesional y respetuoso.';
 }
 ?>
-<article class="tarjeta">
+<article class="tarjeta<?php echo $esDestacado ? ' destacada' : ''; ?>">
     <a href="<?php echo $urlFicha; ?>" class="tarjeta__imagen" aria-label="Ver ficha de <?php echo limpiar($nombre); ?>" style="display:block;text-decoration:none;">
         <?php if (!empty($foto)): ?>
         <img
             src="<?php echo limpiar($foto); ?>"
             alt="<?php echo limpiar($nombre); ?>"
             loading="lazy"
-            onerror="this.parentElement.innerHTML='<div class=\'tarjeta__imagen--placeholder\'><i data-lucide=\'heart\' class=\'icono\'></i></div><?php if ($esDestacado): ?><span class=\'tarjeta__destacado\'>Destacado</span><?php endif; ?>'; lucide.createIcons();"
+            onerror="this.parentElement.innerHTML='<div class=\'tarjeta__imagen--placeholder\'><i data-lucide=\'heart\' class=\'icono\'></i></div><?php if ($esDestacado): ?><span class=\'tarjeta__destacado\'><i data-lucide=\'bookmark\' class=\'icono\'></i>Destacado</span><?php endif; ?>'; lucide.createIcons();"
         >
         <?php else: ?>
         <div class="tarjeta__imagen--placeholder">
@@ -64,7 +64,10 @@ if ($descCorta !== null && $descCorta !== '') {
         </div>
         <?php endif; ?>
         <?php if ($esDestacado): ?>
-        <span class="tarjeta__destacado">Destacado</span>
+        <span class="tarjeta__destacado">
+            <i data-lucide="bookmark" class="icono"></i>
+            Destacado
+        </span>
         <?php endif; ?>
         <?php if ($distanciaKm !== null): ?>
         <span class="tarjeta__distancia"><?php echo number_format((float)$distanciaKm, 1); ?> km</span>

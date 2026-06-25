@@ -53,6 +53,21 @@
     --admin-tone-neutro-fg:   var(--admin-tinta);          /* antes tinta-suave — más contraste para chips */
     --admin-tone-neutro-bord: var(--admin-linea);
 
+    /* ─── LLM/IA + Premium — alias hacia variables.css ─────────────
+       Las definiciones reales están en variables.css (que se carga en
+       admin y público) para que puedan usarse en .tarjeta.destacada
+       del público también. Aquí mantenemos los nombres --admin-* como
+       alias para que el código admin existente siga funcionando. */
+    --admin-llm-violet:          var(--llm-violet);
+    --admin-llm-violet-hover:    var(--llm-violet-hover);
+    --admin-llm-violet-soft:     var(--llm-violet-soft);
+    --admin-llm-violet-disabled: var(--llm-violet-disabled);
+    --admin-llm-violet-fg:       var(--llm-violet-fg);
+
+    --admin-tone-premium-bord: var(--tone-premium-bord);
+    --admin-tone-premium-bg:   var(--tone-premium-bg);
+    --admin-tone-premium-fg:   var(--tone-premium-fg);
+
     /* ─── Sombras (siempre con tinte cálido, nunca negro) ─── */
     --admin-sombra-suave: 0 1px 2px rgba(74, 59, 42, 0.04),
                           0 2px 6px rgba(74, 59, 42, 0.05);

@@ -252,8 +252,8 @@ $schema_data = $schema_data ?? null;
                 <a href="<?php echo $base_url; ?>/nosotros.php" class="menu__enlace <?php echo $pagina_actual === 'nosotros' ? 'activo' : ''; ?>">Nosotros</a>
             </nav>
 
-            <!-- Botón Menú Móvil -->
-            <button class="header__boton-movil" onclick="toggleMenu()" aria-label="Abrir menú">
+            <!-- Botón Menú Móvil — toggle entre hamburguesa y X (lo cambia toggleMenu) -->
+            <button id="btn-menu-movil" class="header__boton-movil" onclick="toggleMenu()" aria-label="Abrir menú">
                 <i data-lucide="menu" class="icono"></i>
             </button>
         </div>
@@ -261,12 +261,9 @@ $schema_data = $schema_data ?? null;
 
     <!-- Menú Móvil (overlay) -->
     <nav id="menu-movil" class="menu movil">
-        <button class="menu__cerrar" onclick="toggleMenu()" aria-label="Cerrar menú">
-            <i data-lucide="x" class="icono"></i>
-        </button>
-
-        <!-- Logo dentro del menú móvil eliminado: ya se muestra en el header
-             principal (que sigue visible detrás del overlay), aparecía doble. -->
+        <!-- El botón cerrar interno (X) se eliminó: el header sigue visible
+             por encima del menú overlay (z-index 1600 vs 1500), así que el
+             botón hamburguesa del header se convierte en X y hace toggle. -->
 
         <!-- Acciones: las 2 formas de encontrar un crematorio -->
         <form class="header__buscador" action="<?php echo $base_url; ?>/directorio.php" method="GET" role="search" style="width: 100%; max-width: 320px;">

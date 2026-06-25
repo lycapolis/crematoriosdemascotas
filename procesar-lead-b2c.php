@@ -223,9 +223,149 @@ if ($crematorioId) {
     }
 }
 
-// ─── 10. Devolver destino al frontend ───────────────────────────────
+// ─── 10. Si el canal era WhatsApp, reconstruir wa.me con mensaje rico ──
+// El mensaje original era genérico ("Hola, me gustaría obtener información").
+// Ahora que el usuario llenó el form, le precargamos un mensaje completo
+// para que solo tenga que tocar "Enviar" en WhatsApp.
+//
+// Dos plantillas:
+//  A) hay crematorio_id  → mensaje "al negocio" (vio su ficha, pide info)
+//  B) sin crematorio_id  → mensaje "a soporte" (busca orientación)
+$destinoFinal = $accionDestino ?: '/';
+
+if ($channelType === 'wa') {
+    // Número de destino: priorizar phoneAgent (data-phone-agent), si no, parsear
+    // el wa.me original. Limpiamos cualquier carácter no numérico.
+    $numWa = preg_replace('/[^0-9]/', '', $phoneAgent);
+    if ($numWa === '' && preg_match('#wa\.me/(\+?\d+)#i', $accionDestino, $m)) {
+        $numWa = preg_replace('/[^0-9]/', '', $m[1]);
+    }
+
+    if ($numWa !== '') {
+        $datos = [
+            'nombre'            => $nombre,
+            'whatsapp_cliente'  => $whatsappNumber,
+            'email'             => $email,
+            'ciudad'            => $ciudad,
+            'servicio'          => $servicio,
+            'tamano'            => $tamano,
+            'mensaje'           => $mensaje,
+            'crematorio_nombre' => $crematorioName,
+            'pagina_origen'     => $paginaOrigen,
+        ];
+        $texto = ($crematorioId && $crematorioName !== '')
+            ? armarMensajeWaNegocio($datos)
+            : armarMensajeWaSoporte($datos);
+        $destinoFinal = 'https://wa.me/' . $numWa . '?text=' . urlencode($texto);
+    }
+}
+
 echo json_encode([
     'ok'      => true,
-    'destino' => $accionDestino ?: '/',
+    'destino' => $destinoFinal,
     'lead_id' => $leadId,
 ], JSON_UNESCAPED_UNICODE);
+
+
+// ═══════════════════════════════════════════════════════════════════
+// Helpers para armar el mensaje rico de WhatsApp
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Plantilla A — Mensaje del cliente AL NEGOCIO
+ * Usado cuando el lead viene de una ficha específica (hay crematorio_id).
+ * Tono: cliente potencial dirigiéndose al negocio. Castellano neutral.
+ */
+function armarMensajeWaNegocio(array $d): string {
+    $crematorio = $d['crematorio_nombre'] ?? '';
+    $nombre     = $d['nombre'] ?? '';
+    $servicio   = trim($d['servicio'] ?? '');
+    $tamano     = trim($d['tamano'] ?? '');
+    $mensaje    = trim($d['mensaje'] ?? '');
+    $wa         = trim($d['whatsapp_cliente'] ?? '');
+    $email      = trim($d['email'] ?? '');
+    $ciudad     = trim($d['ciudad'] ?? '');
+
+    $partes = [];
+    $partes[] = "Hola, vi su ficha de {$crematorio} en Crematoriosdemascotas.com.";
+    $partes[] = '';
+
+    $linea = "Soy {$nombre}.";
+    if ($servicio !== '') {
+        $linea .= " Necesito información sobre {$servicio}";
+        $linea .= ($tamano !== '') ? " para mi mascota de tamaño {$tamano}." : ' para mi mascota.';
+    } else {
+        $linea .= ($tamano !== '')
+            ? " Tengo una mascota de tamaño {$tamano} y necesito información."
+            : ' Necesito información sobre sus servicios.';
+    }
+    $partes[] = $linea;
+
+    if ($mensaje !== '') {
+        $partes[] = '';
+        $partes[] = $mensaje;
+    }
+
+    $partes[] = '';
+    $partes[] = '📞 Para contactarme:';
+    if ($wa !== '')     $partes[] = "WhatsApp: {$wa}";
+    if ($email !== '')  $partes[] = "Email: {$email}";
+    if ($ciudad !== '') $partes[] = "Ciudad: {$ciudad}";
+
+    $partes[] = '';
+    $partes[] = '— Lead vía Crematoriosdemascotas.com';
+
+    return implode("\n", $partes);
+}
+
+/**
+ * Plantilla B — Mensaje del cliente A SOPORTE
+ * Usado cuando el lead NO viene de una ficha específica (sin crematorio_id).
+ * Tono: cliente buscando orientación al directorio. Castellano neutral.
+ */
+function armarMensajeWaSoporte(array $d): string {
+    $nombre   = $d['nombre'] ?? '';
+    $servicio = trim($d['servicio'] ?? '');
+    $tamano   = trim($d['tamano'] ?? '');
+    $mensaje  = trim($d['mensaje'] ?? '');
+    $wa       = trim($d['whatsapp_cliente'] ?? '');
+    $email    = trim($d['email'] ?? '');
+    $ciudad   = trim($d['ciudad'] ?? '');
+    $pagina   = trim($d['pagina_origen'] ?? '');
+
+    $partes = [];
+    $partes[] = "Hola, soy {$nombre}.";
+    $partes[] = '';
+
+    $linea = 'Estoy buscando un crematorio para mi mascota';
+    $linea .= ($ciudad !== '') ? " en {$ciudad}." : '.';
+    $partes[] = $linea;
+
+    if ($servicio !== '' || $tamano !== '') {
+        $linea = '';
+        if ($servicio !== '') {
+            $linea = "Necesito información sobre {$servicio}";
+            $linea .= ($tamano !== '') ? " (mascota de tamaño {$tamano})." : '.';
+        } elseif ($tamano !== '') {
+            $linea = "Mi mascota es de tamaño {$tamano}.";
+        }
+        $partes[] = $linea;
+    }
+
+    if ($mensaje !== '') {
+        $partes[] = '';
+        $partes[] = $mensaje;
+    }
+
+    $partes[] = '';
+    $partes[] = '📞 Para contactarme:';
+    if ($wa !== '')    $partes[] = "WhatsApp: {$wa}";
+    if ($email !== '') $partes[] = "Email: {$email}";
+
+    $partes[] = '';
+    $firma = '— Lead vía Crematoriosdemascotas.com';
+    if ($pagina !== '') $firma .= " (página: {$pagina})";
+    $partes[] = $firma;
+
+    return implode("\n", $partes);
+}

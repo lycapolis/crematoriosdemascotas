@@ -1973,13 +1973,22 @@ include 'includes/header.php';
                         </a>
                         <?php endif; ?>
 
-                        <?php if ($whatsapp): $waLimpio = preg_replace('/[^0-9]/', '', $whatsapp); ?>
-                        <a href="https://wa.me/<?php echo $waLimpio; ?>?text=<?php echo urlencode('Hola, me gustaría obtener información sobre sus servicios.'); ?>"
+                        <?php
+                        if ($whatsapp):
+                            $waLimpio = preg_replace('/[^0-9]/', '', $whatsapp);
+                            // Mensaje inicial del wa.me — SOLO si el usuario evita el
+                            // modal. Si llena el form, procesar-lead-b2c.php lo reemplaza
+                            // por uno rico. Incluimos contexto de la ficha.
+                            $waTextoInicial = 'Hola, vi su ficha de ' . $crematorio_nombre
+                                . ' en Crematoriosdemascotas.com y me gustaría obtener información sobre sus servicios.';
+                            $waUrlInicial = 'https://wa.me/' . $waLimpio . '?text=' . urlencode($waTextoInicial);
+                        ?>
+                        <a href="<?php echo htmlspecialchars($waUrlInicial); ?>"
                            class="ficha-cta ficha-cta--whatsapp"
                            target="_blank"
                            rel="noopener"
                            data-lead-capture="wa"
-                           data-destino="https://wa.me/<?php echo $waLimpio; ?>?text=<?php echo urlencode('Hola, me gustaría obtener información sobre sus servicios.'); ?>"
+                           data-destino="<?php echo htmlspecialchars($waUrlInicial); ?>"
                            data-phone-agent="<?php echo $waLimpio; ?>"
                            data-crematorio-id="<?php echo $cremIdAttr; ?>"
                            data-crematorio-nombre="<?php echo $cremNombreAttr; ?>"

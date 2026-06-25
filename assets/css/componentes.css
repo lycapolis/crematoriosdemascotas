@@ -237,6 +237,34 @@ h6 { font-size: var(--fs-dos); margin-bottom: var(--espacio-dos); }      /* 14px
     border-color: var(--color-uno);
 }
 
+/* ── Tarjeta DESTACADA (Plan 03, pauta paga) ─────────────────────────
+   Diferenciación visual fuerte: borde violeta vibrante (token premium,
+   reusa el violeta de IA — fuera de la paleta tierra → llama la atención).
+   La estrella se reserva para "Recomendado" (reputación real); este badge
+   usa icono bookmark sobre verde sólido.
+   Tokens definidos en variables.css (compartido público + admin). */
+.tarjeta.destacada {
+    border-color: var(--tone-premium-bord);
+    border-width: 2px;
+    box-shadow: 0 2px 8px rgba(124, 58, 237, 0.12),
+                0 4px 16px rgba(124, 58, 237, 0.06);
+    transition: border-color var(--transicion),
+                box-shadow var(--transicion),
+                transform var(--transicion);
+}
+.tarjeta.destacada:hover { border-color: var(--tone-premium-bord); }
+
+/* Microanimación al hover SOLO en desktop/tablet (≥768px). En mobile no
+   tiene sentido — el dedo no hace hover, solo click. Lift suave + sombra
+   más prominente para "vivificar" la tarjeta cuando el cursor pasa. */
+@media (hover: hover) and (min-width: 768px) {
+    .tarjeta.destacada:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 14px rgba(124, 58, 237, 0.20),
+                    0 12px 28px rgba(124, 58, 237, 0.12);
+    }
+}
+
 /* Variantes estructurales (descriptivas) */
 .tarjeta.simple {
     /* Tarjeta sin imagen, solo contenido */
@@ -305,12 +333,26 @@ h6 { font-size: var(--fs-dos); margin-bottom: var(--espacio-dos); }      /* 14px
     position: absolute;
     top: var(--espacio-tres);
     right: var(--espacio-tres);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     padding: var(--espacio-uno) var(--espacio-tres);
-    background: var(--color-uno);
-    color: var(--color-ocho);
+    /* Tono premium centralizado: verde sólido + texto blanco. Antes era
+       terracota — se confundía con el resto de la paleta del sitio. */
+    background: var(--tone-premium-bg);
+    color: var(--tone-premium-fg);
     font-size: var(--fs-uno);
     font-weight: var(--peso-negrita);
     border-radius: var(--radio-full);
+    box-shadow: 0 2px 6px rgba(21, 128, 61, 0.25);
+}
+.tarjeta__destacado .icono {
+    width: 14px;
+    height: 14px;
+    /* lucide renderiza SVG con stroke="currentColor" → fuerza el blanco
+       para que el icono no herede colores ambiente raros del padre. */
+    color: var(--tone-premium-fg);
+    stroke: var(--tone-premium-fg);
 }
 /* Badge de distancia (solo en cerca.php cuando $crem['distancia_km'] existe) */
 .tarjeta__distancia {
@@ -511,8 +553,8 @@ h6 { font-size: var(--fs-dos); margin-bottom: var(--espacio-dos); }      /* 14px
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: var(--espacio-tres);
-    margin-bottom: var(--espacio-uno);
+    gap: var(--espacio-dos);        /* 8px entre título y badge */
+    margin-bottom: var(--espacio-dos); /* 8px hasta la descripción/cuerpo */
 }
 
 .directorio-encabezado__titulo {
@@ -535,7 +577,20 @@ h6 { font-size: var(--fs-dos); margin-bottom: var(--espacio-dos); }      /* 14px
 .directorio-encabezado__descripcion {
     font-size: var(--fs-uno);
     color: var(--color-seis-claro);
-    margin: 0;
+    /* Margin-bottom 8px aunque esté oculta en mobile: mantiene el espaciado
+       parejo si se decide mostrarla a futuro. */
+    margin: 0 0 var(--espacio-dos);
+}
+
+/* Mobile (≤767px): centrar h1 + badge y ocultar descripción (redundante
+   con el badge en pantallas chicas → ahorra espacio vertical). */
+@media (max-width: 767px) {
+    .directorio-encabezado__fila {
+        justify-content: center;
+        text-align: center;
+    }
+    .directorio-encabezado__titulo { width: 100%; }
+    .directorio-encabezado__descripcion { display: none; }
 }
 
 /* Wrapper de padding para páginas geo (que no tienen el layout 50/50 de directorio) */
@@ -1021,9 +1076,10 @@ h6 { font-size: var(--fs-dos); margin-bottom: var(--espacio-dos); }      /* 14px
     border-bottom: 1px solid var(--color-cinco);
     position: sticky;
     top: 0;
-    /* z-index alto: Leaflet usa hasta z-index 1000 en sus controles y popups.
-       El header del sitio tiene que quedar por encima de cualquier mapa. */
-    z-index: 1100;
+    /* z-index 1600: arriba del menú móvil (1500) → logo y botón hamburguesa
+       siempre visibles cuando el menú overlay está abierto. También arriba
+       de los controles de Leaflet (1000) en cualquier mapa. */
+    z-index: 1600;
 }
 
 .header__contenedor {
@@ -1085,8 +1141,13 @@ h6 { font-size: var(--fs-dos); margin-bottom: var(--espacio-dos); }      /* 14px
     flex-direction: column;
     align-items: center;
     gap: var(--espacio-cuatro);
-    padding: var(--espacio-siete) var(--espacio-cinco);
-    z-index: var(--z-modal);
+    /* padding-top extra para que el contenido del menú no quede tapado por
+       el header del sitio (que queda visible por encima vía z-index). */
+    padding: 90px var(--espacio-cinco) var(--espacio-siete);
+    /* z-index 1500: arriba de controles de Leaflet (1000), debajo del header
+       del sitio (que está en 1600) para que el logo/hamburguesa sigan
+       visibles cuando el menú está abierto. */
+    z-index: 1500;
 }
 .menu.movil.activo { display: flex; }
 
