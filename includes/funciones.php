@@ -30,6 +30,94 @@ function assetUrl(string $rutaRelativa): string {
     return BASE_URL . '/' . $rutaRelativa . '?v=' . $version;
 }
 
+// ═══════════════════════════════════════════════════════════
+// GEOCODING — Google Geocoding API
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Geocodifica una dirección usando Google Geocoding API.
+ *
+ * Llamada de UNA SOLA VEZ por ficha: una vez que se obtienen lat/lng se
+ * guardan en BD y no se vuelve a llamar. Costo: $5 / 1000 requests, gratis
+ * dentro del free credit mensual de $200 de Google Maps Platform.
+ *
+ * @param string $direccion  Dirección completa (calle, número, ciudad...)
+ * @param string $ciudad     Ciudad (para sesgar la búsqueda)
+ * @param string $pais       Código ISO de país (default 'ES')
+ * @return array {
+ *   ok:        bool,
+ *   lat:       float|null,
+ *   lng:       float|null,
+ *   place_id:  string|null,  // bonus: lo guardamos en google_place_id si vino vacío
+ *   formatted: string|null,  // dirección normalizada por Google
+ *   error:     string|null
+ * }
+ */
+function geocodificarDireccion(string $direccion, string $ciudad = '', string $pais = 'ES'): array {
+    $apiKey = defined('GOOGLE_MAPS_API_KEY') ? GOOGLE_MAPS_API_KEY : '';
+    if (empty($apiKey)) {
+        return ['ok' => false, 'error' => 'GOOGLE_MAPS_API_KEY no configurada'];
+    }
+
+    // Armar query: dirección + ciudad si la dirección no la incluye
+    $query = trim($direccion);
+    if ($ciudad !== '' && stripos($query, $ciudad) === false) {
+        $query .= ', ' . $ciudad;
+    }
+    if ($query === '') {
+        return ['ok' => false, 'error' => 'Dirección vacía'];
+    }
+
+    $url = 'https://maps.googleapis.com/maps/api/geocode/json?' . http_build_query([
+        'address'    => $query,
+        'components' => 'country:' . strtoupper($pais),
+        'language'   => 'es',
+        'region'     => strtolower($pais),
+        'key'        => $apiKey,
+    ]);
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 15,
+    ]);
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
+    curl_close($ch);
+
+    if ($err) {
+        return ['ok' => false, 'error' => 'cURL: ' . $err];
+    }
+    if ($code !== 200) {
+        return ['ok' => false, 'error' => "HTTP $code"];
+    }
+    $data = json_decode($resp, true);
+    if (!is_array($data)) {
+        return ['ok' => false, 'error' => 'Respuesta JSON inválida'];
+    }
+
+    $status = $data['status'] ?? '';
+    if ($status !== 'OK' || empty($data['results'])) {
+        return ['ok' => false, 'error' => 'Sin resultados (' . $status . ')'];
+    }
+
+    $r = $data['results'][0];
+    $loc = $r['geometry']['location'] ?? null;
+    if (!$loc || !isset($loc['lat'], $loc['lng'])) {
+        return ['ok' => false, 'error' => 'Resultado sin coordenadas'];
+    }
+
+    return [
+        'ok'        => true,
+        'lat'       => (float)$loc['lat'],
+        'lng'       => (float)$loc['lng'],
+        'place_id'  => $r['place_id']         ?? null,
+        'formatted' => $r['formatted_address'] ?? null,
+        'error'     => null,
+    ];
+}
+
 /**
  * Limpia las referencias `portada_principal_id` y `logo_principal_id` en la
  * tabla `crematorios` para imágenes que fueron borradas.

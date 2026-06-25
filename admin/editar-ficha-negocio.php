@@ -1001,6 +1001,53 @@ function selectBool(string $name, $valor): string {
                            value="<?php echo htmlspecialchars($cr['longitud'] ?? ''); ?>">
                 </div>
                 <div class="field" style="grid-column:1/-1; margin-bottom:0;">
+                    <button type="button" id="btn-geocodificar" class="boton dos pequeno"
+                            onclick="geocodificarFicha(<?php echo (int)$id; ?>)"
+                            style="display:inline-flex; align-items:center; gap:.4rem;">
+                        <i data-lucide="map-pin" class="icono" style="width:14px;height:14px;"></i>
+                        Geocodificar dirección con Google
+                    </button>
+                    <span id="geocod-resultado" style="margin-left:.6rem; font-size:var(--admin-body-sm); color:var(--admin-tinta-suave);"></span>
+                    <div style="font-size:var(--admin-caption); color:var(--admin-tinta-tenue); margin-top:.3rem;">
+                        Toma la dirección + código postal + ciudad y obtiene lat/lng automáticamente.
+                        Útil si la ficha llegó sin coordenadas o si cambiaste la dirección.
+                    </div>
+                </div>
+                <script>
+                function geocodificarFicha(id) {
+                    var btn = document.getElementById('btn-geocodificar');
+                    var msg = document.getElementById('geocod-resultado');
+                    btn.disabled = true;
+                    msg.textContent = 'Buscando…';
+                    msg.style.color = 'var(--admin-tinta-suave)';
+                    var fd = new FormData();
+                    fd.append('id', id);
+                    fetch('geocodificar-ajax.php', { method: 'POST', body: fd })
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            btn.disabled = false;
+                            if (data.ok) {
+                                document.getElementById('latitud').value  = data.lat;
+                                document.getElementById('longitud').value = data.lng;
+                                msg.textContent = '✓ Coordenadas actualizadas (' + data.formatted + ')';
+                                msg.style.color = 'var(--admin-tone-exito-fg)';
+                                if (data.place_id) {
+                                    var pidInput = document.getElementById('google_place_id');
+                                    if (pidInput && !pidInput.value.trim()) pidInput.value = data.place_id;
+                                }
+                            } else {
+                                msg.textContent = '✗ ' + (data.error || 'Sin resultados');
+                                msg.style.color = 'var(--admin-tone-error-fg)';
+                            }
+                        })
+                        .catch(function(e) {
+                            btn.disabled = false;
+                            msg.textContent = '✗ Error de red: ' + e.message;
+                            msg.style.color = 'var(--admin-tone-error-fg)';
+                        });
+                }
+                </script>
+                <div class="field" style="grid-column:1/-1; margin-bottom:0;">
                     <label class="field__label" for="google_maps_url">URL Google Maps</label>
                     <input type="url" id="google_maps_url" name="google_maps_url" class="field__input"
                            value="<?php echo htmlspecialchars($cr['google_maps_url'] ?? ''); ?>">

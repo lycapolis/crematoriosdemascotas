@@ -576,6 +576,13 @@ h6 { font-size: var(--fs-dos); margin-bottom: var(--espacio-dos); }      /* 14px
 .encabezado-geo__btn-mapa-arrow { transition: transform .2s ease; }
 .encabezado-geo__btn-mapa:hover .encabezado-geo__btn-mapa-arrow { transform: translateX(3px); }
 
+/* Ocultar el botón "Ver en el mapa" en mobile: la vista de mapa en pantallas
+   chicas ofrece UX pobre (mucho zoom, cards diminutas). Mejor que el usuario
+   navegue el listado en mobile y reserve el mapa para desktop. */
+@media (max-width: 768px) {
+    .encabezado-geo__btn-mapa { display: none !important; }
+}
+
 /* ─────────────────────────────────────────────────────────
    MAP PIN + POPUP — para mapas Leaflet (cerca.php, cerca-mapa.php, etc.)
    Colores reservados para el mapa (rojo + dorado): los tiles OSM son beige

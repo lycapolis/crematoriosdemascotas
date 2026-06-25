@@ -446,6 +446,32 @@ try {
         // descripcion, meta_description_seo) desde los JSONs recién insertados.
         sincronizarCamposFlat($pdo, $crematorioId);
 
+        // ─── Geocodificar dirección con Google Geocoding API ──────────────
+        // Si funciona → guarda lat/lng (+ google_place_id si no está seteado).
+        // Si falla → silenciosamente sigue (la ficha queda sin coords, el admin
+        // puede usar el botón manual en editar-ficha-negocio.php).
+        if (function_exists('geocodificarDireccion')) {
+            $geo = geocodificarDireccion(
+                trim(($solicitud['direccion'] ?? '') . ' ' . ($solicitud['codigo_postal'] ?? '')),
+                $solicitud['ciudad'] ?? '',
+                'ES'
+            );
+            if (!empty($geo['ok'])) {
+                $pdo->prepare(
+                    "UPDATE crematorios SET
+                        latitud  = :lat,
+                        longitud = :lng,
+                        google_place_id = COALESCE(NULLIF(google_place_id, ''), :pid)
+                     WHERE id = :id"
+                )->execute([
+                    ':lat' => $geo['lat'],
+                    ':lng' => $geo['lng'],
+                    ':pid' => $geo['place_id'] ?: null,
+                    ':id'  => $crematorioId,
+                ]);
+            }
+        }
+
         // 4. Actualizar solicitud
         $sql = "UPDATE solicitudes_registro SET
                     estado = 'aprobada',

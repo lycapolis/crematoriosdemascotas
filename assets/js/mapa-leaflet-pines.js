@@ -86,18 +86,28 @@
 
     /**
      * Agrega markers + popups (con hover-open + cluster) a un mapa ya inicializado.
-     * Devuelve el cluster para que el llamador haga fitBounds u otras operaciones.
      *
      * @param {L.Map}   map
-     * @param {Array}   puntos
+     * @param {Array}   puntos     Cada uno con `id` (entero) si querés usar marcadoresPorId
      * @param {Object}  opts
      *   - maxClusterRadius (default 50)
      *   - popupMaxWidth (default 320)
      *   - popupMinWidth (default 280)
+     *
+     * @returns {Object} { cluster, marcadoresPorId }
+     *   - cluster: el L.markerClusterGroup (para fitBounds u otras operaciones)
+     *   - marcadoresPorId: dict { id → L.marker } para hacer sync de hover con
+     *     las cards del listado (ver region-mapa.php / cerca-mapa.php).
+     *
+     * Compat: el retorno anterior era el cluster directo. Si alguien hace
+     *   var cluster = crearClusterConPuntos(...)
+     * ahora obtiene `{cluster, marcadoresPorId}`. Para mantener compat, exponemos
+     * el cluster también en .cluster del retorno.
      */
     function crearClusterConPuntos(map, puntos, opts) {
         opts = opts || {};
         var timerCierre = null;
+        var marcadoresPorId = {};
         var cluster = L.markerClusterGroup({
             maxClusterRadius: opts.maxClusterRadius || 50
         });
@@ -127,6 +137,10 @@
                 timerCierre = setTimeout(function () { that.closePopup(); }, 200);
             });
             cluster.addLayer(marker);
+            // Index por id (solo si el punto trae id; algunos partials no lo pasan).
+            if (p.id != null) {
+                marcadoresPorId[p.id] = marker;
+            }
         });
 
         map.addLayer(cluster);
@@ -141,7 +155,7 @@
             });
         });
 
-        return cluster;
+        return { cluster: cluster, marcadoresPorId: marcadoresPorId };
     }
 
     /**

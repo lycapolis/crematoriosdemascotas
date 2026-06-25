@@ -33,7 +33,7 @@ if (!isset($tituloH1)) return;
         <?php if (!empty($mapaRegionUrl)): ?>
         <a class="encabezado-geo__btn-mapa" href="<?php echo htmlspecialchars($mapaRegionUrl); ?>">
             <i data-lucide="map" class="icono"></i>
-            Ver con mapa
+            Ver en el mapa
             <i data-lucide="arrow-right" class="icono encabezado-geo__btn-mapa-arrow"></i>
         </a>
         <?php endif; ?>

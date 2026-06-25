@@ -347,7 +347,10 @@ body.region-mapa-pagina .footer { display: none !important; }
     text-decoration: none; color: inherit;
     transition: all .15s ease;
 }
-.rmcard:hover { border-color: var(--color-uno); transform: translateY(-1px); box-shadow: 0 3px 12px rgba(184, 112, 79, .12); }
+.rmcard:hover,
+.rmcard.activa { border-color: var(--color-uno); transform: translateY(-1px); box-shadow: 0 3px 12px rgba(184, 112, 79, .12); }
+/* Estado .activa: aplicado por JS cuando el pin del mapa correspondiente
+   también está activo (hover sync). Misma visual que hover. */
 .rmcard__foto {
     width: 80px; height: 80px; flex-shrink: 0;
     background: var(--color-cinco) center/cover no-repeat;
@@ -538,7 +541,38 @@ body.region-mapa-pagina .footer { display: none !important; }
     }).addTo(map);
 
     if (puntos.length) {
-        window.MapaCrematorios.crearClusterConPuntos(map, puntos, { maxClusterRadius: 50 });
+        var clusterRes = window.MapaCrematorios.crearClusterConPuntos(map, puntos, { maxClusterRadius: 50 });
+        var marcadoresPorId = clusterRes.marcadoresPorId;
+
+        // ── Sync hover entre cards (.rmcard) y pines del mapa ──
+        // Al hacer hover en una card, agrandamos el pin correspondiente. UX:
+        // el usuario ve al toque dónde está ubicado el negocio en el mapa.
+        var iconoNormal     = window.MapaCrematorios.crearIconoNormal();
+        var iconoDestacadoF = window.MapaCrematorios.crearIconoDestacado;
+        var iconoActivo = L.divIcon({
+            className: 'map-pin map-pin--activo',
+            html: '<div class="map-pin__dot"></div>',
+            iconSize: [30, 30],
+            iconAnchor: [15, 30]
+        });
+        // Cachear el icono original (normal o destacado) por id para restaurarlo
+        var iconoOriginalPorId = {};
+        puntos.forEach(function(p) {
+            iconoOriginalPorId[p.id] = p.destacado ? iconoDestacadoF(p) : iconoNormal;
+        });
+        document.querySelectorAll('.rmcard').forEach(function(card) {
+            var id = parseInt(card.dataset.cremId, 10);
+            if (!id || !marcadoresPorId[id]) return;
+            card.addEventListener('mouseenter', function() {
+                marcadoresPorId[id].setIcon(iconoActivo);
+                card.classList.add('activa');
+            });
+            card.addEventListener('mouseleave', function() {
+                marcadoresPorId[id].setIcon(iconoOriginalPorId[id]);
+                card.classList.remove('activa');
+            });
+        });
+
         var lats = puntos.map(function(p){ return p.lat; });
         var lngs = puntos.map(function(p){ return p.lng; });
         var bounds = L.latLngBounds(
