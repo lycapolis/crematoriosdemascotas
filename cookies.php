@@ -128,7 +128,7 @@ include 'includes/header.php';
             <p>Si tienes preguntas sobre nuestra Política de Cookies, contáctanos:</p>
             <ul>
                 <li><strong>Email:</strong> <a href="mailto:info@crematoriosdemascotas.com">info@crematoriosdemascotas.com</a></li>
-                <li><strong>Teléfono:</strong> <a href="tel:+34631256751">+351 912 070 203</a></li>
+                <li><strong>Teléfono:</strong> <a href="tel:+34631256751">+34 631 256 751</a></li>
             </ul>
 
         </article>

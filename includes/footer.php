@@ -56,7 +56,7 @@
                         <li>
                             <a href="tel:+34631256751" class="footer__enlace">
                                 <i data-lucide="phone" class="icono"></i>
-                                +351 912 070 203
+                                +34 631 256 751
                             </a>
                         </li>
                     </ul>
