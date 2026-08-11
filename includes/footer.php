@@ -54,7 +54,7 @@
                             </a>
                         </li>
                         <li>
-                            <a href="tel:+351912070203" class="footer__enlace">
+                            <a href="tel:+34631256751" class="footer__enlace">
                                 <i data-lucide="phone" class="icono"></i>
                                 +351 912 070 203
                             </a>

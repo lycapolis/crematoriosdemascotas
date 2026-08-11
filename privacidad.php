@@ -195,7 +195,7 @@ include 'includes/header.php';
             <p>Si tienes preguntas sobre esta Política de Privacidad o sobre cómo manejamos tus datos personales, contáctanos:</p>
             <ul>
                 <li><strong>Email:</strong> <a href="mailto:info@crematoriosdemascotas.com">info@crematoriosdemascotas.com</a></li>
-                <li><strong>Teléfono:</strong> <a href="tel:+351912070203">+351 912 070 203</a></li>
+                <li><strong>Teléfono:</strong> <a href="tel:+34631256751">+351 912 070 203</a></li>
             </ul>
 
             <h2>14. Autoridad de Control</h2>
