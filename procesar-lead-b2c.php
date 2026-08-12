@@ -151,7 +151,9 @@ $utmParams = http_build_query(array_filter([
 ]));
 
 $payload = [
-    'idWidget'              => 'cmas-lead-capture-interno',
+    'id_formulario'         => 'cmas-lead-capture-interno',
+    'formulario'            => 'Formulario de Contacto - Ficha de Crematorio',
+    'telefono'              => $phoneCode . $whatsappNumber,
     'idAgent'               => $crematorioId ? 'crematorio-' . $crematorioId : 'generico',
     'channelType'           => $channelTypeLegacy,
     'phoneAgent'            => $phoneAgent,

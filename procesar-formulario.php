@@ -96,6 +96,8 @@ function procesarRegistro() {
     return [
         'form_id'   => 'form_registro',
         'form_name' => 'Registro de Crematorio',
+        'formulario' => 'Formulario de Registro de Crematorio',
+        'telefono'  => $telefono,
         'timestamp' => date('c'),
         'data' => [
             'contacto' => [
@@ -320,6 +322,8 @@ function procesarResena() {
     return [
         'form_id'   => 'form_resena',
         'form_name' => 'Reseña de Crematorio',
+        'formulario' => 'Formulario de Reseña',
+        'telefono'  => '',
         'timestamp' => date('c'),
         'imagenes_guardadas' => $imagenes_guardadas,
         'data' => [
@@ -359,6 +363,8 @@ function procesarContacto() {
     return [
         'form_id'   => 'form_contacto',
         'form_name' => 'Contacto General',
+        'formulario' => 'Formulario de Contacto General',
+        'telefono'  => $telefono,
         'timestamp' => date('c'),
         'data' => [
             'nombre'   => $nombre,
@@ -435,6 +441,8 @@ function procesarLeadComercial() {
     return [
         'form_id'   => 'form_lead_comercial',
         'form_name' => 'Lead comercial (Promocionar crematorio)',
+        'formulario' => 'Formulario de Promoción de Crematorio',
+        'telefono'  => $telefono,
         'timestamp' => date('c'),
         'data' => [
             'nombre'         => $nombre,
