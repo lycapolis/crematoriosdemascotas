@@ -95,7 +95,7 @@ if (!$pdo) {
 
 $sql = "INSERT INTO leads_b2c
     (channel_type, accion_destino, crematorio_id, crematorio_nombre, phone_agent, pagina_origen,
-     mascota, mascota_tamano, nombre, email, country_code, phone_code, whatsapp_number, ciudad_lead, mensaje,
+     servicio, mascota_tamano, nombre, email, country_code, phone_code, whatsapp_number, ciudad_lead, mensaje,
      ip, user_agent, utm_source, utm_medium, utm_campaign, referrer)
     VALUES
     (:channel_type, :accion_destino, :crematorio_id, :crematorio_nombre, :phone_agent, :pagina_origen,
