@@ -66,19 +66,19 @@
             <!-- Subtítulo motivacional (contextual) -->
             <p class="lc-form__intro" id="lc-sub">Completa tus datos para obtener un mejor servicio de este negocio.</p>
 
-            <!-- Servicio (Perro/Gato/Otro) -->
+            <!-- Mascota (Perro/Gato/Otro) -->
             <div class="lc-field">
                 <div class="lc-radios">
                     <label class="lc-radio">
-                        <input type="radio" name="servicio" value="Perro" required>
+                        <input type="radio" name="mascota" value="Perro" required>
                         <span>Perro</span>
                     </label>
                     <label class="lc-radio">
-                        <input type="radio" name="servicio" value="Gato">
+                        <input type="radio" name="mascota" value="Gato">
                         <span>Gato</span>
                     </label>
                     <label class="lc-radio">
-                        <input type="radio" name="servicio" value="Otro">
+                        <input type="radio" name="mascota" value="Otro">
                         <span>Otro</span>
                     </label>
                 </div>

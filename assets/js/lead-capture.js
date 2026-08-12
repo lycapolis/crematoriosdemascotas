@@ -407,10 +407,10 @@
         var email   = form.elements['email'].value.trim();
         var ciudad  = form.elements['ciudad'].value.trim();
         var wa      = form.elements['whatsapp_number'].value.trim();
-        var serv    = form.elements['servicio'].value;
+        var mascota = form.elements['mascota'].value;
         var tamano  = form.elements['mascota_tamano'].value;
 
-        if (!serv) {
+        if (!mascota) {
             if (window.toast) toast.error('Elige Perro, Gato u Otro');
             return;
         }

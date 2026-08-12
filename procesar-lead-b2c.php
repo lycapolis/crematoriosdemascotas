@@ -51,7 +51,7 @@ if ($renderTs && (time() - $renderTs) < 2) {
 $nombre  = trim($_POST['nombre'] ?? '');
 $email   = trim($_POST['email'] ?? '');
 $ciudad  = trim($_POST['ciudad'] ?? '');
-$servicio = trim($_POST['servicio'] ?? '');
+$mascota  = trim($_POST['mascota'] ?? '');
 $tamano  = trim($_POST['mascota_tamano'] ?? '');
 $mensaje = trim($_POST['mensaje'] ?? '');
 $countryCode    = trim($_POST['country_code'] ?? '');
@@ -95,11 +95,11 @@ if (!$pdo) {
 
 $sql = "INSERT INTO leads_b2c
     (channel_type, accion_destino, crematorio_id, crematorio_nombre, phone_agent, pagina_origen,
-     servicio, mascota_tamano, nombre, email, country_code, phone_code, whatsapp_number, ciudad_lead, mensaje,
+     mascota, mascota_tamano, nombre, email, country_code, phone_code, whatsapp_number, ciudad_lead, mensaje,
      ip, user_agent, utm_source, utm_medium, utm_campaign, referrer)
     VALUES
     (:channel_type, :accion_destino, :crematorio_id, :crematorio_nombre, :phone_agent, :pagina_origen,
-     :servicio, :mascota_tamano, :nombre, :email, :country_code, :phone_code, :whatsapp_number, :ciudad_lead, :mensaje,
+     :mascota, :mascota_tamano, :nombre, :email, :country_code, :phone_code, :whatsapp_number, :ciudad_lead, :mensaje,
      :ip, :user_agent, :utm_source, :utm_medium, :utm_campaign, :referrer)";
 
 $stmt = $pdo->prepare($sql);
@@ -110,7 +110,7 @@ $stmt->execute([
     ':crematorio_nombre' => $crematorioName ?: null,
     ':phone_agent'       => $phoneAgent ?: null,
     ':pagina_origen'     => $paginaOrigen ?: null,
-    ':servicio'          => $servicio ?: null,
+    ':mascota'           => $mascota ?: null,
     ':mascota_tamano'    => $tamano ?: null,
     ':nombre'            => $nombre,
     ':email'             => $email,
@@ -165,7 +165,8 @@ $payload = [
     'utmParams2'            => '',
     'priceCurrency'         => 'EUR',
     'idService'             => $crematorioId ? (string)$crematorioId : 'NA',
-    'Servicio'              => $servicio,
+    'Servicio'              => '',
+    'Mascota'               => $mascota,
     'Tamaño de la Mascota'  => $tamano,
     'Nombre'                => $nombre,
     'Email'                 => $email,
@@ -249,7 +250,7 @@ if ($channelType === 'wa') {
             'whatsapp_cliente'  => $whatsappNumber,
             'email'             => $email,
             'ciudad'            => $ciudad,
-            'servicio'          => $servicio,
+            'mascota'           => $mascota,
             'tamano'            => $tamano,
             'mensaje'           => $mensaje,
             'crematorio_nombre' => $crematorioName,
@@ -281,7 +282,7 @@ echo json_encode([
 function armarMensajeWaNegocio(array $d): string {
     $crematorio = $d['crematorio_nombre'] ?? '';
     $nombre     = $d['nombre'] ?? '';
-    $servicio   = trim($d['servicio'] ?? '');
+    $mascota    = trim($d['mascota'] ?? '');
     $tamano     = trim($d['tamano'] ?? '');
     $mensaje    = trim($d['mensaje'] ?? '');
     $wa         = trim($d['whatsapp_cliente'] ?? '');
@@ -293,9 +294,9 @@ function armarMensajeWaNegocio(array $d): string {
     $partes[] = '';
 
     $linea = "Soy {$nombre}.";
-    if ($servicio !== '') {
-        $linea .= " Necesito información sobre {$servicio}";
-        $linea .= ($tamano !== '') ? " para mi mascota de tamaño {$tamano}." : ' para mi mascota.';
+    if ($mascota !== '') {
+        $linea .= " Tengo un(a) {$mascota}";
+        $linea .= ($tamano !== '') ? " de tamaño {$tamano}." : '.';
     } else {
         $linea .= ($tamano !== '')
             ? " Tengo una mascota de tamaño {$tamano} y necesito información."
@@ -327,7 +328,7 @@ function armarMensajeWaNegocio(array $d): string {
  */
 function armarMensajeWaSoporte(array $d): string {
     $nombre   = $d['nombre'] ?? '';
-    $servicio = trim($d['servicio'] ?? '');
+    $mascota  = trim($d['mascota'] ?? '');
     $tamano   = trim($d['tamano'] ?? '');
     $mensaje  = trim($d['mensaje'] ?? '');
     $wa       = trim($d['whatsapp_cliente'] ?? '');
@@ -343,11 +344,11 @@ function armarMensajeWaSoporte(array $d): string {
     $linea .= ($ciudad !== '') ? " en {$ciudad}." : '.';
     $partes[] = $linea;
 
-    if ($servicio !== '' || $tamano !== '') {
+    if ($mascota !== '' || $tamano !== '') {
         $linea = '';
-        if ($servicio !== '') {
-            $linea = "Necesito información sobre {$servicio}";
-            $linea .= ($tamano !== '') ? " (mascota de tamaño {$tamano})." : '.';
+        if ($mascota !== '') {
+            $linea = "Tengo un(a) {$mascota}";
+            $linea .= ($tamano !== '') ? " de tamaño {$tamano}." : '.';
         } elseif ($tamano !== '') {
             $linea = "Mi mascota es de tamaño {$tamano}.";
         }
