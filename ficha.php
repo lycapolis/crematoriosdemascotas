@@ -173,27 +173,7 @@ if (!empty($crematorio['precios_json'])) {
     }
 }
 
-/**
- * Formatea el monto de un ítem de precio según su tipo.
- * Devuelve string vacío para tipo 'custom' (esos no muestran monto).
- */
-function formatearPrecioItem(array $p): string {
-    $simbolo = defined('MONEDA_SIMBOLO') ? MONEDA_SIMBOLO : '€';
-    $fmt = function ($n) use ($simbolo) {
-        return number_format((float)$n, (floor((float)$n) == (float)$n ? 0 : 2), ',', '.') . ' ' . $simbolo;
-    };
-    $min = $p['min'] ?? null;
-    $max = $p['max'] ?? null;
-    switch ($p['tipo'] ?? 'custom') {
-        case 'fijo':  return ($min !== null && $min !== '') ? $fmt($min) : '';
-        case 'desde': return ($min !== null && $min !== '') ? 'Desde ' . $fmt($min) : '';
-        case 'rango':
-            if ($min !== null && $min !== '' && $max !== null && $max !== '') return $fmt($min) . ' – ' . $fmt($max);
-            if ($min !== null && $min !== '') return 'Desde ' . $fmt($min);
-            return '';
-        default: return ''; // custom
-    }
-}
+// formatearPrecioItem() — ahora vive en includes/funciones.php (reusable, ej. mensaje WhatsApp)
 
 // Helper local: ruta relativa → URL absoluta
 function resolverUrlImagen(string $ruta): string {

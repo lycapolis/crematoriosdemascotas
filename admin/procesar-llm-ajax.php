@@ -34,15 +34,19 @@ if (!$crematorioId) {
 $limite    = min(10, max(1, intval($_POST['limite'] ?? 10)));
 $soloTipo  = $_POST['solo_tipo'] ?? ''; // 'cliente' → solo procesa tipo=cliente; vacío → excluye cliente
 
-$apiKey = defined('CLAUDE_API_KEY') ? CLAUDE_API_KEY : '';
-if (empty($apiKey)) {
-    echo json_encode(['ok' => false, 'error' => 'CLAUDE_API_KEY no configurada en config.php']);
-    exit;
-}
-
 $pdo = obtenerConexion();
 if (!$pdo) {
     echo json_encode(['ok' => false, 'error' => 'Error de conexión a la base de datos']);
+    exit;
+}
+
+// Proveedor/modelo configurables en admin/configuracion-ia.php (sección 'vision_categoria').
+$cfgVision = obtenerConfigIA($pdo, 'vision_categoria');
+$apiKeyOk = ($cfgVision['proveedor'] === 'openrouter')
+    ? (defined('OPENROUTER_API_KEY') && OPENROUTER_API_KEY !== '')
+    : (defined('CLAUDE_API_KEY') && CLAUDE_API_KEY !== '');
+if (!$apiKeyOk) {
+    echo json_encode(['ok' => false, 'error' => strtoupper($cfgVision['proveedor']) . '_API_KEY no configurada en .env']);
     exit;
 }
 
@@ -97,7 +101,7 @@ function siguienteOrdenAjax(PDO $pdo, int $crematorioId): int {
         ->execute([':id' => $crematorioId]) ? (int)$pdo->query("SELECT COUNT(*) FROM crematorio_imagenes WHERE crematorio_id = $crematorioId AND estado_llm = 'procesada'")->fetchColumn() + 1 : 1;
 }
 
-function llamarClaudeVisionAjax(string $base64, string $mime, string $contexto, string $apiKey, bool $esCliente = false): ?array {
+function llamarClaudeVisionAjax(PDO $pdo, string $base64, string $mime, string $contexto, bool $esCliente = false): ?array {
     $extraCliente = $esCliente
         ? "\nIMPORTANTE — esta imagen fue enviada por un CLIENTE del negocio junto con una reseña pública. Reglas especiales para tu alt_text:\n  • Describí literalmente lo que se VE en la imagen (la mascota, un recuerdo, un momento, etc.).\n  • NO incluyas el nombre del negocio en el alt_text — queda forzado y poco natural.\n  • Podés mencionar la ciudad SOLO si encaja de forma natural en la descripción.\n  • La categoría más probable es 'fotos_clientes'.\n  • El sistema agregará automáticamente al final del alt el texto '— Foto enviada por [nombre del cliente]'. NO lo agregues tú."
         : '';
@@ -131,44 +135,16 @@ Responde SOLO con el JSON, ejemplo:
 {"categoria":"interior_sala","alt_text":"Sala de despedida de mascotas en Crematorio Huella Amiga, Madrid","descripcion_seo":"sala-despedida-mascotas"}
 PROMPT;
 
-    $payload = [
-        'model'      => 'claude-sonnet-4-6',
-        'max_tokens' => 300,
-        'messages'   => [[
-            'role'    => 'user',
-            'content' => [
-                ['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => $mime, 'data' => $base64]],
-                ['type' => 'text',  'text'   => $prompt],
-            ],
-        ]],
-    ];
+    $resp = llamarLLM($pdo, 'vision_categoria', $prompt, $base64, $mime);
+    if (!$resp['ok']) return null;
 
-    $ch = curl_init('https://api.anthropic.com/v1/messages');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_HTTPHEADER     => [
-            'x-api-key: ' . $apiKey,
-            'anthropic-version: 2023-06-01',
-            'content-type: application/json',
-        ],
-        CURLOPT_POSTFIELDS => json_encode($payload),
-        CURLOPT_TIMEOUT    => 60,
-    ]);
-
-    $resp    = curl_exec($ch);
-    $code    = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlErr = curl_error($ch);
-    curl_close($ch);
-
-    if ($curlErr || $code !== 200) return null;
-
-    $data  = json_decode($resp, true);
-    $texto = $data['content'][0]['text'] ?? '';
-
+    $texto = $resp['texto'] ?? '';
     if (preg_match('/\{.*\}/s', $texto, $m)) {
         $parsed = json_decode($m[0], true);
-        if (json_last_error() === JSON_ERROR_NONE) return $parsed;
+        if (json_last_error() === JSON_ERROR_NONE) {
+            $parsed['_modelo'] = $resp['modelo'];
+            return $parsed;
+        }
     }
     return null;
 }
@@ -222,7 +198,7 @@ foreach ($imagenes as $img) {
     if ($img['provincia_nombre']) $ctx .= ' (' . $img['provincia_nombre'] . ')';
 
     $esCliente = ($img['tipo'] === 'cliente');
-    $analisis = llamarClaudeVisionAjax($base64, 'image/webp', $ctx, $apiKey, $esCliente);
+    $analisis = llamarClaudeVisionAjax($pdo, $base64, 'image/webp', $ctx, $esCliente);
 
     // Limpiar temp
     if (isset($tmp) && file_exists($tmp)) { @unlink($tmp); unset($tmp); }
@@ -230,11 +206,12 @@ foreach ($imagenes as $img) {
     if (!$analisis) {
         $pdo->prepare("UPDATE crematorio_imagenes SET estado_llm='error' WHERE id=:id")
             ->execute([':id' => $img['id']]);
-        $detalles[] = ['id' => $img['id'], 'nombre' => $img['nombre_archivo'], 'estado' => 'error', 'msg' => 'Fallo en API Claude'];
+        $detalles[] = ['id' => $img['id'], 'nombre' => $img['nombre_archivo'], 'estado' => 'error', 'msg' => 'Fallo en la llamada al LLM'];
         $errores++;
         continue;
     }
 
+    $modeloUsadoVision = $analisis['_modelo'] ?? 'desconocido';
     $categoria = in_array($analisis['categoria'] ?? '', ImagenHelper::CATEGORIAS_VALIDAS)
         ? $analisis['categoria'] : 'otro';
     $altText  = substr(trim($analisis['alt_text']      ?? ''), 0, 500);
@@ -312,7 +289,7 @@ foreach ($imagenes as $img) {
 
 // Registrar en bitácora IA si al menos una imagen fue procesada con éxito
 if ($procesadas > 0) {
-    registrarUsoIA($pdo, $crematorioId, 'imagenes', 'claude-sonnet-4-6');
+    registrarUsoIA($pdo, $crematorioId, 'imagenes', $modeloUsadoVision ?? 'desconocido');
 }
 
 echo json_encode([

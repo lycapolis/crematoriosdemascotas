@@ -35,7 +35,7 @@ $crematorioId = (int) ($_POST['crematorio_id'] ?? 0);
 $campo        = (string) ($_POST['campo'] ?? '');
 $entradaRaw   = (string) ($_POST['entrada'] ?? '');
 
-$CAMPOS_OK = ['descripciones_json', 'metas_json'];
+$CAMPOS_OK = ['descripciones_json', 'metas_json', 'mensajes_whatsapp_json'];
 if (!$crematorioId || !in_array($campo, $CAMPOS_OK, true)) {
     echo json_encode(['ok' => false, 'error' => 'Parámetros inválidos']);
     exit;

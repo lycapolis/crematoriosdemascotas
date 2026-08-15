@@ -111,6 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ':descripciones_json'   => trim($_POST['descripciones_json'] ?? '') ?: null,
         ':metas_json'           => trim($_POST['metas_json']          ?? '') ?: null,
         ':precios_json'         => trim($_POST['precios_json']        ?? '') ?: null,
+        ':mensajes_whatsapp_json' => trim($_POST['mensajes_whatsapp_json'] ?? '') ?: null,
         ':booking_link'         => trim($_POST['booking_link'] ?? ''),
         ':google_maps_url'      => trim($_POST['google_maps_url'] ?? ''),
         ':google_place_id'      => trim($_POST['google_place_id'] ?? '') ?: null,
@@ -156,6 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     descripciones_json   = :descripciones_json,
                     metas_json           = :metas_json,
                     precios_json         = :precios_json,
+                    mensajes_whatsapp_json = :mensajes_whatsapp_json,
                     booking_link         = :booking_link,
                     google_maps_url      = :google_maps_url,
                     google_place_id      = :google_place_id,
@@ -188,6 +190,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Sincronizar las 6 flats desde el JSON recién guardado.
         sincronizarCamposFlat($pdo, $id);
+
+        // Si la versión activa del mensaje WhatsApp es "auto", regenerarla con
+        // los datos recién guardados (teléfono, precio, rating, etc. pueden
+        // haber cambiado en este mismo submit). No toca versiones manuales/IA.
+        regenerarMensajeWhatsappAutoSiCorresponde($pdo, $id);
 
         $pdo->commit();
 
@@ -255,6 +262,20 @@ if (empty($metaJson)) {
         $mMig[] = ['id'=>'m1','origen'=>'manual','valor'=>$cr['meta_description_seo'],'activo'=>true,'fecha'=>date('Y-m-d')];
     }
     $metaJson = json_encode($mMig, JSON_UNESCAPED_UNICODE);
+}
+
+// Mensaje WhatsApp: si todavía no hay ninguna versión, generar la "auto"
+// (plantilla determinística, sin IA) a partir de los datos ya cargados de la
+// ficha. Se mantiene al día en cada guardado — ver
+// regenerarMensajeWhatsappAutoSiCorresponde() en funciones.php.
+$whatsappJson = $cr['mensajes_whatsapp_json'] ?? '';
+if (empty($whatsappJson)) {
+    $wMig = [];
+    $wMsgInicial = generarMensajeWhatsappAuto($cr);
+    if ($wMsgInicial !== '') {
+        $wMig[] = ['id' => 'w1', 'origen' => 'auto', 'valor' => $wMsgInicial, 'activo' => true, 'fecha' => date('Y-m-d')];
+    }
+    $whatsappJson = json_encode($wMig, JSON_UNESCAPED_UNICODE);
 }
 
 // Bitácora IA (cuándo fue procesada cada sección con IA y con qué modelo)
@@ -1243,6 +1264,26 @@ function selectBool(string $name, $valor): string {
             </button>
         </section>
 
+        <!-- ── Mensaje WhatsApp (asistente IA) ── -->
+        <section class="ficha-card">
+            <h2 class="ficha-card__title">
+                <i data-lucide="message-circle" class="icono"></i>
+                Mensaje WhatsApp
+            </h2>
+            <p style="font-size:.85rem; color:var(--admin-text-suave); margin:0 0 var(--espacio-tres); line-height:1.5;">
+                Mensaje corto y pre-formateado que el asistente de WhatsApp (N8N) envía cuando recomienda este negocio.
+                La versión <strong>"Plantilla automática"</strong> se genera sola con los datos de la ficha (sin IA) y se
+                actualiza cada vez que guardás cambios. Podés generar una variante con IA (redacción distinta, mismos
+                datos) o escribir una a mano.
+            </p>
+
+            <?php renderBotonIA('mensaje_whatsapp', $iaLog, 'Generar variante con IA'); ?>
+
+            <input type="hidden" id="mensajes-whatsapp-json" name="mensajes_whatsapp_json" value="<?php echo htmlspecialchars($whatsappJson); ?>">
+            <input type="hidden" id="mensaje-whatsapp-flat" name="mensaje_whatsapp" value="<?php echo htmlspecialchars($cr['mensaje_whatsapp'] ?? ''); ?>">
+            <div id="whatsapp-fuentes-editor"></div>
+        </section>
+
         <!-- ── SEO ── -->
         <section class="ficha-card">
             <h2 class="ficha-card__title">
@@ -2198,6 +2239,7 @@ function toggleResenasResueltas() {
     function origenMeta(origen) {
         const o = origen || 'admin_manual';
         if (o === 'admin_manual')      return { icono:'✍️', label:'Creado manualmente por Admin',         color:'#374151', bg:'#f3f4f6', readonly:false };
+        if (o === 'auto')              return { icono:'⚙️', label:'Plantilla automática (sin IA)',        color:'#0e7490', bg:'#cffafe', readonly:false };
         if (o === 'manual_negocio')    return { icono:'🏢', label:'Creado por el negocio al registrarse', color:'#15803d', bg:'#dcfce7', readonly:true  };
         if (o.startsWith('seed_'))     return { icono:'📦', label:'Importado del semillado' + (o === 'seed_legacy' ? '' : ' · ' + o.replace('seed_','')), color:'#1d4ed8', bg:'#dbeafe', readonly:true };
         if (o.startsWith('llm_'))      return { icono:'🤖', label:'Procesado con IA ' + capitalize(o.replace('llm_','')), color:'#7c3aed', bg:'#ede9fe', readonly:false };
@@ -2442,6 +2484,7 @@ function toggleResenasResueltas() {
     document.addEventListener('DOMContentLoaded', function() {
         initFuentesEditor({ jsonInputId:'descripciones-json', flatInputId:'descripcion',       editorDivId:'desc-fuentes-editor', tipo:'desc' });
         initFuentesEditor({ jsonInputId:'metas-json',         flatInputId:'meta_description_seo', editorDivId:'meta-fuentes-editor', tipo:'meta', maxLen:220 });
+        initFuentesEditor({ jsonInputId:'mensajes-whatsapp-json', flatInputId:'mensaje-whatsapp-flat', editorDivId:'whatsapp-fuentes-editor', tipo:'whatsapp', maxLen:500 });
     });
 })();
 
@@ -4058,6 +4101,7 @@ function iaAplicarSugerencia(seccion, sug) {
         case 'servicios': return iaAplicarServicios(sug);
         case 'seo':       return iaAplicarSeo(sug);
         case 'precios':   return iaAplicarPrecios(sug);
+        case 'mensaje_whatsapp': return iaAplicarMensajeWhatsapp(sug);
         default:          return false;
     }
 }
@@ -4143,6 +4187,25 @@ function iaAplicarSeo(sug) {
     if (!newId) return false;
     // Idem contenido: auto-guardado inmediato (inactiva, no publica).
     iaAutoguardarVersion('metas_json', newId, sug.modelo, sug.meta_description_sugerida);
+    return true;
+}
+
+function iaAplicarMensajeWhatsapp(sug) {
+    if (!sug.mensaje_sugerido) return false;
+    if (typeof window.fv_addEntry_whatsapp !== 'function') return false;
+
+    // Origen dinámico según proveedor real (llm_claude / llm_openrouter) —
+    // reusa el badge morado "Procesado con IA X" ya existente en origenMeta().
+    const origen = 'llm_' + (sug.proveedor || 'ia');
+
+    const newId = window.fv_addEntry_whatsapp({
+        origen: origen,
+        modelo: sug.modelo || null,
+        valor:  sug.mensaje_sugerido,
+        activo: false,
+    });
+    if (!newId) return false;
+    iaAutoguardarVersion('mensajes_whatsapp_json', newId, sug.modelo, sug.mensaje_sugerido);
     return true;
 }
 

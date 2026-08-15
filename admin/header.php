@@ -181,6 +181,13 @@ $fechaHoy = $dias_es[(int)date('w')] . ', ' . (int)date('j') . ' de ' . $meses_e
             </a>
             <?php endif; ?>
 
+            <?php if (esSuperAdmin()): ?>
+            <a href="<?php echo $base_url; ?>/admin/configuracion-ia.php" class="admin-header__link"
+               style="<?php echo $currentPage === 'configuracion-ia.php' ? 'opacity:1;font-weight:700;' : ''; ?>">
+                Config IA
+            </a>
+            <?php endif; ?>
+
             <a href="<?php echo $base_url; ?>/" class="admin-header__link" target="_blank">
                 <i data-lucide="external-link" class="icono" style="width: 14px; height: 14px; vertical-align: middle;"></i>
                 Ver Sitio

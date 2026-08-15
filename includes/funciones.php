@@ -31,6 +31,218 @@ function assetUrl(string $rutaRelativa): string {
 }
 
 // ═══════════════════════════════════════════════════════════
+// PRECIOS — formateo de ítems de precios_json
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Formatea el monto de un ítem de precio (precios_json) según su tipo.
+ * Devuelve string vacío para tipo 'custom' (esos no muestran monto).
+ * Usado en ficha.php (ficha pública) y en el mensaje WhatsApp del asistente.
+ *
+ * @param array $p Ítem de precios_json: {tipo, nombre, descripcion, min, max, destacado}
+ */
+function formatearPrecioItem(array $p): string {
+    $simbolo = defined('MONEDA_SIMBOLO') ? MONEDA_SIMBOLO : '€';
+    $fmt = function ($n) use ($simbolo) {
+        return number_format((float)$n, (floor((float)$n) == (float)$n ? 0 : 2), ',', '.') . ' ' . $simbolo;
+    };
+    $min = $p['min'] ?? null;
+    $max = $p['max'] ?? null;
+    switch ($p['tipo'] ?? 'custom') {
+        case 'fijo':  return ($min !== null && $min !== '') ? $fmt($min) : '';
+        case 'desde': return ($min !== null && $min !== '') ? 'Desde ' . $fmt($min) : '';
+        case 'rango':
+            if ($min !== null && $min !== '' && $max !== null && $max !== '') return $fmt($min) . ' – ' . $fmt($max);
+            if ($min !== null && $min !== '') return 'Desde ' . $fmt($min);
+            return '';
+        default: return ''; // custom
+    }
+}
+
+/**
+ * Elige el ítem de precio "representativo" de una lista (precios_json ya
+ * decodificado y filtrado — ver ficha.php $precios_lista). Criterio:
+ * el ítem marcado 'destacado' si existe; si no, el de menor 'min' entre
+ * los que no son tipo 'custom' (esos no tienen monto comparable).
+ *
+ * @param array $preciosLista Lista de ítems ya decodificados (con 'nombre' no vacío).
+ * @return array|null El ítem elegido, o null si la lista está vacía o todos son 'custom'.
+ */
+function elegirPrecioRepresentativo(array $preciosLista): ?array {
+    if (empty($preciosLista)) return null;
+
+    foreach ($preciosLista as $p) {
+        if (!empty($p['destacado'])) return $p;
+    }
+
+    $conMonto = array_values(array_filter($preciosLista, function ($p) {
+        return ($p['tipo'] ?? 'custom') !== 'custom' && $p['min'] !== null && $p['min'] !== '';
+    }));
+    if (empty($conMonto)) return null;
+
+    usort($conMonto, fn($a, $b) => (float)$a['min'] <=> (float)$b['min']);
+    return $conMonto[0];
+}
+
+// ═══════════════════════════════════════════════════════════
+// MENSAJE WHATSAPP — plantilla automática (sin IA)
+// ═══════════════════════════════════════════════════════════
+// Ver admin/migrations/add_mensaje_whatsapp.sql para el esquema completo.
+// Genera el mensaje "auto" a partir de datos YA cargados en la ficha —
+// determinístico, sin llamadas a IA. Cada línea se omite si falta el dato.
+
+/**
+ * Genera el mensaje pre-formateado para WhatsApp de un negocio (versión "auto").
+ *
+ * @param array $cr Fila de `crematorios` — requiere al menos: nombre, ciudad,
+ *                   provincia_nombre (join con provincias), telefono, rating,
+ *                   reviews_total, recogida_domicilio, atencion_24h,
+ *                   precios_json, cremacion_individual, cremacion_colectiva.
+ * @return string Mensaje formateado (líneas separadas por \n), o '' si falta
+ *                el dato mínimo (nombre).
+ */
+function generarMensajeWhatsappAuto(array $cr): string
+{
+    $nombre = trim((string) ($cr['nombre'] ?? ''));
+    if ($nombre === '') return '';
+
+    $lineas = [];
+
+    // 🐾 Nombre — siempre presente
+    $lineas[] = '🐾 ' . $nombre;
+
+    // 📍 Ciudad + provincia
+    $ciudad    = trim((string) ($cr['ciudad'] ?? ''));
+    $provincia = trim((string) ($cr['provincia_nombre'] ?? ''));
+    $ubicacion = $ciudad;
+    if ($provincia !== '' && $provincia !== $ciudad) {
+        $ubicacion = $ubicacion !== '' ? ($ubicacion . ', ' . $provincia) : $provincia;
+    }
+    if ($ubicacion !== '') $lineas[] = '📍 ' . $ubicacion;
+
+    // 📞 Teléfono (flat, ya sincronizado desde telefonos_json por sincronizarCamposFlat())
+    $telefono = trim((string) ($cr['telefono'] ?? ''));
+    if ($telefono !== '') $lineas[] = '📞 ' . $telefono;
+
+    // ⭐️ Rating + reseñas — se omite si no hay rating real
+    $rating      = $cr['rating'] ?? null;
+    $tieneRating = !($rating === null || $rating === '' || (float) $rating <= 0);
+    if ($tieneRating) {
+        $revTotal = (int) ($cr['reviews_total'] ?? 0);
+        $linea = '⭐️ ' . number_format((float) $rating, 1);
+        if ($revTotal > 0) $linea .= ' (' . $revTotal . ' reseña' . ($revTotal === 1 ? '' : 's') . ')';
+        $lineas[] = $linea;
+    }
+
+    // 🚗 Recogida a domicilio · 🕐 Atención 24h — línea combinada, solo si al menos uno es true
+    $extras = [];
+    if (!empty($cr['recogida_domicilio'])) $extras[] = '🚗 Recogida a domicilio';
+    if (!empty($cr['atencion_24h']))       $extras[] = '🕐 24h';
+    if (!empty($extras)) $lineas[] = implode(' · ', $extras);
+
+    // 💰 Precio representativo (destacado, sino el más barato) de precios_json
+    if (!empty($cr['precios_json'])) {
+        $decoded = json_decode((string) $cr['precios_json'], true);
+        if (is_array($decoded)) {
+            $preciosLista = array_values(array_filter($decoded, function ($p) {
+                return is_array($p) && !empty(trim($p['nombre'] ?? ''));
+            }));
+            $elegido = elegirPrecioRepresentativo($preciosLista);
+            if ($elegido) {
+                $monto = formatearPrecioItem($elegido);
+                if ($monto !== '') $lineas[] = '💰 ' . $monto;
+            }
+        }
+    }
+
+    // 🔥 Cremación individual / colectiva
+    $tiposCremacion = [];
+    if (!empty($cr['cremacion_individual'])) $tiposCremacion[] = 'individual';
+    if (!empty($cr['cremacion_colectiva']))  $tiposCremacion[] = 'colectiva';
+    if (!empty($tiposCremacion)) $lineas[] = '🔥 Cremación ' . implode(' y ', $tiposCremacion);
+
+    return implode("\n", $lineas);
+}
+
+/**
+ * Regenera y persiste la versión "auto" del mensaje WhatsApp de un crematorio,
+ * SOLO si la versión actualmente activa en mensajes_whatsapp_json es de
+ * origen 'auto' (o si no hay ninguna versión todavía). Si el admin activó una
+ * versión 'manual' o 'ia', no se toca — se respeta su elección.
+ *
+ * Pensada para llamarse después de guardar cambios en editar-ficha-negocio.php,
+ * así el mensaje se mantiene al día con teléfono/precio/rating sin intervención
+ * manual, salvo que el admin haya optado por una versión distinta.
+ *
+ * @param PDO $pdo
+ * @param int $crematorioId
+ * @return bool true si se regeneró/actualizó, false si no había nada que hacer.
+ */
+function regenerarMensajeWhatsappAutoSiCorresponde(PDO $pdo, int $crematorioId): bool
+{
+    $stmt = $pdo->prepare("
+        SELECT c.nombre, c.ciudad, c.telefono, c.rating, c.reviews_total,
+               c.recogida_domicilio, c.atencion_24h, c.precios_json,
+               c.cremacion_individual, c.cremacion_colectiva,
+               c.mensajes_whatsapp_json,
+               p.nombre AS provincia_nombre
+        FROM crematorios c
+        LEFT JOIN provincias p ON p.id = c.provincia_id
+        WHERE c.id = :id
+        LIMIT 1
+    ");
+    $stmt->execute([':id' => $crematorioId]);
+    $cr = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$cr) return false;
+
+    $versiones = json_decode((string) ($cr['mensajes_whatsapp_json'] ?? ''), true);
+    if (!is_array($versiones)) $versiones = [];
+
+    $activa = null;
+    foreach ($versiones as $v) {
+        if (!empty($v['activo'])) { $activa = $v; break; }
+    }
+
+    // Si hay una versión activa y NO es 'auto', respetar la elección del admin.
+    if ($activa !== null && ($activa['origen'] ?? 'auto') !== 'auto') return false;
+
+    $nuevoTexto = generarMensajeWhatsappAuto($cr);
+    if ($nuevoTexto === '') return false;
+
+    $ahora = date('Y-m-d H:i:s');
+    if ($activa !== null) {
+        // Actualizar la entrada 'auto' existente in-place
+        foreach ($versiones as &$v) {
+            if (!empty($v['activo'])) {
+                $v['valor']      = $nuevoTexto;
+                $v['editado_at'] = $ahora;
+                break;
+            }
+        }
+        unset($v);
+    } else {
+        // Sin versiones todavía — crear la primera, activa
+        $versiones[] = [
+            'id'         => 'w' . substr(bin2hex(random_bytes(4)), 0, 8),
+            'origen'     => 'auto',
+            'valor'      => $nuevoTexto,
+            'activo'     => true,
+            'creado_at'  => $ahora,
+            'editado_at' => null,
+        ];
+    }
+
+    $upd = $pdo->prepare("UPDATE crematorios SET mensajes_whatsapp_json = :j, mensaje_whatsapp = :flat WHERE id = :id");
+    $upd->execute([
+        ':j'    => json_encode($versiones, JSON_UNESCAPED_UNICODE),
+        ':flat' => $nuevoTexto,
+        ':id'   => $crematorioId,
+    ]);
+
+    return true;
+}
+
+// ═══════════════════════════════════════════════════════════
 // GEOCODING — Google Geocoding API
 // ═══════════════════════════════════════════════════════════
 
@@ -1531,7 +1743,7 @@ function enriquecerConFotoLocal(array &$crematorios): void {
 function sincronizarCamposFlat(PDO $pdo, int $crematorioId): array
 {
     $stmt = $pdo->prepare(
-        "SELECT telefonos_json, emails_json, descripciones_json, metas_json
+        "SELECT telefonos_json, emails_json, descripciones_json, metas_json, mensajes_whatsapp_json
          FROM crematorios
          WHERE id = :id"
     );
@@ -1569,6 +1781,7 @@ function sincronizarCamposFlat(PDO $pdo, int $crematorioId): array
     $mails = $decodificar($row['emails_json']);
     $descs = $decodificar($row['descripciones_json']);
     $metas = $decodificar($row['metas_json']);
+    $whats = $decodificar($row['mensajes_whatsapp_json']);
 
     $updates = [];
 
@@ -1587,6 +1800,10 @@ function sincronizarCamposFlat(PDO $pdo, int $crematorioId): array
     if (!empty($metas)) {
         $v = $valorActivo($metas);
         if ($v !== null) $updates['meta_description_seo'] = $v;
+    }
+    if (!empty($whats)) {
+        $v = $valorActivo($whats);
+        if ($v !== null) $updates['mensaje_whatsapp'] = $v;
     }
 
     if (empty($updates)) return [];
@@ -1727,6 +1944,189 @@ function llamarClaudeApi(string $prompt, string $modelo = 'claude-haiku-4-5-2025
         return ['ok' => false, 'texto' => null, 'error' => 'Respuesta vacía de Claude', 'modelo' => $modelo];
     }
     return ['ok' => true, 'texto' => $texto, 'error' => null, 'modelo' => $modelo];
+}
+
+// ═══════════════════════════════════════════════════════════
+// LLM MULTI-PROVEEDOR (Claude | OpenRouter) — config por sección
+// ═══════════════════════════════════════════════════════════
+//
+// admin/configuracion-ia.php (solo super_admin) permite elegir, por cada
+// tarea IA del panel, qué proveedor y modelo usar (tabla ia_config_secciones).
+// llamarLLM() es el punto de entrada único recomendado para llamadas IA
+// nuevas — reemplaza tanto a llamarClaudeApi() (arriba, se mantiene por
+// compatibilidad) como a las llamadas de visión que antes tenía cada
+// endpoint duplicadas con su propio curl.
+
+/**
+ * Llama a la API de Claude (Anthropic Messages), con soporte opcional de imagen.
+ * Uso interno de llamarLLM() — no llamar directo salvo necesidad puntual.
+ *
+ * @param string|null $imagenBase64 Imagen en base64, o null para solo texto.
+ */
+function llamarClaudeApiInterno(string $prompt, string $modelo, int $maxTokens, ?string $imagenBase64, string $mediaType): array
+{
+    $apiKey = defined('CLAUDE_API_KEY') ? CLAUDE_API_KEY : '';
+    if (empty($apiKey)) {
+        return ['ok' => false, 'texto' => null, 'error' => 'CLAUDE_API_KEY no configurada', 'modelo' => $modelo, 'proveedor' => 'claude'];
+    }
+
+    $content = [];
+    if ($imagenBase64 !== null) {
+        $content[] = ['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => $mediaType, 'data' => $imagenBase64]];
+    }
+    $content[] = ['type' => 'text', 'text' => $prompt];
+
+    $payload = [
+        'model'      => $modelo,
+        'max_tokens' => $maxTokens,
+        'messages'   => [['role' => 'user', 'content' => $content]],
+    ];
+
+    $ch = curl_init('https://api.anthropic.com/v1/messages');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_HTTPHEADER     => [
+            'x-api-key: ' . $apiKey,
+            'anthropic-version: 2023-06-01',
+            'content-type: application/json',
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_TIMEOUT    => 60,
+    ]);
+
+    $resp    = curl_exec($ch);
+    $code    = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlErr) {
+        return ['ok' => false, 'texto' => null, 'error' => 'cURL: ' . $curlErr, 'modelo' => $modelo, 'proveedor' => 'claude'];
+    }
+    if ($code !== 200) {
+        $msg  = "HTTP $code";
+        $data = json_decode($resp, true);
+        if (!empty($data['error']['message'])) $msg .= ' — ' . $data['error']['message'];
+        return ['ok' => false, 'texto' => null, 'error' => $msg, 'modelo' => $modelo, 'proveedor' => 'claude'];
+    }
+
+    $data  = json_decode($resp, true);
+    $texto = $data['content'][0]['text'] ?? null;
+    if ($texto === null) {
+        return ['ok' => false, 'texto' => null, 'error' => 'Respuesta vacía de Claude', 'modelo' => $modelo, 'proveedor' => 'claude'];
+    }
+    return ['ok' => true, 'texto' => $texto, 'error' => null, 'modelo' => $modelo, 'proveedor' => 'claude'];
+}
+
+/**
+ * Llama a OpenRouter (formato OpenAI-compatible /chat/completions), con
+ * soporte opcional de imagen (image_url con data URI base64).
+ * Uso interno de llamarLLM().
+ */
+function llamarOpenRouterApiInterno(string $prompt, string $modelo, int $maxTokens, ?string $imagenBase64, string $mediaType): array
+{
+    $apiKey = defined('OPENROUTER_API_KEY') ? OPENROUTER_API_KEY : '';
+    if (empty($apiKey)) {
+        return ['ok' => false, 'texto' => null, 'error' => 'OPENROUTER_API_KEY no configurada', 'modelo' => $modelo, 'proveedor' => 'openrouter'];
+    }
+
+    if ($imagenBase64 !== null) {
+        $content = [
+            ['type' => 'image_url', 'image_url' => ['url' => 'data:' . $mediaType . ';base64,' . $imagenBase64]],
+            ['type' => 'text', 'text' => $prompt],
+        ];
+    } else {
+        $content = $prompt; // texto puro — OpenAI/OpenRouter acepta string simple
+    }
+
+    $payload = [
+        'model'      => $modelo,
+        'max_tokens' => $maxTokens,
+        'messages'   => [['role' => 'user', 'content' => $content]],
+    ];
+
+    $ch = curl_init('https://openrouter.ai/api/v1/chat/completions');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_HTTPHEADER     => [
+            'Authorization: Bearer ' . $apiKey,
+            'Content-Type: application/json',
+            'HTTP-Referer: ' . (defined('BASE_URL') ? BASE_URL : 'https://crematoriosdemascotas.com'),
+            'X-Title: Crematorios de Mascotas — Admin IA',
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_TIMEOUT    => 60,
+    ]);
+
+    $resp    = curl_exec($ch);
+    $code    = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlErr) {
+        return ['ok' => false, 'texto' => null, 'error' => 'cURL: ' . $curlErr, 'modelo' => $modelo, 'proveedor' => 'openrouter'];
+    }
+    if ($code !== 200) {
+        $msg  = "HTTP $code";
+        $data = json_decode($resp, true);
+        if (!empty($data['error']['message'])) $msg .= ' — ' . $data['error']['message'];
+        return ['ok' => false, 'texto' => null, 'error' => $msg, 'modelo' => $modelo, 'proveedor' => 'openrouter'];
+    }
+
+    $data  = json_decode($resp, true);
+    $texto = $data['choices'][0]['message']['content'] ?? null;
+    if ($texto === null) {
+        return ['ok' => false, 'texto' => null, 'error' => 'Respuesta vacía de OpenRouter', 'modelo' => $modelo, 'proveedor' => 'openrouter'];
+    }
+    return ['ok' => true, 'texto' => $texto, 'error' => null, 'modelo' => $modelo, 'proveedor' => 'openrouter'];
+}
+
+/**
+ * Config (proveedor/modelo/max_tokens) de una sección IA, desde
+ * ia_config_secciones (editable en admin/configuracion-ia.php).
+ * Cacheada en memoria por request (evita N queries si se llama varias veces).
+ *
+ * @return array{proveedor:string, modelo:string, max_tokens:int}
+ */
+function obtenerConfigIA(PDO $pdo, string $seccion): array
+{
+    static $cache = [];
+    if (isset($cache[$seccion])) return $cache[$seccion];
+
+    $stmt = $pdo->prepare("SELECT proveedor, modelo, max_tokens FROM ia_config_secciones WHERE seccion = :s LIMIT 1");
+    $stmt->execute([':s' => $seccion]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // Fallback seguro si la sección no está en la tabla (no debería pasar
+    // con el seed aplicado, pero evita fatal error si falta alguna).
+    $cfg = $row ?: ['proveedor' => 'claude', 'modelo' => 'claude-haiku-4-5-20251001', 'max_tokens' => 1500];
+    $cfg['max_tokens'] = (int) $cfg['max_tokens'];
+
+    $cache[$seccion] = $cfg;
+    return $cfg;
+}
+
+/**
+ * Punto de entrada único recomendado para llamadas IA (texto o visión).
+ * Elige el proveedor/modelo configurado para $seccion en ia_config_secciones
+ * y despacha a Claude u OpenRouter según corresponda.
+ *
+ * @param string      $seccion      Clave de ia_config_secciones (ej. 'horarios', 'vision_categoria', 'mensaje_whatsapp').
+ * @param string      $prompt       Prompt de texto (rol "user").
+ * @param string|null $imagenBase64 Imagen en base64, o null para solo texto.
+ * @param string      $mediaType    Mime type de la imagen (ej. 'image/webp'), si aplica.
+ * @return array ['ok'=>bool, 'texto'=>?string, 'error'=>?string, 'modelo'=>string, 'proveedor'=>string]
+ */
+function llamarLLM(PDO $pdo, string $seccion, string $prompt, ?string $imagenBase64 = null, string $mediaType = 'image/webp'): array
+{
+    $cfg = obtenerConfigIA($pdo, $seccion);
+
+    if ($cfg['proveedor'] === 'openrouter') {
+        return llamarOpenRouterApiInterno($prompt, $cfg['modelo'], $cfg['max_tokens'], $imagenBase64, $mediaType);
+    }
+
+    return llamarClaudeApiInterno($prompt, $cfg['modelo'], $cfg['max_tokens'], $imagenBase64, $mediaType);
 }
 
 /**

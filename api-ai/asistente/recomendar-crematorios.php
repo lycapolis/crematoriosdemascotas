@@ -7,6 +7,11 @@
  *   &radio_km=30            (opcional, para búsqueda por cercanía)
  *   &limit=5                (opcional, máx 10)
  * 
+ * Cada ficha devuelve "mensaje_whatsapp": texto pre-formateado y listo para
+ * enviar tal cual por WhatsApp (emojis + datos clave, ver
+ * generarMensajeWhatsappAuto() en includes/funciones.php). N8N no necesita
+ * armar el mensaje — solo tomarlo y enviarlo.
+ * 
  * Auth: Header "Authorization: Bearer ***"
  */
 
@@ -62,7 +67,7 @@ $sql = "SELECT c.id, c.nombre, c.slug, c.ciudad, p.nombre AS provincia,
                c.latitud, c.longitud, c.rating, c.reviews_total,
                c.destacado, c.atencion_24h, c.recogida_domicilio,
                c.cremacion_individual, c.cremacion_colectiva, c.urna,
-               c.rango_precios, c.descripcion
+               c.rango_precios, c.descripcion, c.mensaje_whatsapp
         FROM crematorios c
         LEFT JOIN provincias p ON c.provincia_id = p.id
         WHERE c.activo = 1 AND c.estado = 'activa'

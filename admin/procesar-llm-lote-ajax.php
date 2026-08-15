@@ -21,15 +21,19 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $limite = min(50, max(1, intval($_POST['limite'] ?? 20)));
 
-$apiKey = defined('CLAUDE_API_KEY') ? CLAUDE_API_KEY : '';
-if (empty($apiKey)) {
-    echo json_encode(['ok' => false, 'error' => 'CLAUDE_API_KEY no configurada en config.php']);
-    exit;
-}
-
 $pdo = obtenerConexion();
 if (!$pdo) {
     echo json_encode(['ok' => false, 'error' => 'Error de conexión a la base de datos']);
+    exit;
+}
+
+// Proveedor/modelo configurables en admin/configuracion-ia.php (sección 'vision_categoria').
+$cfgVision = obtenerConfigIA($pdo, 'vision_categoria');
+$apiKeyOk = ($cfgVision['proveedor'] === 'openrouter')
+    ? (defined('OPENROUTER_API_KEY') && OPENROUTER_API_KEY !== '')
+    : (defined('CLAUDE_API_KEY') && CLAUDE_API_KEY !== '');
+if (!$apiKeyOk) {
+    echo json_encode(['ok' => false, 'error' => strtoupper($cfgVision['proveedor']) . '_API_KEY no configurada en .env']);
     exit;
 }
 
@@ -67,7 +71,7 @@ function loteDescSeo(string $desc): string {
     return trim($desc, '-');
 }
 
-function loteClaudeVision(string $base64, string $ctx, string $apiKey, bool $esCliente = false): ?array {
+function loteClaudeVision(PDO $pdo, string $base64, string $ctx, bool $esCliente = false): ?array {
     $extraCliente = $esCliente
         ? "\nIMPORTANTE — esta imagen fue enviada por un CLIENTE del negocio junto con una reseña pública. Reglas especiales para alt_text:\n  • Describí literalmente lo que se VE (mascota, recuerdo, momento, etc.).\n  • NO incluyas el nombre del negocio en el alt_text — queda forzado.\n  • Podés mencionar la ciudad SOLO si encaja natural.\n  • La categoría más probable es 'fotos_clientes'.\n  • El sistema agrega automáticamente al final '— Foto enviada por [nombre del cliente]'. NO lo agregues tú."
         : '';
@@ -86,30 +90,16 @@ Campos requeridos:
 Responde SOLO con JSON: {"categoria":"...","alt_text":"...","descripcion_seo":"..."}
 P;
 
-    $payload = [
-        'model' => 'claude-sonnet-4-6', 'max_tokens' => 300,
-        'messages' => [['role' => 'user', 'content' => [
-            ['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => 'image/webp', 'data' => $base64]],
-            ['type' => 'text', 'text' => $prompt],
-        ]]],
-    ];
+    $resp = llamarLLM($pdo, 'vision_categoria', $prompt, $base64, 'image/webp');
+    if (!$resp['ok']) return null;
 
-    $ch = curl_init('https://api.anthropic.com/v1/messages');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true,
-        CURLOPT_HTTPHEADER => ['x-api-key: '.$apiKey, 'anthropic-version: 2023-06-01', 'content-type: application/json'],
-        CURLOPT_POSTFIELDS => json_encode($payload), CURLOPT_TIMEOUT => 60,
-    ]);
-    $resp = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($code !== 200) return null;
-    $data  = json_decode($resp, true);
-    $texto = $data['content'][0]['text'] ?? '';
+    $texto = $resp['texto'] ?? '';
     if (preg_match('/\{.*\}/s', $texto, $m)) {
         $p = json_decode($m[0], true);
-        if (json_last_error() === JSON_ERROR_NONE) return $p;
+        if (json_last_error() === JSON_ERROR_NONE) {
+            $p['_modelo'] = $resp['modelo']; // para bitácora IA
+            return $p;
+        }
     }
     return null;
 }
@@ -120,6 +110,7 @@ $root       = dirname(__DIR__);
 $procesadas = 0;
 $errores    = 0;
 $cremIdsConExito = []; // crematorios con al menos 1 imagen procesada — para bitácora
+$modeloUsado = 'desconocido';
 
 @set_time_limit(300);
 
@@ -147,7 +138,7 @@ foreach ($imagenes as $img) {
     if ($img['provincia_nombre']) $ctx .= ' (' . $img['provincia_nombre'] . ')';
 
     $esCliente = ($img['tipo'] === 'cliente');
-    $analisis = loteClaudeVision($base64, $ctx, $apiKey, $esCliente);
+    $analisis = loteClaudeVision($pdo, $base64, $ctx, $esCliente);
 
     if (isset($tmp) && file_exists($tmp)) { @unlink($tmp); unset($tmp); }
 
@@ -159,6 +150,7 @@ foreach ($imagenes as $img) {
 
     $categoria = in_array($analisis['categoria'] ?? '', ImagenHelper::CATEGORIAS_VALIDAS) ? $analisis['categoria'] : 'otro';
     $altText   = substr(trim($analisis['alt_text'] ?? ''), 0, 500);
+    if (!empty($analisis['_modelo'])) $modeloUsado = $analisis['_modelo'];
     if ($esCliente) {
         // Quitar cualquier sufijo "Foto enviada por..." que haya agregado el LLM
         $altText = preg_replace('/\s*[—-]\s*Foto enviada por[^.]*\.?\s*$/i', '', $altText);
@@ -217,7 +209,7 @@ foreach ($imagenes as $img) {
 
 // Registrar en bitácora IA — una entrada por crematorio con imágenes procesadas
 foreach (array_keys($cremIdsConExito) as $cremIdReg) {
-    registrarUsoIA($pdo, (int) $cremIdReg, 'imagenes', 'claude-sonnet-4-6');
+    registrarUsoIA($pdo, (int) $cremIdReg, 'imagenes', $modeloUsado);
 }
 
 echo json_encode(['ok' => true, 'procesadas' => $procesadas, 'errores' => $errores, 'total' => count($imagenes)]);

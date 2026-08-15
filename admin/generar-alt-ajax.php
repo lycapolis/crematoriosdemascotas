@@ -29,14 +29,18 @@ $modo         = $_POST['modo'] ?? 'crematorio';
 $crematorioId = intval($_POST['crematorio_id'] ?? 0);
 $limite       = min(50, max(1, intval($_POST['limite'] ?? 20)));
 
-$apiKey = defined('CLAUDE_API_KEY') ? CLAUDE_API_KEY : '';
-if (empty($apiKey)) {
-    echo json_encode(['ok' => false, 'error' => 'CLAUDE_API_KEY no configurada']); exit;
-}
-
 $pdo = obtenerConexion();
 if (!$pdo) {
     echo json_encode(['ok' => false, 'error' => 'Error de conexión a la base de datos']); exit;
+}
+
+// Proveedor/modelo configurables en admin/configuracion-ia.php (sección 'vision_alt_text').
+$cfgVision = obtenerConfigIA($pdo, 'vision_alt_text');
+$apiKeyOk = ($cfgVision['proveedor'] === 'openrouter')
+    ? (defined('OPENROUTER_API_KEY') && OPENROUTER_API_KEY !== '')
+    : (defined('CLAUDE_API_KEY') && CLAUDE_API_KEY !== '');
+if (!$apiKeyOk) {
+    echo json_encode(['ok' => false, 'error' => strtoupper($cfgVision['proveedor']) . '_API_KEY no configurada']); exit;
 }
 
 // ── Construir query según modo ────────────────────────────────────────────────
@@ -164,7 +168,7 @@ $etiquetasCategoria = [
     'otro'                  => 'imagen del negocio',
 ];
 
-function llamarClaudeAltText(string $base64, string $mime, string $contexto, string $categoria, array $altTextsUsados, string $apiKey): ?string {
+function llamarClaudeAltText(PDO $pdo, string $base64, string $mime, string $contexto, string $categoria, array $altTextsUsados): ?string {
     global $etiquetasCategoria;
     $tipoDesc = $etiquetasCategoria[$categoria] ?? 'imagen del negocio';
 
@@ -194,28 +198,10 @@ Requisitos estrictos:
 Responde ÚNICAMENTE con el alt text, sin comillas, sin explicaciones.
 PROMPT;
 
-    $payload = [
-        'model' => 'claude-sonnet-4-6', 'max_tokens' => 200,
-        'messages' => [['role' => 'user', 'content' => [
-            ['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => $mime, 'data' => $base64]],
-            ['type' => 'text', 'text' => $prompt],
-        ]]],
-    ];
+    $resp = llamarLLM($pdo, 'vision_alt_text', $prompt, $base64, $mime);
+    if (!$resp['ok']) return null;
 
-    $ch = curl_init('https://api.anthropic.com/v1/messages');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true,
-        CURLOPT_HTTPHEADER => ['x-api-key: '.$apiKey, 'anthropic-version: 2023-06-01', 'content-type: application/json'],
-        CURLOPT_POSTFIELDS => json_encode($payload), CURLOPT_TIMEOUT => 45,
-    ]);
-    $resp = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($code !== 200) return null;
-
-    $data  = json_decode($resp, true);
-    $texto = trim($data['content'][0]['text'] ?? '');
+    $texto = trim($resp['texto'] ?? '');
     $texto = trim($texto, '"\'');
 
     if (mb_strlen($texto) < 20 || mb_strlen($texto) > 200) return null;
@@ -267,12 +253,12 @@ foreach ($imagenes as $img) {
     // Para duplicados: excluir el alt text actual de la lista prohibida (ya que lo vamos a reemplazar)
     $prohibidos = array_filter($altTextsUsadosPor[$cremId], fn($a) => $a !== $img['alt_text']);
 
-    $nuevoAlt = llamarClaudeAltText($base64, 'image/webp', $contexto, $img['categoria'], array_values($prohibidos), $apiKey);
+    $nuevoAlt = llamarClaudeAltText($pdo, $base64, 'image/webp', $contexto, $img['categoria'], array_values($prohibidos));
 
     if (isset($tmp) && file_exists($tmp)) { @unlink($tmp); unset($tmp); }
 
     if (!$nuevoAlt) {
-        $detalles[] = ['id' => $img['id'], 'nombre' => $img['nombre_archivo'], 'estado' => 'error', 'msg' => 'Fallo en API Claude'];
+        $detalles[] = ['id' => $img['id'], 'nombre' => $img['nombre_archivo'], 'estado' => 'error', 'msg' => 'Fallo en la llamada al LLM'];
         $errores++;
         continue;
     }

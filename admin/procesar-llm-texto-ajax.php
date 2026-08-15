@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $crematorioId = intval($_POST['crematorio_id'] ?? 0);
 $seccion      = trim($_POST['seccion'] ?? '');
 
-$SECCIONES_VALIDAS = ['horarios', 'contenido', 'cobertura', 'servicios', 'seo', 'descripcion_avanzada', 'precios'];
+$SECCIONES_VALIDAS = ['horarios', 'contenido', 'cobertura', 'servicios', 'seo', 'descripcion_avanzada', 'precios', 'mensaje_whatsapp'];
 
 if (!$crematorioId || !in_array($seccion, $SECCIONES_VALIDAS, true)) {
     echo json_encode([
@@ -80,7 +80,7 @@ $pdo = obtenerConexion();
 $stmt = $pdo->prepare("
     SELECT c.id, c.nombre, c.ciudad, c.codigo_postal,
            c.descripcion, c.comentarios_admin,
-           c.direccion_completa, c.website, c.whatsapp,
+           c.direccion_completa, c.website, c.whatsapp, c.telefono,
            c.telefonos_json, c.emails_json, c.redes_json,
            c.horarios, c.horario_texto,
            c.texto_origen_json,
@@ -90,6 +90,7 @@ $stmt = $pdo->prepare("
            c.recogida_domicilio, c.entrega_domicilio,
            c.atencion_24h, c.sala_velatoria, c.souvenires,
            c.urna, c.carta, c.molde,
+           c.rating, c.reviews_total, c.precios_json,
            p.nombre AS provincia_nombre
     FROM crematorios c
     LEFT JOIN provincias p ON p.id = c.provincia_id
@@ -153,6 +154,7 @@ try {
         case 'servicios':  $resultado = procesarServicios($cr, $sol);  break;
         case 'seo':        $resultado = procesarSeo($cr, $sol);        break;
         case 'precios':    $resultado = procesarPrecios($cr, $sol);    break;
+        case 'mensaje_whatsapp': $resultado = procesarMensajeWhatsapp($cr, $sol); break;
         default:
             while (ob_get_level() > 0) { ob_end_clean(); }
             header('Content-Type: application/json; charset=utf-8');
@@ -271,7 +273,7 @@ CONVENCIONES DEL JSON:
 Recuerda: SOLO JSON, sin envoltorio ni explicación. Si no se puede interpretar, devolvé igual JSON con interpretable=false.
 PROMPT;
 
-    $resp = llamarClaudeApi($prompt, 'claude-haiku-4-5-20251001', 1500);
+    $resp = llamarLLM(obtenerConexion(), 'horarios', $prompt);
 
     if (!$resp['ok']) {
         return [
@@ -282,7 +284,7 @@ PROMPT;
             'warnings'      => [],
             'sugerencia'    => null,
             'modelo_usado'  => $resp['modelo'],
-            'error'         => 'Llamada a Claude falló: ' . $resp['error'],
+            'error'         => 'Llamada a ' . ucfirst($resp['proveedor'] ?? 'LLM') . ' falló: ' . $resp['error'],
         ];
     }
 
@@ -460,7 +462,7 @@ function resultadoErrorApi(string $seccion, array $resp): array
         'warnings'      => [],
         'sugerencia'    => null,
         'modelo_usado'  => $resp['modelo'],
-        'error'         => 'Llamada a Claude falló: ' . $resp['error'],
+        'error'         => 'Llamada a ' . ucfirst($resp['proveedor'] ?? 'LLM') . ' falló: ' . $resp['error'],
     ];
 }
 
@@ -474,7 +476,7 @@ function resultadoJsonInvalido(string $seccion, array $resp): array
         'warnings'      => [],
         'sugerencia'    => null,
         'modelo_usado'  => $resp['modelo'],
-        'error'         => 'La respuesta de Claude no contenía JSON válido. Texto recibido: ' . mb_substr($resp['texto'], 0, 200),
+        'error'         => 'La respuesta de ' . ucfirst($resp['proveedor'] ?? 'LLM') . ' no contenía JSON válido. Texto recibido: ' . mb_substr($resp['texto'], 0, 200),
     ];
 }
 
@@ -516,7 +518,7 @@ FORMATO DE RESPUESTA — SOLO JSON, sin texto adicional ni code-fence:
 Si interpretable=false, "descripcion_sugerida" debe ser null.
 PROMPT;
 
-    $resp = llamarClaudeApi($prompt, 'claude-haiku-4-5-20251001', 2000);
+    $resp = llamarLLM(obtenerConexion(), 'contenido', $prompt);
     if (!$resp['ok']) return resultadoErrorApi('contenido', $resp);
 
     $parsed = extraerJsonDeRespuesta($resp['texto']);
@@ -552,11 +554,9 @@ PROMPT;
 
 function procesarDescripcionAvanzada(array $cr, ?array $sol): array
 {
-    // Modelo: Sonnet para contenido SEO público (calidad/estructura).
-    // Si la API key no lo soporta, llamarClaudeApi devuelve error legible y
-    // basta cambiar este string por 'claude-haiku-4-5-20251001'.
-    $MODELO = 'claude-sonnet-4-5-20250929';
-
+    // Proveedor y modelo: configurables en admin/configuracion-ia.php
+    // (sección 'descripcion_avanzada'). Por defecto Sonnet vía Claude,
+    // por calidad de redacción en contenido SEO público.
     $contexto = construirContexto($cr);
 
     // ── Servicios (booleans → prosa) ──
@@ -657,7 +657,7 @@ FORMATO DE RESPUESTA — SOLO JSON, sin texto adicional ni code-fence:
 Si interpretable=false, "descripcion_sugerida" debe ser null.
 PROMPT;
 
-    $resp = llamarClaudeApi($prompt, $MODELO, 2500);
+    $resp = llamarLLM(obtenerConexion(), 'descripcion_avanzada', $prompt);
     if (!$resp['ok']) return resultadoErrorApi('descripcion_avanzada', $resp);
 
     $parsed = extraerJsonDeRespuesta($resp['texto']);
@@ -732,7 +732,7 @@ FORMATO DE RESPUESTA — SOLO JSON, sin texto adicional ni code-fence:
 Si interpretable=false, devolvé los arrays vacíos.
 PROMPT;
 
-    $resp = llamarClaudeApi($prompt, 'claude-haiku-4-5-20251001', 800);
+    $resp = llamarLLM(obtenerConexion(), 'cobertura', $prompt);
     if (!$resp['ok']) return resultadoErrorApi('cobertura', $resp);
 
     $parsed = extraerJsonDeRespuesta($resp['texto']);
@@ -842,7 +842,7 @@ FORMATO DE RESPUESTA — SOLO JSON, sin texto adicional ni code-fence:
 }
 PROMPT;
 
-    $resp = llamarClaudeApi($prompt, 'claude-haiku-4-5-20251001', 700);
+    $resp = llamarLLM(obtenerConexion(), 'servicios', $prompt);
     if (!$resp['ok']) return resultadoErrorApi('servicios', $resp);
 
     $parsed = extraerJsonDeRespuesta($resp['texto']);
@@ -925,7 +925,7 @@ FORMATO DE RESPUESTA — SOLO JSON, sin texto adicional ni code-fence:
 Si interpretable=false, "meta_description_sugerida" y "longitud" deben ser null.
 PROMPT;
 
-    $resp = llamarClaudeApi($prompt, 'claude-haiku-4-5-20251001', 600);
+    $resp = llamarLLM(obtenerConexion(), 'seo', $prompt);
     if (!$resp['ok']) return resultadoErrorApi('seo', $resp);
 
     $parsed = extraerJsonDeRespuesta($resp['texto']);
@@ -1033,7 +1033,7 @@ FORMATO DE RESPUESTA — SOLO JSON, sin texto adicional ni code-fence:
 Si interpretable=false, "precios" debe ser [].
 PROMPT;
 
-    $resp = llamarClaudeApi($prompt, 'claude-haiku-4-5-20251001', 1500);
+    $resp = llamarLLM(obtenerConexion(), 'precios', $prompt);
     if (!$resp['ok']) return resultadoErrorApi('precios', $resp);
 
     $parsed = extraerJsonDeRespuesta($resp['texto']);
@@ -1068,6 +1068,63 @@ PROMPT;
     return [
         'ok' => true, 'seccion' => 'precios', 'interpretable' => $interpretable && $sugerencia !== null,
         'notes' => $notes, 'warnings' => $warnings, 'sugerencia' => $sugerencia,
+        'modelo_usado' => $resp['modelo'], 'error' => null,
+    ];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECCIÓN "mensaje_whatsapp" — variante con IA del mensaje pre-formateado
+// ═══════════════════════════════════════════════════════════════════════════
+// A diferencia de las otras secciones, acá NO se le pide al LLM que interprete
+// texto libre — se le da el mensaje "auto" (plantilla determinística, ver
+// generarMensajeWhatsappAuto() en funciones.php) y se le pide una reescritura
+// con redacción ligeramente distinta, PROHIBIDO cambiar datos/emojis/orden.
+// Proveedor/modelo configurables en admin/configuracion-ia.php (sección
+// 'mensaje_whatsapp' — por defecto OpenRouter, no requiere suscripción Claude).
+
+function procesarMensajeWhatsapp(array $cr, ?array $sol): array
+{
+    $base = generarMensajeWhatsappAuto($cr);
+
+    if (trim($base) === '') {
+        return [
+            'ok' => true, 'seccion' => 'mensaje_whatsapp', 'interpretable' => false,
+            'notes' => 'Faltan datos en la ficha (nombre, ciudad, teléfono, etc.) para generar el mensaje base.',
+            'warnings' => [], 'sugerencia' => null, 'modelo_usado' => 'no_call', 'error' => null,
+        ];
+    }
+
+    $prompt = <<<PROMPT
+Eres un asistente que redacta variantes de mensajes cortos de WhatsApp para un directorio de crematorios de mascotas.
+
+Mensaje BASE (generado automáticamente con datos reales de un negocio — cada línea tiene un emoji fijo y un dato concreto):
+
+$base
+
+TAREA: reescribí este mensaje con una redacción LIGERAMENTE distinta (variar alguna palabra de conexión, algún sinónimo puntual)
+para que no sea idéntico palabra por palabra al de otros negocios que usan la misma plantilla. Mantené SIEMPRE:
+- Exactamente los mismos datos (nombre, ciudad, teléfono, rating, precio, servicios) — NUNCA inventes ni cambies ningún número, nombre o dato.
+- Los mismos emojis, uno por línea, en el mismo orden.
+- El mismo formato de mensaje corto para WhatsApp (líneas cortas, sin párrafos largos, sin agregar ni quitar líneas).
+
+Devolvé SOLO JSON, sin code-fence ni explicación:
+{"mensaje_sugerido": "texto completo con saltos de línea como \\n"}
+PROMPT;
+
+    $resp = llamarLLM(obtenerConexion(), 'mensaje_whatsapp', $prompt);
+    if (!$resp['ok']) return resultadoErrorApi('mensaje_whatsapp', $resp);
+
+    $parsed = extraerJsonDeRespuesta($resp['texto']);
+    if ($parsed === null || empty($parsed['mensaje_sugerido'])) return resultadoJsonInvalido('mensaje_whatsapp', $resp);
+
+    return [
+        'ok' => true, 'seccion' => 'mensaje_whatsapp', 'interpretable' => true,
+        'notes' => null, 'warnings' => [],
+        'sugerencia' => [
+            'mensaje_sugerido' => trim((string) $parsed['mensaje_sugerido']),
+            'modelo'           => $resp['modelo'],
+            'proveedor'        => $resp['proveedor'] ?? 'ia',
+        ],
         'modelo_usado' => $resp['modelo'], 'error' => null,
     ];
 }

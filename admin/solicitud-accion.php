@@ -124,7 +124,13 @@ function generarSlugUnico($pdo, $nombre, $ciudad) {
     // ─── Paso 1: SIEMPRE pasar por LLM si está disponible ─────────────
     // El LLM decide si conviene acortar (puede devolver el mismo nombre si ya
     // es óptimo) y clasifica el tipo de servicio para sugerir keyword.
-    if (defined('CLAUDE_API_KEY') && CLAUDE_API_KEY !== '') {
+    // Proveedor/modelo configurables en admin/configuracion-ia.php (sección 'slug').
+    $cfgSlug = function_exists('obtenerConfigIA') ? obtenerConfigIA($pdo, 'slug') : ['proveedor' => 'claude'];
+    $slugKeyOk = ($cfgSlug['proveedor'] === 'openrouter')
+        ? (defined('OPENROUTER_API_KEY') && OPENROUTER_API_KEY !== '')
+        : (defined('CLAUDE_API_KEY') && CLAUDE_API_KEY !== '');
+
+    if ($slugKeyOk) {
         $prompt = "Analizá este negocio del rubro \"crematorios de mascotas\" y respondé en formato JSON estricto.
 
 Negocio:
@@ -147,8 +153,8 @@ Devolvé un JSON con estos 3 campos:
 Respondé SOLO el JSON, sin markdown:
 {\"nombre_corto\": \"...\", \"tiene_contexto_nicho\": true/false, \"keyword_sugerida\": \"...\" o null}";
 
-        if (function_exists('llamarClaudeApi')) {
-            $res = llamarClaudeApi($prompt, 'claude-haiku-4-5-20251001', 200);
+        if (function_exists('llamarLLM')) {
+            $res = llamarLLM($pdo, 'slug', $prompt);
             if (!empty($res['ok']) && !empty($res['texto'])) {
                 $texto = trim($res['texto']);
                 $texto = preg_replace('/^```(?:json)?\s*/', '', $texto);
