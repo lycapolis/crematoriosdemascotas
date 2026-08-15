@@ -12,12 +12,8 @@
 declare(strict_types=1);
 
 /* ========== CONFIG ========== */
-const API_KEY='mzaUzSklu1Y37k0q25suFsLMMkKrVXGy'; // ← PONÉ LA MISMA KEY QUE EN recomendar-crematorios.php
-
-const DB_HOST = 'localhost';
-const DB_NAME = 'u951481392_crematorios_v2';
-const DB_USER = 'u951481392_crematorios_v2';  // ← cambiá por el mismo que usás en el sitio
-const DB_PASS = '|bRbxOI4B4Lv';           // ← cambiá
+// Credenciales y API key se cargan desde includes/config.php + .env (nunca hardcodear acá).
+require_once dirname(__DIR__, 2) . '/includes/config.php';
 
 /* ========== HEADERS ========== */
 header('Content-Type: application/json; charset=utf-8');
@@ -28,7 +24,7 @@ $auth = $headers['Authorization'] ?? '';
 $token = str_starts_with($auth, 'Bearer ') ? substr($auth, 7) : '';
 $token = $token !== '' ? $token : ($_GET['key'] ?? '');
 
-if (!hash_equals(API_KEY, $token)) {
+if (!hash_equals(ASISTENTE_API_KEY, $token)) {
     http_response_code(401);
     echo json_encode(['ok' => false, 'error' => 'No autorizado']);
     exit;
