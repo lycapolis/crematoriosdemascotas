@@ -320,6 +320,18 @@ function geocodificarDireccion(string $direccion, string $ciudad = '', string $p
         return ['ok' => false, 'error' => 'Resultado sin coordenadas'];
     }
 
+    // Guard: si Google no reconoce la dirección/ciudad, en vez de devolver
+    // ZERO_RESULTS suele hacer fallback silencioso al país completo (types
+    // = ['country','political'], location_type 'APPROXIMATE', partial_match
+    // true), con coordenadas del centroide de España. Sin este chequeo,
+    // ciudades inexistentes/mal escritas devolverían "resultados cerca de
+    // Madrid" como si fueran reales. Rechazamos cualquier match que resuelva
+    // solo a nivel país (nunca es un resultado útil para dirección o ciudad).
+    $types = $r['types'] ?? [];
+    if (in_array('country', $types, true)) {
+        return ['ok' => false, 'error' => 'Google solo reconoció el país, no la dirección/ciudad (' . $query . ')'];
+    }
+
     return [
         'ok'        => true,
         'lat'       => (float)$loc['lat'],
@@ -328,6 +340,114 @@ function geocodificarDireccion(string $direccion, string $ciudad = '', string $p
         'formatted' => $r['formatted_address'] ?? null,
         'error'     => null,
     ];
+}
+
+/**
+ * Geocodifica una ciudad con caché en BD (tabla `geocoding_cache`) para no
+ * gastar cuota de Google en cada request. Las coordenadas de una ciudad no
+ * cambian, así que el caché no tiene expiración.
+ *
+ * Usada por api-ai/asistente/recomendar-crematorios.php para poder filtrar
+ * por radio_km real (Haversine, mismo patrón que cerca.php/cerca-mapa.php)
+ * en vez de solo texto libre contra c.ciudad / c.ciudades_cobertura.
+ *
+ * @param string $ciudad Nombre de ciudad tal cual lo manda el usuario/IA.
+ * @return array{lat:float,lng:float}|null null si no se pudo geocodificar
+ *         (sin API key, sin resultados, error de red, etc.) — el llamador
+ *         debe hacer fallback a búsqueda por texto en ese caso.
+ */
+function geocodificarCiudadCache(string $ciudad): ?array {
+    $query = mb_strtolower(trim($ciudad));
+    if ($query === '') return null;
+
+    $pdo = function_exists('obtenerConexion') ? obtenerConexion() : null;
+    if (!$pdo) {
+        // Sin conexión no podemos cachear, pero igual intentamos geocodificar.
+        $resultado = geocodificarDireccion($ciudad, '', 'ES');
+        return $resultado['ok'] ? ['lat' => $resultado['lat'], 'lng' => $resultado['lng']] : null;
+    }
+
+    try {
+        $st = $pdo->prepare("SELECT lat, lng FROM geocoding_cache WHERE query = :q LIMIT 1");
+        $st->execute([':q' => $query]);
+        $cache = $st->fetch(PDO::FETCH_ASSOC);
+        if ($cache) {
+            return ['lat' => (float)$cache['lat'], 'lng' => (float)$cache['lng']];
+        }
+    } catch (PDOException $e) {
+        error_log('geocoding_cache lectura error: ' . $e->getMessage());
+        // Seguimos e intentamos geocodificar igual, aunque no podamos cachear el resultado.
+    }
+
+    $resultado = geocodificarDireccion($ciudad, '', 'ES');
+    if (!$resultado['ok']) return null;
+
+    try {
+        $pdo->prepare("INSERT INTO geocoding_cache (query, lat, lng) VALUES (:q, :lat, :lng)
+                       ON DUPLICATE KEY UPDATE lat = :lat2, lng = :lng2")
+            ->execute([
+                ':q'    => $query,
+                ':lat'  => $resultado['lat'],
+                ':lng'  => $resultado['lng'],
+                ':lat2' => $resultado['lat'],
+                ':lng2' => $resultado['lng'],
+            ]);
+    } catch (PDOException $e) {
+        error_log('geocoding_cache escritura error: ' . $e->getMessage());
+    }
+
+    return ['lat' => $resultado['lat'], 'lng' => $resultado['lng']];
+}
+
+// ═══════════════════════════════════════════════════════════
+// RATE LIMIT — api-ai/asistente/*.php
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Rate-limit por IP + endpoint para los endpoints de api-ai/asistente/*.php.
+ * Mismo patrón que solicitudes_rate_limit / resenas_rate_limit (ventana fija
+ * + contador en BD, falla abierta si la BD no responde para no bloquear al
+ * asistente por un problema de infraestructura).
+ *
+ * Ventana de 1 minuto (más corta que el patrón de formularios humanos, que
+ * usa ventanas de 1 hora) porque un asistente automatizado puede necesitar
+ * varias llamadas por conversación en poco tiempo.
+ *
+ * @param string $endpoint     Nombre corto del endpoint (se limita por separado).
+ * @param int    $maxPorMinuto Máximo de requests permitidos por IP en la ventana.
+ * @return bool true si puede continuar, false si superó el límite.
+ */
+function asistenteRateLimitOk(string $endpoint, int $maxPorMinuto = ASISTENTE_RATE_LIMIT_POR_MINUTO): bool {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+    if ($ip === '') return true; // sin IP no podemos limitar, fallar abierto
+
+    try {
+        $pdo = function_exists('obtenerConexion') ? obtenerConexion() : null;
+        if (!$pdo) return true;
+
+        $ipHash  = hash('sha256', $ip);
+        $ventana = date('Y-m-d H:i:00'); // ventana de 1 minuto
+
+        $pdo->prepare("INSERT INTO api_asistente_rate_limit (ip_hash, endpoint, ventana, intentos)
+                       VALUES (:h, :e, :v, 1)
+                       ON DUPLICATE KEY UPDATE intentos = intentos + 1")
+            ->execute([':h' => $ipHash, ':e' => $endpoint, ':v' => $ventana]);
+
+        $st = $pdo->prepare("SELECT intentos FROM api_asistente_rate_limit
+                              WHERE ip_hash = :h AND endpoint = :e AND ventana = :v");
+        $st->execute([':h' => $ipHash, ':e' => $endpoint, ':v' => $ventana]);
+        $intentos = (int) $st->fetchColumn();
+
+        // Limpieza ocasional de ventanas viejas (no hace falta cron dedicado).
+        if (random_int(1, 50) === 1) {
+            $pdo->exec("DELETE FROM api_asistente_rate_limit WHERE actualizado_en < DATE_SUB(NOW(), INTERVAL 6 HOUR)");
+        }
+
+        return $intentos <= $maxPorMinuto;
+    } catch (PDOException $e) {
+        error_log('rate-limit asistente error: ' . $e->getMessage());
+        return true; // falla abierta: no bloquear al asistente por un problema de BD
+    }
 }
 
 /**

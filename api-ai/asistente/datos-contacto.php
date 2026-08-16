@@ -7,6 +7,7 @@
  *   &email=cliente@email.com   (opcional, fallback si no se encuentra por teléfono)
  * 
  * Auth: Header "Authorization: Bearer ***"
+ * Rate limit: ver ASISTENTE_RATE_LIMIT_POR_MINUTO en includes/config.php.
  */
 
 declare(strict_types=1);
@@ -14,6 +15,8 @@ declare(strict_types=1);
 /* ========== CONFIG ========== */
 // Credenciales y API key se cargan desde includes/config.php + .env (nunca hardcodear acá).
 require_once dirname(__DIR__, 2) . '/includes/config.php';
+require_once dirname(__DIR__, 2) . '/includes/conexion_db.php';
+require_once dirname(__DIR__, 2) . '/includes/funciones.php';
 
 /* ========== HEADERS ========== */
 header('Content-Type: application/json; charset=utf-8');
@@ -30,6 +33,13 @@ if (!hash_equals(ASISTENTE_API_KEY, $token)) {
     exit;
 }
 
+/* ========== RATE LIMIT ========== */
+if (!asistenteRateLimitOk('datos-contacto')) {
+    http_response_code(429);
+    echo json_encode(['ok' => false, 'error' => 'Demasiadas solicitudes. Probá de nuevo en unos segundos.']);
+    exit;
+}
+
 /* ========== PARAMS ========== */
 $telefono = preg_replace('/[^0-9]/', '', $_GET['telefono'] ?? '');
 $email    = trim($_GET['email'] ?? '');
@@ -41,14 +51,8 @@ if ($telefono === '' && $email === '') {
 }
 
 /* ========== DB ========== */
-try {
-    $pdo = new PDO(
-        "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
-        DB_USER,
-        DB_PASS,
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-    );
-} catch (PDOException $e) {
+$pdo = obtenerConexion();
+if (!$pdo) {
     http_response_code(500);
     echo json_encode(['ok' => false, 'error' => 'Error de conexión a BD']);
     exit;
