@@ -39,7 +39,7 @@ $paginasEstaticas = [
     ['url' => '/espana',              'priority' => '0.9',  'changefreq' => 'weekly'],
     ['url' => '/nosotros.php',        'priority' => '0.6',  'changefreq' => 'monthly'],
     ['url' => '/contacto.php',        'priority' => '0.6',  'changefreq' => 'monthly'],
-    ['url' => '/registrar-negocio.php','priority' => '0.7', 'changefreq' => 'monthly'],
+    
     ['url' => '/privacidad.php',      'priority' => '0.3',  'changefreq' => 'yearly'],
     ['url' => '/terminos.php',        'priority' => '0.3',  'changefreq' => 'yearly'],
     ['url' => '/cookies.php',         'priority' => '0.3',  'changefreq' => 'yearly'],
@@ -66,7 +66,7 @@ if ($pdo) {
     // -----------------------------------------------------------
     // COMUNIDADES AUTÓNOMAS
     // -----------------------------------------------------------
-    $sql = "SELECT slug, updated_at FROM comunidades_autonomas ORDER BY nombre";
+    $sql = "SELECT c.slug, c.updated_at FROM comunidades_autonomas c INNER JOIN provincias p ON p.comunidad_id = c.id INNER JOIN crematorios cr ON cr.provincia_id = p.id WHERE cr.estado = 'activa' GROUP BY c.slug, c.updated_at ORDER BY c.nombre";
     $stmt = $pdo->query($sql);
     $comunidades = $stmt->fetchAll();
 
@@ -83,7 +83,7 @@ if ($pdo) {
     // -----------------------------------------------------------
     // PROVINCIAS
     // -----------------------------------------------------------
-    $sql = "SELECT slug, updated_at FROM provincias ORDER BY nombre";
+    $sql = "SELECT p.slug, p.updated_at FROM provincias p INNER JOIN crematorios cr ON cr.provincia_id = p.id WHERE cr.estado = 'activa' GROUP BY p.slug, p.updated_at ORDER BY p.nombre";
     $stmt = $pdo->query($sql);
     $provincias = $stmt->fetchAll();
 
