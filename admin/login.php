@@ -15,21 +15,31 @@ if (estaAutenticado()) {
 
 $error = '';
 
+// Generar/reusar el token CSRF para este formulario.
+$csrfToken = generarTokenCSRF();
+
 // Procesar formulario
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
-
-    if (!$email || !$password) {
-        $error = 'Por favor completa todos los campos';
+    if (!validarTokenCSRF($_POST['csrf_token'] ?? '')) {
+        $error = 'Tu sesión de formulario venció. Recargá la página e intentá de nuevo.';
     } else {
-        $resultado = intentarLogin($email, $password);
+        $email = trim($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
 
-        if ($resultado['ok']) {
-            header('Location: ' . BASE_URL . '/admin/resenas.php');
-            exit;
+        if (!$email || !$password) {
+            $error = 'Por favor completa todos los campos';
         } else {
-            $error = $resultado['mensaje'];
+            $resultado = intentarLogin($email, $password);
+
+            if ($resultado['ok']) {
+                header('Location: ' . BASE_URL . '/admin/resenas.php');
+                exit;
+            } else {
+                $error = $resultado['mensaje'];
+                // Renovar el token tras un intento fallido (evita reutilización).
+                unset($_SESSION['csrf_token']);
+                $csrfToken = generarTokenCSRF();
+            }
         }
     }
 }
@@ -82,6 +92,8 @@ $base_url = BASE_URL;
             <?php endif; ?>
 
             <form method="POST" style="display: flex; flex-direction: column; gap: var(--espacio-cuatro);">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
+
                 <div class="formulario-grupo" style="margin-bottom: 0;">
                     <label for="email" class="formulario-etiqueta">Email *</label>
                     <input type="email" id="email" name="email" class="campo" placeholder="tu@email.com" required value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>">
