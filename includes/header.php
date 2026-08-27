@@ -211,6 +211,20 @@ $schema_data = $schema_data ?? null;
          Ver: assets/js/lead-capture.js + includes/componentes/modal-lead-capture.php
          Mantiene mismo webhook (Make), mismo JSON estructurado + campos contextuales nuevos. -->
     <!--<script defer src="https://whatsapp.lycapolis.com/install-widget/bundle.js?key=1169a891-ad22-4a8e-9587-c3ee25af72a5"></script>-->     
+<?php
+// Obtener la URL actual
+$current_url = $_SERVER['REQUEST_URI'];
+$current_file = basename($_SERVER['SCRIPT_NAME']);
+
+// Verificar condiciones para establecer las etiquetas de robots
+if (strpos($current_url, '?busqueda=') !== false || strpos($current_url, '?lat=') !== false || strpos($current_url, '?lng=') !== false || $current_file === 'cerca.php') {
+    echo '<meta name="robots" content="noindex, nofollow">';
+} elseif ($current_file === 'registrar-negocio.php') {
+    echo '<meta name="robots" content="noindex, follow">';
+} elseif (isset($total_crematorios) && $total_crematorios === 0) {
+    echo '<meta name="robots" content="noindex, follow">';
+}
+?>
 </head>
 <body>
 

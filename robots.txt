@@ -2,6 +2,7 @@
 # CREMATORIOS DE MASCOTAS - robots.txt
 # ===============================================================
 # Autor: Lycapolis LLC
+# Actualización SEO Técnico: 27 de Agosto de 2026
 # ===============================================================
 
 User-agent: *
@@ -20,6 +21,14 @@ Disallow: /procesar-formulario.php
 Disallow: /procesar-lead-b2c.php
 Disallow: /procesar-registro.php
 Disallow: /registrar-clic-outbound.php
+
+# ===============================================================
+# Búsquedas dinámicas y geolocalización (Spider Traps)
+# Bloqueo añadido el 27/08/2026 para proteger el Crawl Budget
+# ===============================================================
+Disallow: /*?busqueda=
+Disallow: /directorio.php?*
+Disallow: /cerca.php*
 
 # Sitemap (servido por sitemap.php vía rewrite en .htaccess)
 Sitemap: https://crematoriosdemascotas.com/sitemap.xml
