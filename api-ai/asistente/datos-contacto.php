@@ -60,10 +60,11 @@ if (!$pdo) {
 
 /* ========== BUSCAR LEAD ========== */
 
+$maxAge = isset($_GET['max_age']) && is_numeric($_GET['max_age']) ? (int)$_GET['max_age'] : 86400;
+
 // 1. Buscar por whatsapp_number (normalizado, sin + ni espacios)
 $lead = null;
 if ($telefono !== '') {
-    // El número puede estar guardado como "34613151558" o "+34 613 15 15 58"
     $stmt = $pdo->prepare("
         SELECT id, nombre, email, whatsapp_number, ciudad_lead, servicio,
                mascota_tamano, mensaje, created_at, estado
@@ -75,7 +76,16 @@ if ($telefono !== '') {
     $stmt->bindValue(':tel', '%' . $telefono . '%');
     $stmt->execute();
     $lead = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // Si el lead es más viejo que max_age segundos, ignorarlo
+    if ($lead && isset($lead['created_at'])) {
+        $leadTime = strtotime($lead['created_at']);
+        if ($leadTime && (time() - $leadTime) > $maxAge) {
+            $lead = null;
+        }
+    }
 }
+
 
 // 2. Fallback por email
 if (!$lead && $email !== '') {
