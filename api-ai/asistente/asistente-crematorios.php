@@ -22,6 +22,39 @@ require_once dirname(__DIR__, 2) . '/includes/funciones.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
+/**
+ * Micro-RAG para la IA: empaqueta los datos operativos de una ficha
+ * (contacto, horarios, servicios y extras) en un solo array plano,
+ * fácil de leer/citar para el LLM del asistente de WhatsApp.
+ */
+function construirDatosExtraAsistente(array $f): array {
+    return [
+        // Contacto y enlaces
+        'telefono_llamadas'       => $f['telefono'],
+        'numero_whatsapp'         => !empty($f['whatsapp']) ? $f['whatsapp'] : false,
+        'email_contacto'          => !empty($f['email_clientes']) ? $f['email_clientes'] : $f['email'],
+        'sitio_web'                => $f['website'],
+
+        // Info operativa
+        'horarios'                => $f['horario_texto'],
+        'zona_cobertura'          => $f['zona_cobertura'],
+
+        // Servicios (Booleanos: true/false)
+        'atencion_24h'            => (bool)$f['atencion_24h'],
+        'recogida_domicilio'      => (bool)$f['recogida_domicilio'],
+        'entrega_domicilio'       => (bool)$f['entrega_domicilio'],
+        'cremacion_individual'    => (bool)$f['cremacion_individual'],
+        'cremacion_colectiva'     => (bool)$f['cremacion_colectiva'],
+        'sala_velatoria'          => (bool)$f['sala_velatoria'],
+
+        // Extras incluidos (Booleanos: true/false)
+        'incluye_urna'            => (bool)$f['urna'],
+        'incluye_carta_despedida' => (bool)$f['carta'],
+        'incluye_molde_huella'    => (bool)$f['molde'],
+        'incluye_souvenires'      => (bool)$f['souvenires'],
+    ];
+}
+
 /* ========== AUTH=*** */
 $headers = function_exists('getallheaders') ? getallheaders() : [];
 $auth = $headers['Authorization'] ?? '';
@@ -104,33 +137,7 @@ LIMIT :limit";
 
     foreach ($fichas as &$f) {
         $f['distancia_km'] = round((float) $f['distancia_km'], 1);
-        
-        // --- MICRO-RAG PARA LA IA ---
-        $f['datos_extra'] = [
-            // Contacto y enlaces
-            'telefono_llamadas'    => $f['telefono'],
-            'numero_whatsapp'      => !empty($f['whatsapp']) ? $f['whatsapp'] : false,
-            'email_contacto'       => !empty($f['email_clientes']) ? $f['email_clientes'] : $f['email'],
-            'sitio_web'            => $f['website'],
-            
-            // Info operativa
-            'horarios'             => $f['horario_texto'],
-            'zona_cobertura'       => $f['zona_cobertura'],
-            
-            // Servicios (Booleanos: true/false)
-            'atencion_24h'         => (bool)$f['atencion_24h'],
-            'recogida_domicilio'   => (bool)$f['recogida_domicilio'],
-            'entrega_domicilio'    => (bool)$f['entrega_domicilio'],
-            'cremacion_individual' => (bool)$f['cremacion_individual'],
-            'cremacion_colectiva'  => (bool)$f['cremacion_colectiva'],
-            'sala_velatoria'       => (bool)$f['sala_velatoria'],
-            
-            // Extras incluidos (Booleanos: true/false)
-            'incluye_urna'         => (bool)$f['urna'],
-            'incluye_carta_despedida'=> (bool)$f['carta'],
-            'incluye_molde_huella' => (bool)$f['molde'],
-            'incluye_souvenires'   => (bool)$f['souvenires']
-        ];
+        $f['datos_extra']  = construirDatosExtraAsistente($f);
     }
     unset($f);
 
@@ -166,36 +173,10 @@ LIMIT :limit";
         $fichas = $stmtFb->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($fichas as &$f) {
-        $f['distancia_km'] = round((float) $f['distancia_km'], 1);
-        
-        // --- MICRO-RAG PARA LA IA ---
-        $f['datos_extra'] = [
-            // Contacto y enlaces
-            'telefono_llamadas'    => $f['telefono'],
-            'numero_whatsapp'      => !empty($f['whatsapp']) ? $f['whatsapp'] : false,
-            'email_contacto'       => !empty($f['email_clientes']) ? $f['email_clientes'] : $f['email'],
-            'sitio_web'            => $f['website'],
-            
-            // Info operativa
-            'horarios'             => $f['horario_texto'],
-            'zona_cobertura'       => $f['zona_cobertura'],
-            
-            // Servicios (Booleanos: true/false)
-            'atencion_24h'         => (bool)$f['atencion_24h'],
-            'recogida_domicilio'   => (bool)$f['recogida_domicilio'],
-            'entrega_domicilio'    => (bool)$f['entrega_domicilio'],
-            'cremacion_individual' => (bool)$f['cremacion_individual'],
-            'cremacion_colectiva'  => (bool)$f['cremacion_colectiva'],
-            'sala_velatoria'       => (bool)$f['sala_velatoria'],
-            
-            // Extras incluidos (Booleanos: true/false)
-            'incluye_urna'         => (bool)$f['urna'],
-            'incluye_carta_despedida'=> (bool)$f['carta'],
-            'incluye_molde_huella' => (bool)$f['molde'],
-            'incluye_souvenires'   => (bool)$f['souvenires']
-        ];
-    }
-    unset($f);
+            $f['distancia_km'] = round((float) $f['distancia_km'], 1);
+            $f['datos_extra']  = construirDatosExtraAsistente($f);
+        }
+        unset($f);
 
         $metodo = 'geo_extendido'; // Etiqueta para saber que nos salimos del radio
     }
