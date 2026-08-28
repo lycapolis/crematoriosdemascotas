@@ -92,6 +92,10 @@ include 'header.php';
 
 <div class="admin-page">
 
+    <p style="margin-bottom:var(--espacio-dos);">
+        <a href="configuracion.php" class="admin-text-muted">← Configuración</a>
+    </p>
+
     <header class="admin-page-header">
         <h1 class="admin-page-title">Configuración IA por sección</h1>
         <p class="admin-page-subtitle">

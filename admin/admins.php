@@ -49,6 +49,10 @@ include 'header.php';
 
 <div class="admin-page">
 
+    <p style="margin-bottom:var(--espacio-dos);">
+        <a href="configuracion.php" class="admin-text-muted">← Configuración</a>
+    </p>
+
     <!-- ═══ Page header ═══════════════════════════════════════════════════ -->
     <header class="admin-page-header">
         <div style="display:flex; align-items:center; gap: var(--espacio-tres); flex-wrap: wrap;">
