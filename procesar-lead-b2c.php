@@ -128,16 +128,6 @@ $stmt->execute([
 ]);
 $leadId = (int)$pdo->lastInsertId();
 
-// Lookup del tier del negocio (solo para elegir plantilla WA). No bloqueante.
-$cremarioTier = '';
-if ($crematorioId) {
-    try {
-        $stmtTier = $pdo->prepare("SELECT tier FROM crematorios WHERE id = :id");
-        $stmtTier->execute([':id' => $crematorioId]);
-        $cremarioTier = (string) ($stmtTier->fetchColumn() ?: '');
-    } catch (\Throwable) { /* sin tier → se ignora */ }
-}
-
 // ─── 4. Insertar evento en outbound_clicks (modal_action=sent) ──────
 $pdo->prepare("INSERT INTO outbound_clicks
     (crematorio_id, accion, destino_url, pagina_origen, modal_action, ip, user_agent, referrer, lead_b2c_id)
@@ -241,9 +231,10 @@ if ($crematorioId) {
 // Ahora que el usuario llenó el form, le precargamos un mensaje completo
 // para que solo tenga que tocar "Enviar" en WhatsApp.
 //
-// Dos plantillas:
-//  A) hay crematorio_id  → mensaje "al negocio" (vio su ficha, pide info)
-//  B) sin crematorio_id  → mensaje "a soporte" (busca orientación)
+// Tres plantillas:
+//  A) ficha + número del negocio  → mensaje "al negocio" (vio su ficha, pide info)
+//  B) sin crematorio_id           → mensaje "a soporte" (busca orientación)
+//  C) ficha + número de soporte   → mensaje "ayúdenme a contactarlos"
 $destinoFinal = $accionDestino ?: '/';
 
 if ($channelType === 'wa') {
@@ -266,7 +257,12 @@ if ($channelType === 'wa') {
             'crematorio_nombre' => $crematorioName,
             'pagina_origen'     => $paginaOrigen,
         ];
-        $texto = ($crematorioId && $cremarioTier === '00')
+        // Plantilla según el DESTINO real del número, no por tier hardcodeado:
+        // si el wa.me final apunta a soporte B2C (por regla de tier o por ficha
+        // sin WhatsApp propio), el framing es "ayúdenme a contactarlos".
+        $waSoporte = resolverWaSoportePais('ES');
+        $esSoporte = ($waSoporte !== '' && $numWa === $waSoporte);
+        $texto = ($crematorioId && $esSoporte)
             ? armarMensajeWaAyuda($datos)
             : (($crematorioId && $crematorioName !== '')
                 ? armarMensajeWaNegocio($datos)
@@ -334,8 +330,9 @@ function armarMensajeWaNegocio(array $d): string {
 }
 
 /**
- * Plantilla C — Mensaje del cliente solicitando AYUDA para contactar un negocio
- * (tier '00'). Framing "pídanos que los ayudemos a contactarlos".
+ * Plantilla C — Mensaje del cliente solicitando AYUDA para contactar un negocio.
+ * Se usa cuando el número destino es soporte B2C (regla de tier o ficha sin
+ * WhatsApp propio). Framing "pídanos que los ayudemos a contactarlos".
  */
 function armarMensajeWaAyuda(array $d): string {
     $crematorio = $d['crematorio_nombre'] ?? '';

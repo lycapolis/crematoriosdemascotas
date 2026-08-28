@@ -1216,14 +1216,42 @@ function resolverWaSoportePais(string $pais): string {
 }
 
 /**
+ * Devuelve las contacto_reglas de un tier, con caché estático por request.
+ * Lee TODOS los tiers (incluidos inactivos): desactivar un plan solo impide
+ * asignarlo a fichas nuevas; las fichas existentes conservan su ruteo.
+ *
+ * @param string $tierId  Id del tier ('00', '01', ...)
+ * @return array          Reglas decodificadas (['sidebar'=>..., 'burbuja'=>...]) o []
+ */
+function obtenerTierContactoReglas(string $tierId): array {
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+        $pdo = obtenerConexion();
+        if ($pdo) {
+            try {
+                $rows = $pdo->query("SELECT id, contacto_reglas FROM tiers")->fetchAll(PDO::FETCH_KEY_PAIR);
+                foreach ($rows as $id => $json) {
+                    $cache[(string)$id] = json_decode((string)$json, true) ?: [];
+                }
+            } catch (\Throwable) { /* tabla/columna ausente → se usa el fallback por defecto */ }
+        }
+    }
+    return $cache[$tierId] ?? [];
+}
+
+/**
  * Determina el destino del WhatsApp según contexto y tier del negocio.
- * Lee contacto_reglas del tier si está seteado; si no, aplica fallback:
+ * Lee contacto_reglas del tier (tabla tiers; si el array no la trae, la busca
+ * ahí vía obtenerTierContactoReglas). Si no hay regla explícita, aplica fallback:
  *   sidebar → soporte solo si tier '00'
  *   burbuja → soporte si tier ∈ ['00','01','02']
+ * Si el destino es 'negocio' pero la ficha no tiene WhatsApp cargado, cae a
+ * soporte B2C (decisión de negocio: no ocultar el CTA, no perder el lead).
  *
  * @param array  $crematorio  Array con 'tier' y 'whatsapp'.
  * @param string $contexto    'sidebar' | 'burbuja'
- * @return string             Número destino (solo dígitos) o '' si no renderizar.
+ * @return string             Número destino (solo dígitos).
  */
 function resolverWaDestino(array $crematorio, string $contexto): string {
     $negWa  = preg_replace('/[^0-9]/', '', $crematorio['whatsapp'] ?? '');
@@ -1232,6 +1260,10 @@ function resolverWaDestino(array $crematorio, string $contexto): string {
 
     if (!empty($crematorio['contacto_reglas'])) {
         $reglas = json_decode((string)$crematorio['contacto_reglas'], true) ?: [];
+    } else {
+        // La columna vive en la tabla tiers, no en crematorios: si el caller no
+        // la incluyó en el array, la resolvemos acá (máx. 1 query por request).
+        $reglas = obtenerTierContactoReglas($tier);
     }
 
     $defaults = [
