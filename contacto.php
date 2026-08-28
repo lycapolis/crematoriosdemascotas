@@ -15,8 +15,14 @@ $pagina_actual = 'contacto';
 include 'includes/header.php';
 
 $emailContacto = defined('EMAIL_CONTACTO') ? EMAIL_CONTACTO : 'info@crematoriosdemascotas.com';
-$whatsapp      = defined('WHATSAPP_SOPORTE') ? WHATSAPP_SOPORTE : '';
-$whatsappFmt   = $whatsapp ? '+' . substr($whatsapp, 0, 1) . ' ' . substr($whatsapp, 1, 3) . ' ' . substr($whatsapp, 4, 3) . ' ' . substr($whatsapp, 7) : '';
+$whatsapp      = defined('WHATSAPP_SOPORTE_ES_B2C') ? WHATSAPP_SOPORTE_ES_B2C : '';
+// Formato: '+34 631 256 751' (ES sin fijo campo length; si no 11 dígitos, se usa raw).
+$waNum         = preg_replace('/[^0-9]/', '', $whatsapp);
+if (strlen($waNum) === 11 && strpos($waNum, '34') === 0) {
+    $whatsappFmt = '+' . substr($waNum, 0, 2) . ' ' . substr($waNum, 2, 3) . ' ' . substr($waNum, 5, 3) . ' ' . substr($waNum, 8);
+} else {
+    $whatsappFmt = $whatsapp ? '+' . $waNum : '';
+}
 ?>
 
 <style>

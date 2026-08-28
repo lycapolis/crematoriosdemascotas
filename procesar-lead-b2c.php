@@ -128,6 +128,16 @@ $stmt->execute([
 ]);
 $leadId = (int)$pdo->lastInsertId();
 
+// Lookup del tier del negocio (solo para elegir plantilla WA). No bloqueante.
+$cremarioTier = '';
+if ($crematorioId) {
+    try {
+        $stmtTier = $pdo->prepare("SELECT tier FROM crematorios WHERE id = :id");
+        $stmtTier->execute([':id' => $crematorioId]);
+        $cremarioTier = (string) ($stmtTier->fetchColumn() ?: '');
+    } catch (\Throwable) { /* sin tier → se ignora */ }
+}
+
 // ─── 4. Insertar evento en outbound_clicks (modal_action=sent) ──────
 $pdo->prepare("INSERT INTO outbound_clicks
     (crematorio_id, accion, destino_url, pagina_origen, modal_action, ip, user_agent, referrer, lead_b2c_id)
@@ -256,9 +266,11 @@ if ($channelType === 'wa') {
             'crematorio_nombre' => $crematorioName,
             'pagina_origen'     => $paginaOrigen,
         ];
-        $texto = ($crematorioId && $crematorioName !== '')
-            ? armarMensajeWaNegocio($datos)
-            : armarMensajeWaSoporte($datos);
+        $texto = ($crematorioId && $cremarioTier === '00')
+            ? armarMensajeWaAyuda($datos)
+            : (($crematorioId && $crematorioName !== '')
+                ? armarMensajeWaNegocio($datos)
+                : armarMensajeWaSoporte($datos));
         $destinoFinal = 'https://wa.me/' . $numWa . '?text=' . urlencode($texto);
     }
 }
@@ -313,6 +325,53 @@ function armarMensajeWaNegocio(array $d): string {
     $partes[] = '📞 Para contactarme:';
     if ($wa !== '')     $partes[] = "WhatsApp: {$wa}";
     if ($email !== '')  $partes[] = "Email: {$email}";
+    if ($ciudad !== '') $partes[] = "Ciudad: {$ciudad}";
+
+    $partes[] = '';
+    $partes[] = '— Lead vía Crematoriosdemascotas.com';
+
+    return implode("\n", $partes);
+}
+
+/**
+ * Plantilla C — Mensaje del cliente solicitando AYUDA para contactar un negocio
+ * (tier '00'). Framing "pídanos que los ayudemos a contactarlos".
+ * La firma "Lead vía Crematoriosdemascotas.com" mantiene el tracking.
+ */
+function armarMensajeWaAyuda(array $d): string {
+    $crematorio = $d['crematorio_nombre'] ?? '';
+    $nombre     = $d['nombre'] ?? '';
+    $mascota    = trim($d['mascota'] ?? '');
+    $tamano     = trim($d['tamano'] ?? '');
+    $mensaje    = trim($d['mensaje'] ?? '');
+    $wa         = trim($d['whatsapp_cliente'] ?? '');
+    $email      = trim($d['email'] ?? '');
+    $ciudad     = trim($d['ciudad'] ?? '');
+
+    $partes = [];
+    $partes[] = "Hola, vi la ficha de {$crematorio} en Crematoriosdemascotas.com y me gustaría que me ayuden a contactarlos.";
+    $partes[] = '';
+
+    $linea = "Soy {$nombre}.";
+    if ($mascota !== '') {
+        $linea .= " Tengo un(a) {$mascota}";
+        $linea .= ($tamano !== '') ? " de tamaño {$tamano}." : '.';
+    } else {
+        $linea .= ($tamano !== '')
+            ? " Tengo una mascota de tamaño {$tamano} y necesito información."
+            : ' Necesito información sobre sus servicios.';
+    }
+    $partes[] = $linea;
+
+    if ($mensaje !== '') {
+        $partes[] = '';
+        $partes[] = $mensaje;
+    }
+
+    $partes[] = '';
+    $partes[] = '📞 Para contactarme:';
+    if ($wa !== '')    $partes[] = "WhatsApp: {$wa}";
+    if ($email !== '') $partes[] = "Email: {$email}";
     if ($ciudad !== '') $partes[] = "Ciudad: {$ciudad}";
 
     $partes[] = '';

@@ -58,6 +58,14 @@ $portada = parsearSeccion('portada');
 $galP    = parsearSeccion('galeria_principal');
 $galC    = parsearSeccion('galeria_categorias');
 
+// Reglas de contacto (WhatsApp): ambos en '' → NULL (fallback)
+$contactoSidebar = $_POST['contacto_sidebar'] ?? '';
+$contactoBurbuja = $_POST['contacto_burbuja'] ?? '';
+$reglas = [];
+if (in_array($contactoSidebar, ['soporte','negocio'], true)) $reglas['sidebar'] = $contactoSidebar;
+if (in_array($contactoBurbuja, ['soporte','negocio'], true)) $reglas['burbuja'] = $contactoBurbuja;
+$contactoReglas = $reglas ? json_encode($reglas) : null;
+
 if ($esNuevo) {
     $pdo->prepare(
         "INSERT INTO tiers
@@ -66,14 +74,14 @@ if ($esNuevo) {
              portada_mostrar, portada_fuentes,
              galeria_principal_mostrar, galeria_principal_fuentes,
              galeria_categorias_mostrar, galeria_categorias_fuentes,
-             activo)
+             contacto_reglas, activo)
          VALUES
             (:id, :nombre, :desc, :precio,
              :lm, :lf,
              :pm, :pf,
              :gpm, :gpf,
              :gcm, :gcf,
-             :activo)"
+             :contacto_reglas, :activo)"
     )->execute([
         ':id'     => $id,
         ':nombre' => $nombre,
@@ -83,6 +91,7 @@ if ($esNuevo) {
         ':pm'  => $portada['mostrar'], ':pf'  => $portada['fuentes'],
         ':gpm' => $galP['mostrar'],    ':gpf' => $galP['fuentes'],
         ':gcm' => $galC['mostrar'],    ':gcf' => $galC['fuentes'],
+        ':contacto_reglas' => $contactoReglas,
         ':activo' => $activo,
     ]);
     header('Location: ' . BASE_URL . '/admin/tiers.php?ok=' . urlencode('Plan "' . $id . '" creado correctamente'));
@@ -94,6 +103,7 @@ if ($esNuevo) {
             portada_mostrar = :pm, portada_fuentes = :pf,
             galeria_principal_mostrar = :gpm, galeria_principal_fuentes = :gpf,
             galeria_categorias_mostrar = :gcm, galeria_categorias_fuentes = :gcf,
+            contacto_reglas = :contacto_reglas,
             activo = :activo
          WHERE id = :id"
     )->execute([
@@ -105,6 +115,7 @@ if ($esNuevo) {
         ':pm'  => $portada['mostrar'], ':pf'  => $portada['fuentes'],
         ':gpm' => $galP['mostrar'],    ':gpf' => $galP['fuentes'],
         ':gcm' => $galC['mostrar'],    ':gcf' => $galC['fuentes'],
+        ':contacto_reglas' => $contactoReglas,
         ':activo' => $activo,
     ]);
     header('Location: ' . BASE_URL . '/admin/tiers.php?ok=' . urlencode('Plan "' . $idOriginal . '" actualizado correctamente'));

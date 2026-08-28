@@ -173,6 +173,16 @@ if (!empty($crematorio['precios_json'])) {
     }
 }
 
+// ═══════════════════════════════════════════════════════════
+// Resolución del destino del CTA de WhatsApp (según tier)
+// ═══════════════════════════════════════════════════════════
+$waDestino   = resolverWaDestino($crematorio, 'sidebar');
+$waEsSoporte = ($waDestino !== '' && preg_replace('/[^0-9]/', '', $whatsapp) !== $waDestino);
+$waTextoInicial = $waEsSoporte
+    ? 'Hola, vi la ficha de ' . $crematorio_nombre . ' en Crematoriosdemascotas.com y me gustaría que me ayuden a contactarlos.'
+    : 'Hola, vi su ficha de ' . $crematorio_nombre . ' en Crematoriosdemascotas.com y me gustaría obtener información sobre sus servicios.';
+$waUrlInicial = $waDestino ? 'https://wa.me/' . $waDestino . '?text=' . urlencode($waTextoInicial) : '';
+
 // formatearPrecioItem() — ahora vive en includes/funciones.php (reusable, ej. mensaje WhatsApp)
 
 // Helper local: ruta relativa → URL absoluta
@@ -1844,7 +1854,7 @@ include 'includes/header.php';
                 // Solo el PRIMER tel/email (UNO por tipo en el sticky público)
                 $emailPrincipal = $fEmailsVis[0] ?? null;
                 $tieneInfo = $direccion || $ciudad_nombre || $telPrincipal || $emailPrincipal || $web || !empty($fRedesVis);
-                $hayCta    = $telPrincipal || $whatsapp || $gmaps_url;
+                $hayCta    = $telPrincipal || $waUrlInicial || $gmaps_url;
 
                 // Atributos compartidos para data-lead-capture (modal interceptor)
                 $logoLeadCapture = $logo_url ? htmlspecialchars($logo_url, ENT_QUOTES) : '';
@@ -1953,23 +1963,14 @@ include 'includes/header.php';
                         </a>
                         <?php endif; ?>
 
-                        <?php
-                        if ($whatsapp):
-                            $waLimpio = preg_replace('/[^0-9]/', '', $whatsapp);
-                            // Mensaje inicial del wa.me — SOLO si el usuario evita el
-                            // modal. Si llena el form, procesar-lead-b2c.php lo reemplaza
-                            // por uno rico. Incluimos contexto de la ficha.
-                            $waTextoInicial = 'Hola, vi su ficha de ' . $crematorio_nombre
-                                . ' en Crematoriosdemascotas.com y me gustaría obtener información sobre sus servicios.';
-                            $waUrlInicial = 'https://wa.me/' . $waLimpio . '?text=' . urlencode($waTextoInicial);
-                        ?>
+                        <?php if ($waUrlInicial): ?>
                         <a href="<?php echo htmlspecialchars($waUrlInicial); ?>"
                            class="ficha-cta ficha-cta--whatsapp"
                            target="_blank"
                            rel="noopener"
                            data-lead-capture="wa"
                            data-destino="<?php echo htmlspecialchars($waUrlInicial); ?>"
-                           data-phone-agent="<?php echo $waLimpio; ?>"
+                           data-phone-agent="<?php echo $waDestino; ?>"
                            data-crematorio-id="<?php echo $cremIdAttr; ?>"
                            data-crematorio-nombre="<?php echo $cremNombreAttr; ?>"
                            data-crematorio-logo="<?php echo $logoLeadCapture; ?>">

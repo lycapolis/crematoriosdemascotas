@@ -1195,6 +1195,59 @@ function generarWhatsApp($telefono, $mensaje = '') {
 }
 
 // ═══════════════════════════════════════════════════════════
+// RESOLUCIÓN DE WHATSAPP POR TIER / CONTEXTO
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Resuelve el WhatsApp de soporte B2C según país.
+ * Por ahora solo España está operativo; se escala agregando 'PE', 'MX', etc.
+ *
+ * @param string $pais Código ISO ('ES' | 'PE' | '')
+ * @return string Número (solo dígitos) o '' si no hay canal
+ */
+function resolverWaSoportePais(string $pais): string {
+    $mapa = [
+        'ES' => defined('WHATSAPP_SOPORTE_ES_B2C') ? WHATSAPP_SOPORTE_ES_B2C : '',
+        // 'PE' => defined('WHATSAPP_SOPORTE_PE_B2C') ? WHATSAPP_SOPORTE_PE_B2C : '',
+    ];
+    $key = strtoupper($pais);
+    $num = $mapa[$key] ?? ($mapa['ES'] ?? '');
+    return preg_replace('/[^0-9]/', '', $num);
+}
+
+/**
+ * Determina el destino del WhatsApp según contexto y tier del negocio.
+ * Lee contacto_reglas del tier si está seteado; si no, aplica fallback:
+ *   sidebar → soporte solo si tier '00'
+ *   burbuja → soporte si tier ∈ ['00','01','02']
+ *
+ * @param array  $crematorio  Array con 'tier' y 'whatsapp'.
+ * @param string $contexto    'sidebar' | 'burbuja'
+ * @return string             Número destino (solo dígitos) o '' si no renderizar.
+ */
+function resolverWaDestino(array $crematorio, string $contexto): string {
+    $negWa  = preg_replace('/[^0-9]/', '', $crematorio['whatsapp'] ?? '');
+    $tier   = (string)($crematorio['tier'] ?? '01');
+    $reglas = [];
+
+    if (!empty($crematorio['contacto_reglas'])) {
+        $reglas = json_decode((string)$crematorio['contacto_reglas'], true) ?: [];
+    }
+
+    $defaults = [
+        'sidebar' => ($tier === '00') ? 'soporte' : 'negocio',
+        'burbuja' => in_array($tier, ['00','01','02'], true) ? 'soporte' : 'negocio',
+    ];
+    $dest = $reglas[$contexto] ?? $defaults[$contexto] ?? 'negocio';
+
+    if ($dest === 'soporte' || $negWa === '') {
+        // TODO: resolver país a partir de comunidad/provincia del negocio.
+        return resolverWaSoportePais('ES');
+    }
+    return $negWa;
+}
+
+// ═══════════════════════════════════════════════════════════
 // FUNCIONES DE RESEÑAS
 // ═══════════════════════════════════════════════════════════
 

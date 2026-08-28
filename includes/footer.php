@@ -261,26 +261,34 @@
 
     <?php
     // ─── Burbuja flotante (WhatsApp) que acompaña el scroll ───
-    // Contexto: si estamos en una ficha, usa el WA del negocio. Si no, WHATSAPP_SOPORTE.
+    // En fichas: destino resuelto por tier (helper resolverWaDestino).
+    // Fuera de fichas: siempre soporte B2C.
     // Si no hay ningún número aplicable, no renderizamos la burbuja.
     $_lcBubbleNum    = '';
     $_lcBubbleId     = '';
     $_lcBubbleName   = '';
     $_lcBubbleLogo   = '';
-    if (!empty($whatsapp ?? null)) {
-        $_lcBubbleNum  = preg_replace('/[^0-9]/', '', $whatsapp);
+    $_lcBubbleFicha  = !empty($crematorio ?? null);
+
+    if ($_lcBubbleFicha) {
+        $_lcBubbleNum  = resolverWaDestino($crematorio, 'burbuja');
         $_lcBubbleId   = (int)($crematorio['id'] ?? 0);
-        $_lcBubbleName = $crematorio_nombre ?? '';
+        $_lcBubbleName = $crematorio_nombre ?? $crematorio['nombre'] ?? '';
         $_lcBubbleLogo = $logo_url ?? '';
-    } elseif (defined('WHATSAPP_SOPORTE') && WHATSAPP_SOPORTE !== '') {
-        $_lcBubbleNum = preg_replace('/[^0-9]/', '', WHATSAPP_SOPORTE);
+    } else {
+        $_lcBubbleNum = resolverWaSoportePais('ES');
     }
-    if ($_lcBubbleNum):
-        // Mensaje inicial del wa.me — SOLO se usa si el usuario evita el modal
-        // (skip) y va directo. Si llena el form, procesar-lead-b2c.php lo
-        // reemplaza por uno rico. Le damos contexto si hay ficha (no datos
-        // personales que aún no tenemos).
-        if ($_lcBubbleName !== '') {
+
+    // Si hay una ficha pero el destino del helper quedó como soporte (o si estamos
+    // fuera de ficha), el mensaje es el framing "ayuden a contactar" de B2C.
+    $_lcBubbleEsSoporte = !$_lcBubbleFicha
+        || ($_lcBubbleFicha && $_lcBubbleNum !== preg_replace('/[^0-9]/','', $crematorio['whatsapp'] ?? ''));
+
+    if ($_lcBubbleNum) :
+        if ($_lcBubbleName !== '' && $_lcBubbleEsSoporte) {
+            $_lcBubbleTexto = 'Hola, vi la ficha de ' . $_lcBubbleName
+                            . ' en Crematoriosdemascotas.com y me gustaría que me ayuden a contactarlos.';
+        } elseif ($_lcBubbleName !== '') {
             $_lcBubbleTexto = 'Hola, vi su ficha de ' . $_lcBubbleName
                             . ' en Crematoriosdemascotas.com y me gustaría obtener información.';
         } else {

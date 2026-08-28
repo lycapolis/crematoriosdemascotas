@@ -23,6 +23,7 @@ $tier = [
     'galeria_principal_fuentes'  => [],
     'galeria_categorias_mostrar' => 0,
     'galeria_categorias_fuentes' => [],
+    'contacto_reglas'            => [],
     'activo'                     => 1,
 ];
 
@@ -39,6 +40,7 @@ if (!$esNuevo) {
     $tier['portada_fuentes']            = json_decode($tier['portada_fuentes'], true) ?? [];
     $tier['galeria_principal_fuentes']  = json_decode($tier['galeria_principal_fuentes'], true) ?? [];
     $tier['galeria_categorias_fuentes'] = json_decode($tier['galeria_categorias_fuentes'], true) ?? [];
+    $tier['contacto_reglas']            = json_decode($tier['contacto_reglas'] ?? '', true) ?? [];
 }
 
 $error = isset($_GET['form_error']) ? htmlspecialchars(urldecode($_GET['form_error'])) : '';
@@ -195,6 +197,42 @@ include 'header.php';
                     </div>
                 </div>
                 <?php endforeach; ?>
+            </div>
+        </section>
+
+        <!-- ═══ SECCIÓN: Reglas de contacto (WhatsApp) ═══ -->
+        <section class="admin-section">
+            <div class="admin-section__heading">
+                <h2 class="admin-section__title">
+                    <i data-lucide="message-circle" class="icono" style="width:18px; height:18px;"></i>
+                    Reglas de contacto
+                </h2>
+                <p class="admin-section__hint">
+                    Define si el CTA/burbuja apunta al <em>número del negocio</em> o a <em>soporte B2C</em>.
+                    Si dejas ambos en "— por defecto", se usa el fallback: sidebar → negocio; burbuja → soporte en tiers 00–02.
+                </p>
+            </div>
+
+            <div class="admin-section__body admin-section__body--flat" style="display: flex; flex-direction: column; gap: var(--espacio-tres);">
+                <div class="field" style="margin-bottom: 0;">
+                    <label class="field__label">CTA sidebar (WhatsApp del negocio)</label>
+                    <select name="contacto_sidebar" class="field__select field__select--enhanced" data-ts-search="off">
+                        <option value="">— por defecto (sidebar: negocio)</option>
+                        <option value="soporte" <?php echo ($tier['contacto_reglas']['sidebar'] ?? '') === 'soporte' ? 'selected' : ''; ?>>Soporte B2C</option>
+                        <option value="negocio" <?php echo ($tier['contacto_reglas']['sidebar'] ?? '') === 'negocio' ? 'selected' : ''; ?>>Número del negocio</option>
+                    </select>
+                    <p class="admin-section__hint" style="margin-top:.3rem">Por defecto solo el tier '00' redirige a soporte.</p>
+                </div>
+
+                <div class="field" style="margin-bottom: 0;">
+                    <label class="field__label">Burbuja flotante (WhatsApp)</label>
+                    <select name="contacto_burbuja" class="field__select field__select--enhanced" data-ts-search="off">
+                        <option value="">— por defecto (burbuja: negocio)</option>
+                        <option value="soporte" <?php echo ($tier['contacto_reglas']['burbuja'] ?? '') === 'soporte' ? 'selected' : ''; ?>>Soporte B2C</option>
+                        <option value="negocio" <?php echo ($tier['contacto_reglas']['burbuja'] ?? '') === 'negocio' ? 'selected' : ''; ?>>Número del negocio</option>
+                    </select>
+                    <p class="admin-section__hint" style="margin-top:.3rem">Por defecto solo tiers 00–02 redirigen a soporte; el tier '03' o superior va al negocio.</p>
+                </div>
             </div>
         </section>
 

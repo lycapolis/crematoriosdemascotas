@@ -79,6 +79,7 @@ include 'header.php';
         $portF     = json_decode($tier['portada_fuentes'], true) ?? [];
         $galPF     = json_decode($tier['galeria_principal_fuentes'], true) ?? [];
         $galCF     = json_decode($tier['galeria_categorias_fuentes'], true) ?? [];
+        $reglas    = json_decode($tier['contacto_reglas'] ?? '', true) ?: null;
         $inactivo  = !$tier['activo'];
     ?>
     <article style="background: var(--admin-superficie); border: 1px solid var(--admin-linea); border-radius: var(--admin-r-md); overflow: hidden; box-shadow: var(--admin-sombra-suave); <?php echo $inactivo ? 'opacity: .6;' : ''; ?>">
@@ -96,6 +97,9 @@ include 'header.php';
                         </span>
                         <?php if ($inactivo): ?>
                         <span class="admin-pill">inactivo</span>
+                        <?php endif; ?>
+                        <?php if ($reglas): ?>
+                        <span class="admin-pill admin-pill--info">WA contacto: <?php echo htmlspecialchars($reglas['sidebar'] ?? 'por defecto'); ?></span>
                         <?php endif; ?>
                     </div>
                     <?php if ($tier['descripcion']): ?>

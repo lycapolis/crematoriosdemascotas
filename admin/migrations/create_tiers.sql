@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS tiers (
     galeria_principal_fuentes  JSON           NOT NULL,
     galeria_categorias_mostrar TINYINT(1)     NOT NULL DEFAULT 0,
     galeria_categorias_fuentes JSON           NOT NULL,
+    contacto_reglas            JSON           NULL,
     activo                     TINYINT(1)     NOT NULL DEFAULT 1,
     created_at                 TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at                 TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -22,6 +23,7 @@ INSERT IGNORE INTO tiers
      portada_mostrar, portada_fuentes,
      galeria_principal_mostrar, galeria_principal_fuentes,
      galeria_categorias_mostrar, galeria_categorias_fuentes,
+     contacto_reglas,
      activo)
 VALUES
 ('01', 'Tier 01 — Básico',
@@ -31,6 +33,7 @@ VALUES
     1, '["local","url"]',
     0, '[]',
     0, '[]',
+    NULL,
     1),
 ('02', 'Tier 02 — Estándar',
     'Ficha con imágenes locales procesadas. Galería principal y por categorías.',
@@ -39,6 +42,7 @@ VALUES
     1, '["local","url"]',
     1, '["local","url"]',
     1, '["local","url"]',
+    NULL,
     1),
 ('03', 'Tier 03 — Premium',
     'Todo lo de Tier 02 más mapa Google y reseñas verificadas.',
@@ -47,4 +51,5 @@ VALUES
     1, '["local","url"]',
     1, '["local","url"]',
     1, '["local","url"]',
+    NULL,
     1);
