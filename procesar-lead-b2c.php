@@ -336,7 +336,6 @@ function armarMensajeWaNegocio(array $d): string {
 /**
  * Plantilla C — Mensaje del cliente solicitando AYUDA para contactar un negocio
  * (tier '00'). Framing "pídanos que los ayudemos a contactarlos".
- * La firma "Lead vía Crematoriosdemascotas.com" mantiene el tracking.
  */
 function armarMensajeWaAyuda(array $d): string {
     $crematorio = $d['crematorio_nombre'] ?? '';
@@ -374,9 +373,6 @@ function armarMensajeWaAyuda(array $d): string {
     if ($email !== '') $partes[] = "Email: {$email}";
     if ($ciudad !== '') $partes[] = "Ciudad: {$ciudad}";
 
-    $partes[] = '';
-    $partes[] = '— Lead vía Crematoriosdemascotas.com';
-
     return implode("\n", $partes);
 }
 
@@ -393,7 +389,6 @@ function armarMensajeWaSoporte(array $d): string {
     $wa       = trim($d['whatsapp_cliente'] ?? '');
     $email    = trim($d['email'] ?? '');
     $ciudad   = trim($d['ciudad'] ?? '');
-    $pagina   = trim($d['pagina_origen'] ?? '');
 
     $partes = [];
     $partes[] = "Hola, soy {$nombre}.";
@@ -423,11 +418,6 @@ function armarMensajeWaSoporte(array $d): string {
     $partes[] = '📞 Para contactarme:';
     if ($wa !== '')    $partes[] = "WhatsApp: {$wa}";
     if ($email !== '') $partes[] = "Email: {$email}";
-
-    $partes[] = '';
-    $firma = '— Lead vía Crematoriosdemascotas.com';
-    if ($pagina !== '') $firma .= " (página: {$pagina})";
-    $partes[] = $firma;
 
     return implode("\n", $partes);
 }
