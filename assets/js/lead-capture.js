@@ -15,12 +15,16 @@
  *   data-phone-agent  = teléfono o whatsapp del destino (para metadata)
  *   data-no-skip="1"  = no ofrecer "Ir directo" (la burbuja flotante usa esto)
  *
- * Throttling multi-nivel (cookie `lc_state` con JSON):
- *   - Cap global: máximo 4 modals POR sesión (no cuentan los de la burbuja)
- *   - Silencio post-skip: 10 min POR CANAL ESPECÍFICO de cada ficha
+ * Throttling multi-nivel (cookie `lc_state` con JSON), configurable desde
+ * admin/configuracion-formularios.php (tabla formularios_config) e inyectado
+ * como window.LC_THROTTLE en includes/footer.php:
+ *   - throttling_activo=false → el modal se abre en CADA click (sin cap ni
+ *     silencios). Es el estado por defecto actual.
+ *   - Cap global: máximo N modals POR sesión (no cuentan los de la burbuja)
+ *   - Silencio post-skip: X min POR CANAL ESPECÍFICO de cada ficha
  *     (cada botón tel/wa/maps/web es una intención distinta; cerrar el modal
  *      en "Ver en el mapa" no silencia el resto de los canales)
- *   - Silencio post-submit: 24h POR FICHA (todos los canales) + 24h GLOBAL
+ *   - Silencio post-submit: Y h POR FICHA (todos los canales) + Y h GLOBAL
  *     (si ya tenemos los datos, no se los pedimos en ningún canal/ficha)
  *   - Burbuja flotante: solo respeta el silencio global post-submit;
  *     no cuenta para el cap, no respeta per-ficha (válvula de escape)
@@ -60,11 +64,18 @@
 
     // ═══════════════════════════════════════════════════════════
     // CONFIGURACIÓN DE THROTTLING
+    // Se inyecta desde PHP (window.LC_THROTTLE, ver includes/footer.php) con
+    // los valores de admin/configuracion-formularios.php. Los literales de
+    // abajo son solo fallback si la var global no existe (ej. footer viejo
+    // cacheado o página que no la imprime) — deben coincidir con los
+    // defaults de la migración create_formularios_config.sql.
     // ═══════════════════════════════════════════════════════════
-    var CAP_GLOBAL_SESION  = 4;                  // máx modals/sesión (excluye burbuja)
-    var SKIP_MS            = 10 * 60 * 1000;     // 10 min post-skip per-ficha
-    var SUBMIT_MS          = 24 * 60 * 60 * 1000; // 24h post-submit per-ficha + global
-    var COOKIE_DIAS        = 1;                  // cookie lc_state vive 24h
+    var _LC_CFG = window.LC_THROTTLE || {};
+    var THROTTLING_ACTIVO  = _LC_CFG.throttling_activo === true; // estricto: PHP manda bool
+    var CAP_GLOBAL_SESION  = _LC_CFG.cap_global_sesion  || 4;                    // máx modals/sesión (excluye burbuja)
+    var SKIP_MS            = (_LC_CFG.skip_minutos != null ? _LC_CFG.skip_minutos : 10) * 60 * 1000;      // post-skip per-canal
+    var SUBMIT_MS          = (_LC_CFG.submit_horas != null ? _LC_CFG.submit_horas : 24) * 60 * 60 * 1000; // post-submit per-ficha + global
+    var COOKIE_DIAS        = _LC_CFG.cookie_dias        || 1;                    // vida de la cookie lc_state
 
     // ─── Cookie utils ──────────────────────────────────────────
     function getCookie(name) {
@@ -120,6 +131,10 @@
      * Devuelve 'modal' (abrir modal) o 'directo' (saltar modal, redirigir).
      */
     function decidirAccion(ctx, estado) {
+        // 0. Throttling desactivado desde el panel → el modal se abre SIEMPRE.
+        //    (Sigue registrándose el click en registrar-clic-outbound.php.)
+        if (!THROTTLING_ACTIVO) return 'modal';
+
         var ahora = Date.now();
 
         // 1. Silencio global post-submit → aplica a TODOS (incluida burbuja)

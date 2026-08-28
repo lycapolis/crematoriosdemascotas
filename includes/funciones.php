@@ -2228,6 +2228,55 @@ function obtenerConfigIA(PDO $pdo, string $seccion): array
 }
 
 /**
+ * Config de throttling del widget lead-capture, desde la tabla
+ * formularios_config (editable en admin/configuracion-formularios.php,
+ * solo super_admin). Se inyecta al front como window.LC_THROTTLE en
+ * includes/footer.php y la consume assets/js/lead-capture.js.
+ *
+ * Cuando throttling_activo = 0 el JS abre el modal en CADA click
+ * (sin cap de sesión ni silencios post-skip/post-submit). El resto de
+ * valores son los límites que aplican al activarlo.
+ *
+ * Cacheada en memoria por request (evita query repetida).
+ *
+ * @return array{throttling_activo:bool, cap_global_sesion:int, skip_minutos:int, submit_horas:int, cookie_dias:int}
+ */
+function obtenerConfigFormularios(PDO $pdo): array
+{
+    static $cache = null;
+    if ($cache !== null) return $cache;
+
+    // Defaults = valores históricos hardcodeados en lead-capture.js.
+    // Si la tabla/fila no existe (migración no corrida), el sitio sigue
+    // funcionando con throttling DESACTIVADO — mismo criterio fail-safe
+    // que el resto del sitio (no romper por config faltante).
+    $cache = [
+        'throttling_activo' => false,
+        'cap_global_sesion' => 4,
+        'skip_minutos'      => 10,
+        'submit_horas'      => 24,
+        'cookie_dias'       => 1,
+    ];
+
+    try {
+        $row = $pdo->query("SELECT throttling_activo, cap_global_sesion, skip_minutos, submit_horas, cookie_dias
+                            FROM formularios_config WHERE clave = 'lead_capture' LIMIT 1")
+                   ->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            $cache = [
+                'throttling_activo' => (bool) (int) $row['throttling_activo'],
+                'cap_global_sesion' => max(1, (int) $row['cap_global_sesion']),
+                'skip_minutos'      => max(0, (int) $row['skip_minutos']),
+                'submit_horas'      => max(0, (int) $row['submit_horas']),
+                'cookie_dias'       => max(1, (int) $row['cookie_dias']),
+            ];
+        }
+    } catch (PDOException $e) { /* tabla puede no existir aún → defaults */ }
+
+    return $cache;
+}
+
+/**
  * Punto de entrada único recomendado para llamadas IA (texto o visión).
  * Elige el proveedor/modelo configurado para $seccion en ia_config_secciones
  * y despacha a Claude u OpenRouter según corresponda.

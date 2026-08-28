@@ -186,6 +186,10 @@ $fechaHoy = $dias_es[(int)date('w')] . ', ' . (int)date('j') . ' de ' . $meses_e
                style="<?php echo $currentPage === 'configuracion-ia.php' ? 'opacity:1;font-weight:700;' : ''; ?>">
                 Config IA
             </a>
+            <a href="<?php echo $base_url; ?>/admin/configuracion-formularios.php" class="admin-header__link"
+               style="<?php echo $currentPage === 'configuracion-formularios.php' ? 'opacity:1;font-weight:700;' : ''; ?>">
+                Config Forms
+            </a>
             <?php endif; ?>
 
             <a href="<?php echo $base_url; ?>/" class="admin-header__link" target="_blank">

@@ -308,7 +308,15 @@
     </a>
     <?php endif; ?>
 
-    <script>window.LC_BASE_URL = <?php echo json_encode($base_url ?? '/crematoriosdemascotas'); ?>;</script>
+    <script>
+        window.LC_BASE_URL = <?php echo json_encode($base_url ?? '/crematoriosdemascotas'); ?>;
+        // Config throttling del widget (admin/configuracion-formularios.php).
+        // Con throttling_activo=false, lead-capture.js abre el modal en cada click.
+        window.LC_THROTTLE = <?php
+            $_lcPdo = obtenerConexion();
+            echo json_encode($_lcPdo ? obtenerConfigFormularios($_lcPdo) : ['throttling_activo' => false]);
+        ?>;
+    </script>
     <script src="<?php echo assetUrl('assets/js/lead-capture.js'); ?>" defer></script>
 
     <div class="modal micromodal-slide" id="modal-confirmar" aria-hidden="true">
