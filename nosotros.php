@@ -187,14 +187,23 @@ include 'includes/header.php';
         <div class="nos-historia">
             <div class="nos-historia__texto">
                 <span class="nos-historia__kicker">¿Por qué existimos?</span>
-                <h2>Una necesidad real</h2>
-                <p>Este proyecto nació de una experiencia personal. Cuando perdimos a nuestra mascota, nos dimos cuenta de lo difícil que era encontrar información confiable sobre servicios de cremación.</p>
-                <p>Buscamos en internet, preguntamos a conocidos, y el proceso fue abrumador en un momento ya de por sí difícil. Fue entonces cuando decidimos crear este directorio.</p>
-                <p>Nuestro objetivo es simple: que ninguna familia tenga que pasar por esa incertidumbre. Queremos que encontrar un crematorio de confianza sea fácil, rápido y transparente.</p>
+                <h2>Te ayudamos a elegir bien, cuando más importa</h2>
+                <p>Perder una mascota es un momento delicado, y tomar decisiones en ese momento no debería ser una carga más. Nuestro trabajo es darte información detallada y verificada sobre cada crematorio, para que elijas con tranquilidad el que mejor se adapte a tu necesidad.</p>
+                <p>Puedes explorar el directorio por tu cuenta o escribirnos por WhatsApp: nuestro asistente virtual te guiará y te presentará todas tus opciones, de forma sencilla y útil.</p>
+                <p>El servicio no tiene ningún costo para ti: no pedimos registro, no cobramos nada y no recibirás publicidad. Solo información clara cuando la necesitas.</p>
+<a href="https://wa.me/<?php echo WHATSAPP_SOPORTE_ES_B2C; ?>?text=Hola%2C+me+gustar%C3%ADa+recibir+ayuda+para+elegir+un+crematorio+para+mi+mascota."
+   class="boton uno" target="_blank" rel="noopener" style="display:inline-flex; align-items:center; gap:.5rem; margin-top: var(--espacio-tres);"
+   data-lead-capture="wa"
+   data-destino="https://wa.me/<?php echo WHATSAPP_SOPORTE_ES_B2C; ?>?text=Hola%2C+me+gustar%C3%ADa+recibir+ayuda+para+elegir+un+crematorio+para+mi+mascota."
+   data-no-skip="1"
+   data-phone-agent="<?php echo WHATSAPP_SOPORTE_ES_B2C; ?>">
+    <svg class="icono" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="width:18px;height:18px;"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413"></path></svg>
+    Hablar con nosotros por WhatsApp
+</a>
+
             </div>
             <div class="nos-historia__imagen">
-                <img src="https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=600&h=500&fit=crop"
-                     alt="Mascota descansando" loading="lazy">
+                <img src="https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=600&h=500&fit=crop" alt="Mascota descansando" loading="lazy">
             </div>
         </div>
     </div>
@@ -263,5 +272,7 @@ include 'includes/header.php';
         </div>
     </div>
 </section>
+
+<!-- Bloque eliminado -->
 
 <?php include 'includes/footer.php'; ?>
