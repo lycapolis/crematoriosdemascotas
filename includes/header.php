@@ -225,6 +225,7 @@ if (strpos($current_url, '?busqueda=') !== false || strpos($current_url, '?lat='
     echo '<meta name="robots" content="noindex, follow">';
 }
 ?>
+<?php if (!empty($head_extra)) echo $head_extra; /* hook: CSS/meta extra de la página (ej. blog) */ ?>
 </head>
 <body>
 
@@ -263,6 +264,8 @@ if (strpos($current_url, '?busqueda=') !== false || strpos($current_url, '?lat='
                     Cerca de mí
                 </button>
 
+                <a href="<?php echo $base_url; ?>/blog/" class="menu__enlace <?php echo $pagina_actual === 'blog' ? 'activo' : ''; ?>">Blog</a>
+
                 <a href="<?php echo $base_url; ?>/nosotros.php" class="menu__enlace <?php echo $pagina_actual === 'nosotros' ? 'activo' : ''; ?>">Nosotros</a>
             </nav>
 
@@ -294,6 +297,7 @@ if (strpos($current_url, '?busqueda=') !== false || strpos($current_url, '?lat='
 
         <!-- Navegación -->
         <a href="<?php echo $base_url; ?>/directorio.php" class="menu__enlace <?php echo $pagina_actual === 'directorio' ? 'activo' : ''; ?>">Directorio</a>
+        <a href="<?php echo $base_url; ?>/blog/" class="menu__enlace <?php echo $pagina_actual === 'blog' ? 'activo' : ''; ?>">Blog</a>
         <a href="<?php echo $base_url; ?>/nosotros.php" class="menu__enlace <?php echo $pagina_actual === 'nosotros' ? 'activo' : ''; ?>">Nosotros</a>
     </nav>
 

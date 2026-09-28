@@ -185,6 +185,19 @@ $tareas = [
     ],
 ];
 
+// Blog: resumen para la sección de accesos del dashboard
+$blogStats = null;
+if (tienePermiso(obtenerAdminActual(), 'blog')) {
+    try {
+        $blogStats = $pdo->query("
+            SELECT SUM(estado = 'publicado') AS publicados,
+                   SUM(estado = 'programado') AS programados,
+                   SUM(estado = 'borrador')  AS borradores
+            FROM blog_articulos
+        ")->fetch(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) { /* tablas del blog aún sin migrar */ }
+}
+
 // Orden: cards con más pendientes primero. En empate, mantener el orden original.
 usort($tareas, function($a, $b) {
     return $b['count'] <=> $a['count'];
@@ -289,6 +302,34 @@ include 'header.php';
             </div>
         </div>
     </section>
+
+    <?php if ($blogStats !== null): ?>
+    <!-- ═══ Blog ══════════════════════════════════════════════════════════ -->
+    <section class="admin-section">
+        <div class="admin-section__heading" style="display:flex; align-items:center; justify-content:space-between; gap:var(--espacio-tres); flex-wrap:wrap;">
+            <h2 class="admin-section__title">Blog</h2>
+            <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
+                <a href="blog-editar.php" class="boton uno pequeno"><i data-lucide="pen-line" class="icono" style="width:14px;height:14px;"></i> Escribir artículo</a>
+                <a href="blog-articulos.php" class="boton dos pequeno">Ver artículos</a>
+                <a href="blog-modulos.php" class="boton dos pequeno">Módulos especiales</a>
+            </div>
+        </div>
+        <div class="admin-grid-mini">
+            <a href="blog-articulos.php?estado=publicado" class="admin-mini-stat admin-mini-stat--ok" style="text-decoration:none;">
+                <div class="admin-mini-stat__num"><?php echo (int) $blogStats['publicados']; ?></div>
+                <div class="admin-mini-stat__label">Artículos publicados</div>
+            </a>
+            <a href="blog-articulos.php?estado=programado" class="admin-mini-stat" style="text-decoration:none;">
+                <div class="admin-mini-stat__num"><?php echo (int) $blogStats['programados']; ?></div>
+                <div class="admin-mini-stat__label">Programados</div>
+            </a>
+            <a href="blog-articulos.php?estado=borrador" class="admin-mini-stat<?php echo $blogStats['borradores'] > 0 ? ' admin-mini-stat--alerta' : ''; ?>" style="text-decoration:none;">
+                <div class="admin-mini-stat__num"><?php echo (int) $blogStats['borradores']; ?></div>
+                <div class="admin-mini-stat__label">Borradores</div>
+            </a>
+        </div>
+    </section>
+    <?php endif; ?>
 
 </div>
 

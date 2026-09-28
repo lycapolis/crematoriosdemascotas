@@ -29,6 +29,7 @@ const ETIQUETAS_DISPONIBLES = [
     'solicitudes'      => 'Aprobar/rechazar registros de negocios públicos',
     'imagenes'         => 'Subir/categorizar imágenes (incluye cola LLM)',
     'gestionar_admins' => 'Crear/editar otros admins (limitado — solo super_admin puede tocar a otros super_admin)',
+    'blog'             => 'Escribir y publicar artículos del blog (categorías, módulos, autores)',
 ];
 
 // ─── Defaults por rol al crearse ─────────────────────────────────────────────

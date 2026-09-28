@@ -147,6 +147,48 @@ if ($pdo) {
         echo '    <priority>0.9</priority>' . PHP_EOL;
         echo '  </url>' . PHP_EOL;
     }
+
+    // -----------------------------------------------------------
+    // BLOG — índice, artículos publicados y categorías con artículos.
+    // Nada del blog entra mientras el noindex global esté activo
+    // (artículos de ejemplo). Los artículos con noindex propio tampoco.
+    // -----------------------------------------------------------
+    require_once __DIR__ . '/includes/blog.php';
+    if (!blogNoindexGlobal()) {
+        $ahora = blogAhora();
+        $st = $pdo->prepare("SELECT slug, COALESCE(actualizado_contenido_at, publicado_at) AS lastmod FROM blog_articulos a
+                             WHERE " . blogSqlPublicado('a') . " AND a.noindex = 0 AND (a.canonical_url IS NULL OR a.canonical_url = '')
+                             ORDER BY a.publicado_at DESC");
+        $st->execute([':ahora' => $ahora]);
+        $articulosBlog = $st->fetchAll();
+
+        if ($articulosBlog) {
+            $urlsBlog = [['/blog/', $articulosBlog[0]['lastmod'], 'daily', '0.7']];
+            foreach ($articulosBlog as $ab) {
+                $urlsBlog[] = ['/blog/' . rawurlencode($ab['slug']), $ab['lastmod'], 'monthly', '0.7'];
+            }
+            $st = $pdo->prepare("SELECT tx.slug AS tax, t.slug, MAX(a.publicado_at) AS lastmod
+                                 FROM blog_terminos t
+                                 JOIN blog_taxonomias tx ON tx.id = t.taxonomia_id AND tx.publica = 1
+                                 JOIN blog_articulo_termino at ON at.termino_id = t.id
+                                 JOIN blog_articulos a ON a.id = at.articulo_id
+                                 WHERE " . blogSqlPublicado('a') . "
+                                 GROUP BY tx.slug, t.slug, tx.jerarquica
+                                 HAVING tx.jerarquica = 1 OR COUNT(*) >= 3");
+            $st->execute([':ahora' => $ahora]);
+            foreach ($st->fetchAll() as $tb) {
+                $urlsBlog[] = ['/blog/' . rawurlencode($tb['tax']) . '/' . rawurlencode($tb['slug']), $tb['lastmod'], 'weekly', '0.5'];
+            }
+            foreach ($urlsBlog as [$u, $lm, $cf, $pr]) {
+                echo '  <url>' . PHP_EOL;
+                echo '    <loc>' . htmlspecialchars($baseUrl . $u) . '</loc>' . PHP_EOL;
+                echo '    <lastmod>' . ($lm ? date('Y-m-d', strtotime($lm)) : $hoy) . '</lastmod>' . PHP_EOL;
+                echo '    <changefreq>' . $cf . '</changefreq>' . PHP_EOL;
+                echo '    <priority>' . $pr . '</priority>' . PHP_EOL;
+                echo '  </url>' . PHP_EOL;
+            }
+        }
+    }
 }
 } catch (Exception $e) {
     // Error en BD - continuar sin URLs dinámicas

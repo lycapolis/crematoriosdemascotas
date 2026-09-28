@@ -2004,6 +2004,17 @@ include 'includes/header.php';
         </div>
     </div>
 
+    <!-- ═══ BLOG — artículos según la ficha (prioridad: ficha → ciudad →
+         provincia → comunidad → servicios → generales). Ver includes/blog.php ═══ -->
+    <?php
+    require_once ROOT_PATH . '/includes/blog.php';
+    $blogArticulos        = blogArticulosParaFicha($crematorio, 3);
+    $blogSeccionTitulo    = 'Artículos que pueden ayudarte';
+    $blogSeccionSubtitulo = 'Guías y consejos para acompañarte en este momento';
+    $blogSeccionArena     = true;
+    include ROOT_PATH . '/includes/componentes/blog-relacionados.php';
+    ?>
+
     <!-- Script específico de la página -->
     <script>
         // Mostrar mensaje de alerta

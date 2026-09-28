@@ -35,6 +35,12 @@
                             </a>
                         </li>
                         <li>
+                            <a href="<?php echo $base_url; ?>/blog/" class="footer__enlace">
+                                <i data-lucide="book-open" class="icono"></i>
+                                Blog
+                            </a>
+                        </li>
+                        <li>
                             <a href="<?php echo $base_url; ?>/nosotros.php" class="footer__enlace">
                                 <i data-lucide="info" class="icono"></i>
                                 Sobre Nosotros

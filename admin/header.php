@@ -104,6 +104,7 @@ $fechaHoy = $dias_es[(int)date('w')] . ', ' . (int)date('j') . ' de ' . $meses_e
             opacity: 0.92; /* mejor contraste */
         }
     </style>
+    <?php if (!empty($head_extra)) echo $head_extra; /* hook: CSS/JS extra de la página (ej. editor del blog) */ ?>
 </head>
 <body>
     <header class="admin-header">
@@ -166,6 +167,13 @@ $fechaHoy = $dias_es[(int)date('w')] . ', ' . (int)date('j') . ' de ' . $meses_e
             <?php if (tienePermiso($admin, 'tiers')) echo navLink("$base_url/admin/tiers.php", 'Planes', $currentPage); ?>
 
             <?php if (tienePermiso($admin, 'moderacion')) echo navLink("$base_url/admin/resenas.php", 'Reseñas', $currentPage); ?>
+
+            <?php if (tienePermiso($admin, 'blog')): ?>
+            <a href="<?php echo $base_url; ?>/admin/blog-articulos.php" class="admin-header__link"
+               style="<?php echo str_starts_with($currentPage, 'blog-') ? 'opacity:1;font-weight:700;' : ''; ?>">
+                Blog
+            </a>
+            <?php endif; ?>
 
             <?php if (tienePermiso($admin, 'imagenes') || tienePermiso($admin, 'ia')): ?>
             <a href="<?php echo $base_url; ?>/admin/imagenes-cola.php" class="admin-header__link"

@@ -232,6 +232,19 @@ foreach ($provincias as $prov) {
 </section>
 
 <!-- ═══════════════════════════════════════════════════════════
+     BLOG — últimos artículos (destacados primero)
+     (partial reusable: includes/componentes/blog-relacionados.php)
+     ═══════════════════════════════════════════════════════════ -->
+<?php
+require_once ROOT_PATH . '/includes/blog.php';
+$blogArticulos        = blogArticulosHome(3);
+$blogSeccionTitulo    = 'Guías y consejos';
+$blogSeccionSubtitulo = 'Información clara para acompañarte en la despedida de tu mascota';
+$blogSeccionArena     = true;
+include ROOT_PATH . '/includes/componentes/blog-relacionados.php';
+?>
+
+<!-- ═══════════════════════════════════════════════════════════
      NUBE DE CIUDADES  —  Internal linking SEO + nav rápida
      (partial reusable: includes/componentes/nube-ciudades.php)
      ═══════════════════════════════════════════════════════════ -->
