@@ -309,6 +309,94 @@ class ImagenHelper
     }
 
     /**
+     * Estampa un logo (PNG con transparencia) en la esquina inferior derecha.
+     * Se aplica sobre la imagen de origen ANTES de convertirWebP(), así todas
+     * las versiones redimensionadas heredan el logo en la misma proporción.
+     * El resultado se guarda como PNG (sin pérdida) en $destino.
+     *
+     * @param float $anchoRel  Ancho del logo relativo al de la imagen (0.12 = 12 %)
+     * @param int   $opacidad  0-100
+     */
+    public static function aplicarLogo(string $origen, string $destino, string $logoPng, float $anchoRel = 0.22, int $opacidad = 92): bool
+    {
+        if (!is_file($logoPng) || !is_file($origen)) return false;
+
+        $info = @getimagesize($origen);
+        if ($info === false) return false;
+        switch ($info[2]) {
+            case IMAGETYPE_JPEG: $img = @imagecreatefromjpeg($origen); break;
+            case IMAGETYPE_PNG:  $img = @imagecreatefrompng($origen);  break;
+            case IMAGETYPE_GIF:  $img = @imagecreatefromgif($origen);  break;
+            case IMAGETYPE_WEBP: $img = @imagecreatefromwebp($origen); break;
+            default: return false;
+        }
+        $logo = @imagecreatefrompng($logoPng);
+        if (!$img || !$logo) return false;
+
+        $ancho = imagesx($img);
+        $alto  = imagesy($img);
+
+        // Recortar los márgenes transparentes del PNG (el tamaño se calcula sobre el logo real)
+        $x0 = imagesx($logo); $y0 = imagesy($logo); $x1 = -1; $y1 = -1;
+        for ($x = 0; $x < imagesx($logo); $x++) {
+            for ($y = 0; $y < imagesy($logo); $y++) {
+                if ((((imagecolorat($logo, $x, $y) >> 24) & 0x7F)) < 120) {
+                    $x0 = min($x0, $x); $y0 = min($y0, $y); $x1 = max($x1, $x); $y1 = max($y1, $y);
+                }
+            }
+        }
+        if ($x1 < 0) return false; // logo completamente transparente
+        $cw = $x1 - $x0 + 1;
+        $ch = $y1 - $y0 + 1;
+
+        // Logo escalado (conserva el canal alfa)
+        $lw = max(60, (int) round($ancho * $anchoRel));
+        $lh = max(1, (int) round($ch * ($lw / $cw)));
+        $esc = imagecreatetruecolor($lw, $lh);
+        imagealphablending($esc, false);
+        imagesavealpha($esc, true);
+        imagefill($esc, 0, 0, imagecolorallocatealpha($esc, 0, 0, 0, 127));
+        imagecopyresampled($esc, $logo, 0, 0, $x0, $y0, $lw, $lh, $cw, $ch);
+
+        // Opacidad: GD no la combina con el alfa del PNG, así que se ajusta píxel a píxel
+        $factor = max(0, min(100, $opacidad)) / 100;
+        for ($x = 0; $x < $lw; $x++) {
+            for ($y = 0; $y < $lh; $y++) {
+                $c = imagecolorat($esc, $x, $y);
+                $a = ($c >> 24) & 0x7F;
+                $nuevoA = 127 - (int) round((127 - $a) * $factor);
+                imagesetpixel($esc, $x, $y, imagecolorallocatealpha($esc, ($c >> 16) & 0xFF, ($c >> 8) & 0xFF, $c & 0xFF, $nuevoA));
+            }
+        }
+
+        // Placa blanca semitransparente con esquinas redondeadas detrás del logo:
+        // así se lee sobre fondos oscuros, claros o con mucho detalle.
+        $margen = (int) round($ancho * 0.025);
+        $pad    = (int) round($lh * 0.35);
+        $pw = $lw + $pad * 2;
+        $ph = $lh + $pad * 2;
+        $px = $ancho - $pw - $margen;
+        $py = $alto - $ph - $margen;
+        $r  = (int) round($ph * 0.3);
+        imagealphablending($img, true);
+        $blanco = imagecolorallocatealpha($img, 255, 255, 255, 30); // ~76 % opaco
+        imagefilledrectangle($img, $px + $r, $py, $px + $pw - $r - 1, $py + $ph - 1, $blanco);
+        imagefilledrectangle($img, $px, $py + $r, $px + $r - 1, $py + $ph - $r - 1, $blanco);
+        imagefilledrectangle($img, $px + $pw - $r, $py + $r, $px + $pw - 1, $py + $ph - $r - 1, $blanco);
+        foreach ([[$px + $r, $py + $r, 180], [$px + $pw - $r - 1, $py + $r, 270], [$px + $pw - $r - 1, $py + $ph - $r - 1, 0], [$px + $r, $py + $ph - $r - 1, 90]] as [$cx, $cy, $ini]) {
+            imagefilledarc($img, $cx, $cy, $r * 2, $r * 2, $ini, $ini + 90, $blanco, IMG_ARC_PIE);
+        }
+
+        imagecopy($img, $esc, $px + $pad, $py + $pad, 0, 0, $lw, $lh);
+
+        $ok = imagepng($img, $destino, 3);
+        imagedestroy($img);
+        imagedestroy($logo);
+        imagedestroy($esc);
+        return $ok;
+    }
+
+    /**
      * Genera un nombre de archivo SEO-friendly
      *
      * @param string $slug Slug base

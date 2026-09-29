@@ -96,7 +96,7 @@ try {
             ':s' => 'equipo-de-crematorios-de-mascotas',
             ':c' => 'Equipo editorial',
             ':b' => 'Somos el equipo que está detrás del directorio de crematorios de mascotas en España. Revisamos la información de cada negocio y preparamos guías claras para ayudarte a tomar decisiones con calma en un momento difícil.',
-            ':f' => 'assets/img/blog-demo/avatar-equipo.webp',
+            ':f' => 'assets/img/marca/avatar-marca.svg',
         ]);
         $autor = (int) $pdo->lastInsertId();
     }

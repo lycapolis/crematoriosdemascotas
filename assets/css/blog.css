@@ -244,6 +244,13 @@
     box-shadow: var(--sombra-uno);
 }
 .articulo__portada img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.articulo__portada { position: relative; }
+.articulo__portada-credito {
+    position: absolute; right: .6rem; bottom: .6rem; max-width: calc(100% - 1.2rem);
+    padding: .15rem .55rem; border-radius: var(--radio-uno, 6px); background: rgba(0, 0, 0, .5);
+    color: #fff; font-size: .72rem; line-height: 1.4;
+}
+.articulo__portada-credito a { color: inherit; text-decoration: underline; }
 @media (max-width: 640px) {
     .articulo__portada { border-radius: var(--radio-dos); margin-bottom: var(--espacio-cuatro); aspect-ratio: 4 / 3; }
 }
@@ -345,6 +352,8 @@
     margin-top: .6rem; font-size: var(--fs-dos); color: var(--color-seis-claro-02);
     text-align: center; line-height: 1.5;
 }
+.blog-credito { display: inline-block; font-size: .85em; opacity: .85; }
+.blog-credito a { color: inherit; }
 .blog-figura--borde img { border: 1px solid rgba(90, 62, 47, 0.15); }
 .blog-figura--fondo { background: var(--color-cinco); padding: var(--espacio-cuatro); border-radius: var(--radio-dos); }
 .blog-figura--fondo img { max-width: 70%; margin: 0 auto; }

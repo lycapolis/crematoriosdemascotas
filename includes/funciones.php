@@ -2384,6 +2384,69 @@ function llamarLLM(PDO $pdo, string $seccion, string $prompt, ?string $imagenBas
 }
 
 /**
+ * Genera una imagen con el modelo configurado para $seccion (tipo 'imagen'
+ * en ia_config_secciones). Siempre vía OpenRouter (Claude no genera imágenes),
+ * con la misma OPENROUTER_API_KEY que el resto de secciones.
+ * Endpoint dedicado de OpenRouter: POST /api/v1/images → data[].b64_json.
+ *
+ * @param string $aspecto 16:9, 4:3, 1:1, 3:2…
+ * @return array ['ok'=>bool, 'bin'=>?string, 'mime'=>?string, 'error'=>?string, 'modelo'=>string]
+ */
+function llamarLLMImagen(PDO $pdo, string $seccion, string $prompt, string $aspecto = '16:9'): array
+{
+    $cfg    = obtenerConfigIA($pdo, $seccion);
+    $modelo = $cfg['modelo'];
+    $apiKey = defined('OPENROUTER_API_KEY') ? OPENROUTER_API_KEY : '';
+    if (empty($apiKey)) {
+        return ['ok' => false, 'bin' => null, 'mime' => null, 'error' => 'OPENROUTER_API_KEY no configurada', 'modelo' => $modelo];
+    }
+
+    $payload = [
+        'model'        => $modelo,
+        'prompt'       => $prompt,
+        'aspect_ratio' => $aspecto,
+        'resolution'   => '2K', // ≥1600px de ancho: la portada necesita ≥1200px para Discover
+        'n'            => 1,
+    ];
+
+    $ch = curl_init('https://openrouter.ai/api/v1/images');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_HTTPHEADER     => [
+            'Authorization: Bearer ' . $apiKey,
+            'Content-Type: application/json',
+            'HTTP-Referer: ' . (defined('BASE_URL') ? BASE_URL : 'https://crematoriosdemascotas.com'),
+            'X-Title: Crematorios de Mascotas — Admin IA',
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_TIMEOUT    => 150, // la generación tarda bastante más que el texto
+    ]);
+
+    $resp    = curl_exec($ch);
+    $code    = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlErr) {
+        return ['ok' => false, 'bin' => null, 'mime' => null, 'error' => 'cURL: ' . $curlErr, 'modelo' => $modelo];
+    }
+    $data = json_decode((string) $resp, true);
+    if ($code !== 200) {
+        $msg = "HTTP $code";
+        if (!empty($data['error']['message'])) $msg .= ' — ' . $data['error']['message'];
+        return ['ok' => false, 'bin' => null, 'mime' => null, 'error' => $msg, 'modelo' => $modelo];
+    }
+
+    $b64 = $data['data'][0]['b64_json'] ?? null;
+    $bin = $b64 ? base64_decode($b64, true) : false;
+    if (!$bin) {
+        return ['ok' => false, 'bin' => null, 'mime' => null, 'error' => 'El modelo no devolvió ninguna imagen', 'modelo' => $modelo];
+    }
+    return ['ok' => true, 'bin' => $bin, 'mime' => $data['data'][0]['media_type'] ?? 'image/png', 'error' => null, 'modelo' => $modelo];
+}
+
+/**
  * Extrae el primer bloque JSON válido de un texto (típicamente respuesta LLM).
  * Útil cuando el modelo a veces envuelve el JSON con prosa o code-fence.
  *

@@ -42,45 +42,19 @@ try {
             if (!preg_match('#^data:image/(png|jpe?g|gif|webp);base64,(.+)$#', $url, $m)) throw new Exception('Formato de imagen no soportado.');
             $bin = base64_decode($m[2], true);
             if ($bin === false || strlen($bin) > ImagenHelper::MAX_SIZE_MB * 1024 * 1024) throw new Exception('La imagen pegada no es válida o es demasiado grande.');
-            $tmpDescarga = tempnam(sys_get_temp_dir(), 'blg');
-            file_put_contents($tmpDescarga, $bin);
+            $tmpDescarga = blogGuardarTemp($bin);
             $origen = 'pegada';
         } else {
-            if (!preg_match('#^https?://#i', $url)) throw new Exception('URL de imagen no válida.');
-            $host = parse_url($url, PHP_URL_HOST) ?: '';
-            $ip = gethostbyname($host);
-            if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
-                throw new Exception('No se pueden descargar imágenes de esa dirección.');
-            }
-            $ch = curl_init($url);
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 3,
-                CURLOPT_TIMEOUT => 20, CURLOPT_CONNECTTIMEOUT => 8,
-                CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-                CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; BlogImageFetcher/1.0)',
-            ]);
-            $bin = curl_exec($ch);
-            $codigo = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-            if ($bin === false || $codigo >= 400) throw new Exception('No se pudo descargar la imagen desde la URL.');
-            if (strlen($bin) > ImagenHelper::MAX_SIZE_MB * 1024 * 1024 * 2) throw new Exception('La imagen es demasiado grande.');
-            $tmpDescarga = tempnam(sys_get_temp_dir(), 'blg');
-            file_put_contents($tmpDescarga, $bin);
+            $tmpDescarga = blogDescargarATemp($url);
             $origen = 'url';
         }
         $tmp = $tmpDescarga;
-        $finfo = new finfo(FILEINFO_MIME_TYPE);
-        if (!in_array($finfo->file($tmp), ImagenHelper::TIPOS_PERMITIDOS, true) || !@getimagesize($tmp)) {
-            throw new Exception('El archivo descargado no es una imagen válida (JPG, PNG, GIF o WebP).');
-        }
     } else {
         throw new Exception('No se recibió ninguna imagen.');
     }
 
     $res = blogProcesarImagen($tmp, $nombre, $maxAncho);
-
-    obtenerConexion()->prepare("INSERT INTO blog_imagenes (articulo_id, ruta, ruta_media, ancho, alto, origen) VALUES (:a, :r, :m, :w, :h, :o)")
-        ->execute([':a' => $articuloId, ':r' => $res['ruta'], ':m' => $res['media'] ?: null, ':w' => $res['ancho'], ':h' => $res['alto'], ':o' => $origen]);
+    blogRegistrarImagen($articuloId, $res, $origen);
 
     blogJson(['success' => 1, 'file' => [
         'url'   => blogUrlArchivo($res['ruta']),

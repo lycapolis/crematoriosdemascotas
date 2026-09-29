@@ -70,6 +70,7 @@ $config = [
     'urls'      => [
         'guardar' => BASE_URL . '/admin/blog-guardar-ajax.php',
         'subir'   => BASE_URL . '/admin/blog-subir-imagen-ajax.php',
+        'imagenes'=> BASE_URL . '/admin/blog-imagenes-ajax.php',
         'preview' => BASE_URL . '/admin/blog-preview.php',
         'taxo'    => BASE_URL . '/admin/blog-taxonomias.php',
         'editar'  => BASE_URL . '/admin/blog-editar.php',
@@ -82,6 +83,11 @@ $config = [
     'taxCategoria'=> $taxCat ? (int) $taxCat['id'] : 0,
     'taxEtiqueta' => $taxEtq ? (int) $taxEtq['id'] : 0,
     'dominio'     => parse_url(blogUrlAbsoluta('/'), PHP_URL_HOST),
+    'imagenes'    => [
+        'pexels'  => defined('PEXELS_API_KEY') && PEXELS_API_KEY !== '',
+        'pixabay' => defined('PIXABAY_API_KEY') && PIXABAY_API_KEY !== '',
+        'logo'    => is_file(ROOT_PATH . '/' . BLOG_LOGO_MARCA),
+    ],
 ];
 
 $titulo_pagina = ($id ? 'Editar' : 'Nuevo') . ' artículo — Blog — Admin';
@@ -142,6 +148,8 @@ $sel = fn($v, $lista) => in_array((string) $v, array_map('strval', $lista), true
                         <?php foreach ([
                             ['header',    'heading-2',       'Subtítulo (H2)'],
                             ['image',     'image',           'Imagen'],
+                            ['img-banco', 'images',          'Foto de banco'],
+                            ['img-ia',    'wand-sparkles',   'Imagen con IA'],
                             ['aviso',     'lightbulb',       'Consejo / Importante'],
                             ['faq',       'circle-help',     'Preguntas frecuentes'],
                             ['list',      'list',            'Lista'],
@@ -182,6 +190,11 @@ $sel = fn($v, $lista) => in_array((string) $v, array_map('strval', $lista), true
                     <button type="button" id="bed-portada-quitar"><i data-lucide="trash-2" class="icono"></i> Quitar</button>
                 </div>
                 <input type="file" id="bed-portada-file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+            </div>
+            <div class="blog-editor__portada-fuentes">
+                <button type="button" class="boton dos pequeno" id="bed-portada-subir"><i data-lucide="upload" class="icono"></i> Subir archivo</button>
+                <button type="button" class="boton dos pequeno" id="bed-portada-banco"><i data-lucide="images" class="icono"></i> Buscar foto de banco</button>
+                <button type="button" class="boton dos pequeno" id="bed-portada-ia"><i data-lucide="wand-sparkles" class="icono"></i> Generar con IA</button>
             </div>
             <div class="field blog-editor__alt" id="bed-portada-alt-wrap" hidden>
                 <label class="field__label" for="bed-portada-alt">Texto alternativo de la portada <span class="field__req">*</span></label>
@@ -374,6 +387,85 @@ $sel = fn($v, $lista) => in_array((string) $v, array_map('strval', $lista), true
     </div>
 </div>
 
+<!-- ═══ Modal: imagen desde banco de fotos o generada con IA ═══ -->
+<div class="bimg-modal" id="bimg-modal" hidden>
+    <div class="bimg-modal__overlay" data-cerrar></div>
+    <div class="bimg-modal__card" role="dialog" aria-modal="true" aria-labelledby="bimg-titulo">
+        <header class="bimg-modal__header">
+            <h2 class="bimg-modal__titulo" id="bimg-titulo">Añadir imagen</h2>
+            <span class="bimg-modal__destino" id="bimg-destino"></span>
+            <button type="button" class="bimg-modal__cerrar" data-cerrar aria-label="Cerrar"><i data-lucide="x" class="icono"></i></button>
+        </header>
+        <div class="bimg-modal__tabs" role="tablist">
+            <button type="button" class="bimg-modal__tab" role="tab" data-tab="banco"><i data-lucide="images" class="icono"></i> Banco de fotos</button>
+            <button type="button" class="bimg-modal__tab" role="tab" data-tab="ia"><i data-lucide="wand-sparkles" class="icono"></i> Generar con IA</button>
+        </div>
+
+        <!-- Pestaña Banco -->
+        <section class="bimg-modal__panel" id="bimg-panel-banco" data-panel="banco">
+            <form class="bimg-modal__buscador" id="bimg-form-buscar">
+                <input type="search" class="field__input" id="bimg-q" placeholder="Ej.: old dog garden sunset">
+                <select class="field__select" id="bimg-fuente">
+                    <option value="ambos">Pexels + Pixabay</option>
+                    <option value="pexels">Solo Pexels</option>
+                    <option value="pixabay">Solo Pixabay</option>
+                </select>
+                <select class="field__select" id="bimg-orientacion">
+                    <option value="horizontal">Horizontal</option>
+                    <option value="vertical">Vertical</option>
+                    <option value="todas">Todas</option>
+                </select>
+                <button type="submit" class="boton uno pequeno"><i data-lucide="search" class="icono"></i> Buscar</button>
+            </form>
+            <p class="bimg-modal__hint">Las búsquedas en inglés dan muchos más resultados. Las fotos se descargan a nuestro servidor, se optimizan (WebP, sin metadatos) y se cita al autor.</p>
+            <div class="bimg-modal__grid" id="bimg-grid"></div>
+            <div class="bimg-modal__mas" id="bimg-mas-wrap" hidden><button type="button" class="boton dos pequeno" id="bimg-mas">Cargar más</button></div>
+        </section>
+
+        <!-- Pestaña IA -->
+        <section class="bimg-modal__panel" id="bimg-panel-ia" data-panel="ia" hidden>
+            <div class="field">
+                <label class="field__label" for="bimg-prompt">Escena a generar <span style="font-weight:400;">(mejor en inglés)</span></label>
+                <textarea class="field__textarea" id="bimg-prompt" rows="4" maxlength="1500" placeholder="Describe la escena: sujeto, entorno, luz…"></textarea>
+                <button type="button" class="boton dos pequeno bimg-modal__proponer" id="bimg-proponer"><i data-lucide="sparkles" class="icono"></i> Proponer a partir del artículo</button>
+            </div>
+            <div class="bimg-modal__opciones">
+                <div class="field">
+                    <label class="field__label" for="bimg-estilo">Estilo</label>
+                    <select class="field__select" id="bimg-estilo">
+                        <option value="realista">Fotografía realista cálida</option>
+                        <option value="acuarela">Ilustración acuarela</option>
+                        <option value="minimalista">Ilustración minimalista</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label class="field__label" for="bimg-aspecto">Proporción</label>
+                    <select class="field__select" id="bimg-aspecto">
+                        <option value="16:9">16:9 (portada)</option>
+                        <option value="4:3">4:3 (cuerpo)</option>
+                        <option value="3:2">3:2</option>
+                        <option value="1:1">1:1</option>
+                    </select>
+                </div>
+                <button type="button" class="boton uno pequeno" id="bimg-generar"><i data-lucide="wand-sparkles" class="icono"></i> Generar</button>
+            </div>
+            <div class="bimg-modal__preview" id="bimg-preview" hidden>
+                <img id="bimg-preview-img" alt="Vista previa de la imagen generada">
+                <div class="bimg-modal__preview-acciones">
+                    <button type="button" class="boton dos pequeno" id="bimg-otra"><i data-lucide="refresh-cw" class="icono"></i> Otra versión</button>
+                    <button type="button" class="boton uno pequeno" id="bimg-usar-ia"><i data-lucide="check" class="icono"></i> Usar esta</button>
+                </div>
+            </div>
+        </section>
+
+        <footer class="bimg-modal__pie">
+            <label class="field__opcion" id="bimg-logo-wrap"><input type="checkbox" class="field__check" id="bimg-logo"><span>Añadir logo</span></label>
+            <label class="field__opcion" id="bimg-etiqueta-wrap" hidden><input type="checkbox" class="field__check" id="bimg-etiqueta" checked><span>Indicar «Imagen generada con IA» en el pie</span></label>
+            <span class="bimg-modal__estado" id="bimg-estado" aria-live="polite"></span>
+        </footer>
+    </div>
+</div>
+
 <!-- Formulario oculto para la vista previa (se envía en una pestaña nueva) -->
 <form id="bed-form-preview" action="blog-preview.php" method="post" target="blog-preview" hidden>
     <input type="hidden" name="csrf_token" value="<?php echo limpiar($config['csrf']); ?>">
@@ -387,6 +479,7 @@ window.BLOG_EDITOR.portada = <?php echo json_encode(['ruta' => $art['portada_rut
 <script src="<?php echo BASE_URL; ?>/assets/librerias/editorjs/<?php echo $lib; ?>"></script>
 <?php endforeach; ?>
 <script src="<?php echo assetUrl('assets/js/blog-editor-tools.js'); ?>"></script>
+<script src="<?php echo assetUrl('assets/js/blog-imagenes.js'); ?>"></script>
 <script src="<?php echo assetUrl('assets/js/blog-editor.js'); ?>" defer></script>
 
 <?php include 'footer.php'; ?>

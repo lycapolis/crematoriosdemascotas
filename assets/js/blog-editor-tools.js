@@ -189,6 +189,13 @@
             constructor(opts) {
                 super(opts);
                 this._alt = (opts.data && opts.data.alt) || '';
+                // Procedencia de fotos de banco / IA (crédito y etiqueta en el pie público)
+                this._extra = {};
+                this._rutaOriginal = (opts.data && opts.data.file) ? opts.data.file.ruta : undefined;
+                var self = this;
+                ['origen', 'credito', 'etiqueta_ia'].forEach(function (k) {
+                    if (opts.data && opts.data[k] !== undefined && opts.data[k] !== null) self._extra[k] = opts.data[k];
+                });
             }
             render() {
                 var wrap = super.render();
@@ -210,6 +217,10 @@
             save(el) {
                 var d = super.save(el);
                 d.alt = (this._alt || '').trim();
+                // Si se reemplaza la imagen desde el propio bloque, deja de ser la foto acreditada
+                var ext = this._extra || {};
+                if (ext.origen && d.file && this._rutaOriginal !== undefined && d.file.ruta !== this._rutaOriginal) ext = {};
+                Object.keys(ext).forEach(function (k) { d[k] = ext[k]; });
                 return d;
             }
         }

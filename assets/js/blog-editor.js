@@ -258,6 +258,7 @@
             indice = actual >= 0 ? actual + 1 : n;
         }
         indice = Math.max(0, Math.min(indice, n));
+        if (tipo === 'img-banco' || tipo === 'img-ia') { abrirImagenBloque(tipo === 'img-ia' ? 'ia' : 'banco', indice); return; }
         editor.blocks.insert(tipo, datosIniciales(tipo, moduloId), undefined, indice, true);
         marcarSucio();
         setTimeout(function () {
@@ -439,7 +440,64 @@
             pintarPortada(); marcarSucio(); analizarSeo();
         });
         $('bed-portada-alt').addEventListener('input', function () { marcarSucio(); analizarSeo(); });
+        $('bed-portada-subir').addEventListener('click', function () { input.click(); });
+        $('bed-portada-banco').addEventListener('click', function () { abrirImagenPortada('banco'); });
+        $('bed-portada-ia').addEventListener('click', function () { abrirImagenPortada('ia'); });
         pintarPortada();
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // IMÁGENES DESDE BANCO DE FOTOS / IA (blog-imagenes.js)
+    // ═══════════════════════════════════════════════════════
+    function contextoImagen(uso, indice) {
+        var seccion = '';
+        if (uso === 'cuerpo' && editor) {
+            // Subtítulo más cercano por encima del punto de inserción
+            for (var i = Math.min(indice, editor.blocks.getBlocksCount()) - 1; i >= 0; i--) {
+                var b = editor.blocks.getBlockByIndex(i);
+                if (b && b.name === 'header') { seccion = textoPlano(b.holder); break; }
+            }
+        }
+        return { titulo: $('bed-titulo').value.trim(), extracto: $('bed-extracto').value.trim(), keyword: $('bed-keyword').value.trim(), seccion: seccion, uso: uso };
+    }
+    function altsUsados() {
+        var alts = Array.prototype.map.call(document.querySelectorAll('#editorjs .bed-alt'), function (i) { return i.value.trim(); });
+        alts.push($('bed-portada-alt').value.trim());
+        return alts.filter(Boolean);
+    }
+    function abrirImagenPortada(tab) {
+        if (!window.BlogImagenes) return;
+        window.BlogImagenes.abrir({
+            destino: 'portada', tab: tab,
+            contexto: function () { return contextoImagen('portada'); },
+            altsUsados: altsUsados,
+            onElegir: function (d) {
+                portada = { ruta: d.file.ruta, url: d.file.url };
+                $('bed-portada-alt').value = d.alt || '';
+                pintarPortada(); marcarSucio(); analizarSeo();
+                if (!d.alt) $('bed-portada-alt').focus();
+                aviso('ok', 'Portada lista. Revisa el texto alternativo.');
+            }
+        });
+    }
+    function abrirImagenBloque(tab, indice) {
+        if (!window.BlogImagenes) return;
+        window.BlogImagenes.abrir({
+            destino: 'bloque', tab: tab,
+            contexto: function () { return contextoImagen('cuerpo', indice); },
+            altsUsados: altsUsados,
+            onElegir: function (d) {
+                indice = Math.max(0, Math.min(indice, editor.blocks.getBlocksCount()));
+                editor.blocks.insert('image', {
+                    file: d.file, caption: d.caption || '', alt: d.alt || '',
+                    withBorder: false, stretched: false, withBackground: false,
+                    origen: d.origen, credito: d.credito || null, etiqueta_ia: !!d.etiqueta_ia
+                }, undefined, indice, true);
+                marcarSucio();
+                setTimeout(function () { refrescarEstructura(); resaltarBloque(indice); analizarSeo(); }, 60);
+                aviso('ok', 'Imagen añadida. Revisa el texto alternativo y el pie de foto.');
+            }
+        });
     }
 
     // ═══════════════════════════════════════════════════════

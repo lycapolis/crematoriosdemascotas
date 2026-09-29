@@ -125,6 +125,45 @@ function blogUrlArchivo(?string $ruta): string
 }
 
 /**
+ * Crédito visible de una imagen: "Foto: Autor en Pexels" (enlaces con UTM,
+ * nofollow) o "Imagen generada con IA". Cadena vacía si no aplica.
+ *
+ * @param array|null $credito ['fuente' => pexels|pixabay, 'nombre', 'url', 'fuente_url']
+ */
+function blogHtmlCreditoImagen(?array $credito, bool $etiquetaIa = false): string
+{
+    $e = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+    if ($etiquetaIa) return '<span class="blog-credito">Imagen generada con IA</span>';
+    if (!$credito || !in_array($credito['fuente'] ?? '', ['pexels', 'pixabay'], true)) return '';
+
+    $banco = $credito['fuente'] === 'pexels' ? 'Pexels' : 'Pixabay';
+    $link  = fn(string $url, string $txt) => $url !== ''
+        ? '<a href="' . $e(urlConUtm($url, ['utm_campaign' => 'blog'])) . '" target="_blank" rel="nofollow noopener">' . $e($txt) . '</a>'
+        : $e($txt);
+    $home  = $credito['fuente'] === 'pexels' ? 'https://www.pexels.com/' : 'https://pixabay.com/';
+    $autor = trim((string) ($credito['nombre'] ?? ''));
+
+    return '<span class="blog-credito">Foto' . ($autor !== '' ? ': ' . $link((string) ($credito['url'] ?? ''), $autor) : '')
+         . ' en ' . $link((string) ($credito['fuente_url'] ?? '') ?: $home, $banco) . '</span>';
+}
+
+/** Crédito de la portada (se guarda en blog_imagenes, no en el artículo). */
+function blogCreditoPortada(?string $ruta): string
+{
+    if (!$ruta) return '';
+    try {
+        $st = obtenerConexion()->prepare("SELECT origen, credito_nombre, credito_url, fuente_url, etiqueta_ia FROM blog_imagenes WHERE ruta = :r ORDER BY id DESC LIMIT 1");
+        $st->execute([':r' => $ruta]);
+        $f = $st->fetch(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) { return ''; } // migración de columnas no aplicada
+    if (!$f) return '';
+    return blogHtmlCreditoImagen(
+        ['fuente' => $f['origen'], 'nombre' => $f['credito_nombre'], 'url' => $f['credito_url'], 'fuente_url' => $f['fuente_url']],
+        $f['origen'] === 'ia' && (int) $f['etiqueta_ia'] === 1
+    );
+}
+
+/**
  * Normaliza un enlace escrito por el admin en un módulo/artículo:
  *   "/directorio.php" → BASE_URL . "/directorio.php"
  *   "https://…"       → tal cual (+ UTM si es externo)
@@ -855,8 +894,9 @@ function blogRenderContenido(array $articulo, array $opts = []): array
                      . (!empty($d['withBackground']) ? ' blog-figura--fondo' : '');
                 $srcset = $media ? ' srcset="' . $e($media) . ' 800w, ' . $e($src) . ' ' . ($ancho ?: 1600) . 'w" sizes="(max-width: 800px) 100vw, 760px"' : '';
                 $dims = ($ancho && $alto) ? ' width="' . $ancho . '" height="' . $alto . '"' : '';
+                $credito = blogHtmlCreditoImagen(is_array($d['credito'] ?? null) ? $d['credito'] : null, ($d['origen'] ?? '') === 'ia' && !empty($d['etiqueta_ia']));
                 $html .= '<figure class="' . $cls . '"><img src="' . $e($src) . '"' . $srcset . $dims . ' alt="' . $e($alt) . '" loading="lazy" decoding="async">';
-                if ($caption !== '') $html .= '<figcaption>' . $caption . '</figcaption>';
+                if ($caption !== '' || $credito !== '') $html .= '<figcaption>' . $caption . ($caption !== '' && $credito !== '' ? ' ' : '') . $credito . '</figcaption>';
                 $html .= "</figure>\n";
                 $imagenes[] = blogUrlAbsoluta($src);
                 break;

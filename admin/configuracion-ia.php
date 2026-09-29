@@ -2,9 +2,10 @@
 /**
  * Panel Admin — Configuración de IA por sección (solo super_admin).
  *
- * Permite elegir, por cada tarea IA del proyecto (texto o visión), qué
- * proveedor (claude | openrouter) y modelo usar — sin tocar código.
- * Ver tabla ia_config_secciones y el wrapper llamarLLM() en funciones.php.
+ * Permite elegir, por cada tarea IA del proyecto (texto, visión o generación
+ * de imágenes), qué proveedor (claude | openrouter) y modelo usar — sin tocar
+ * código. Ver tabla ia_config_secciones y los wrappers llamarLLM() /
+ * llamarLLMImagen() en funciones.php.
  */
 
 require_once 'auth.php';
@@ -19,7 +20,7 @@ $adminActual = obtenerAdminActual();
 $mensaje = '';
 $error   = '';
 
-// Backfill one-off: generar mensaje WhatsApp "auto" para fichas que todavía
+// Generación masiva one-off: mensaje WhatsApp "auto" para fichas que todavía
 // no tienen ninguna versión (ej. tras desplegar la feature en producción).
 // Botón en la sección "Herramientas" más abajo. No pisa versiones manuales/IA.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion']) && $_POST['accion'] === 'backfill_whatsapp') {
@@ -38,6 +39,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $modelos = $_POST['modelo'] ?? [];
     $maxTokens = $_POST['max_tokens'] ?? [];
 
+    // Las secciones de generación de imágenes solo pueden usar OpenRouter (Claude no genera imágenes)
+    $tiposSeccion = $pdo->query("SELECT seccion, tipo FROM ia_config_secciones")->fetchAll(PDO::FETCH_KEY_PAIR);
+
     $sql = "UPDATE ia_config_secciones
             SET proveedor = :proveedor, modelo = :modelo, max_tokens = :max_tokens, actualizado_por = :admin_id
             WHERE seccion = :seccion";
@@ -47,8 +51,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($secciones as $seccion) {
         $seccion   = trim((string) $seccion);
         $proveedor = in_array($proveedores[$seccion] ?? '', ['claude', 'openrouter'], true) ? $proveedores[$seccion] : 'claude';
+        if (($tiposSeccion[$seccion] ?? '') === 'imagen') $proveedor = 'openrouter';
         $modelo    = trim((string) ($modelos[$seccion] ?? ''));
-        $tokens    = max(50, min(8000, (int) ($maxTokens[$seccion] ?? 1500)));
+        $tokens    = (($tiposSeccion[$seccion] ?? '') === 'imagen') ? 0 : max(50, min(8000, (int) ($maxTokens[$seccion] ?? 1500)));
 
         if ($seccion === '' || $modelo === '') continue;
 
@@ -67,24 +72,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if (isset($_GET['saved'])) {
-    $mensaje = (int) $_GET['saved'] . ' sección(es) actualizadas correctamente.';
+    $n = (int) $_GET['saved'];
+    $mensaje = $n === 1 ? 'Se actualizó 1 sección.' : "Se actualizaron $n secciones.";
 }
 if (isset($_GET['backfill'])) {
-    $mensaje = 'Backfill de mensaje WhatsApp: ' . (int) $_GET['backfill'] . ' de ' . (int) ($_GET['total'] ?? 0) . ' fichas generadas/actualizadas (las que ya tenían una versión manual o IA activa no se tocaron).';
+    $mensaje = 'Mensajes de WhatsApp: se generaron ' . (int) $_GET['backfill'] . ' de ' . (int) ($_GET['total'] ?? 0) . ' fichas (las que ya tenían una versión manual o de IA activa no se tocaron).';
 }
 
-$claudeOk      = defined('CLAUDE_API_KEY') && CLAUDE_API_KEY !== '';
-$openrouterOk  = defined('OPENROUTER_API_KEY') && OPENROUTER_API_KEY !== '';
+$claves = [
+    'Proveedores de IA' => [
+        'CLAUDE_API_KEY'     => ['ok' => defined('CLAUDE_API_KEY') && CLAUDE_API_KEY !== '',         'uso' => 'Claude (Anthropic)'],
+        'OPENROUTER_API_KEY' => ['ok' => defined('OPENROUTER_API_KEY') && OPENROUTER_API_KEY !== '', 'uso' => 'OpenRouter: texto, visión y generación de imágenes'],
+    ],
+    'Bancos de fotos del blog' => [
+        'PEXELS_API_KEY'  => ['ok' => defined('PEXELS_API_KEY') && PEXELS_API_KEY !== '',   'uso' => 'Pexels'],
+        'PIXABAY_API_KEY' => ['ok' => defined('PIXABAY_API_KEY') && PIXABAY_API_KEY !== '', 'uso' => 'Pixabay'],
+    ],
+];
+$faltaAlguna = false;
+foreach ($claves as $grupo) foreach ($grupo as $c) if (!$c['ok']) $faltaAlguna = true;
 
-$config = $pdo->query("SELECT * FROM ia_config_secciones ORDER BY tipo, seccion")->fetchAll(PDO::FETCH_ASSOC);
-$porTipo = ['texto' => [], 'vision' => []];
+$config = $pdo->query("SELECT * FROM ia_config_secciones ORDER BY label")->fetchAll(PDO::FETCH_ASSOC);
+$porTipo = ['texto' => [], 'vision' => [], 'imagen' => []];
 foreach ($config as $row) {
-    $porTipo[$row['tipo']][] = $row;
+    if (isset($porTipo[$row['tipo']])) $porTipo[$row['tipo']][] = $row;
 }
 
 // Sugerencias de modelos (no exhaustivo, solo para orientar — el campo es texto libre)
 $sugerenciasClaude     = ['claude-haiku-4-5-20251001', 'claude-sonnet-4-5-20250929', 'claude-sonnet-4-6'];
 $sugerenciasOpenRouter = ['openai/gpt-4o-mini', 'anthropic/claude-3.5-haiku', 'anthropic/claude-3.5-sonnet', 'google/gemini-flash-1.5', 'meta-llama/llama-3.1-8b-instruct'];
+
+/** Tabla editable de secciones de un tipo (texto | vision | imagen). */
+$tablaSecciones = function (string $tipo, array $filas): void {
+    $esImagen = $tipo === 'imagen';
+    ?>
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Tarea</th>
+                    <th>Proveedor</th>
+                    <th>Modelo</th>
+                    <th><?php echo $esImagen ? '' : 'Máx. tokens'; ?></th>
+                    <th>Última actualización</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($filas as $row): $sec = htmlspecialchars($row['seccion']); ?>
+                <tr>
+                    <td>
+                        <input type="hidden" name="seccion[]" value="<?php echo $sec; ?>">
+                        <strong><?php echo htmlspecialchars($row['label']); ?></strong>
+                        <div class="admin-text-muted" style="font-size:var(--admin-caption); font-family:monospace;"><?php echo $sec; ?></div>
+                    </td>
+                    <td>
+                        <?php if ($esImagen): ?>
+                        <input type="hidden" name="proveedor[<?php echo $sec; ?>]" value="openrouter">
+                        <span class="admin-text-muted">OpenRouter</span>
+                        <?php else: ?>
+                        <select name="proveedor[<?php echo $sec; ?>]" class="field__select">
+                            <option value="claude" <?php echo $row['proveedor'] === 'claude' ? 'selected' : ''; ?>>Claude</option>
+                            <option value="openrouter" <?php echo $row['proveedor'] === 'openrouter' ? 'selected' : ''; ?>>OpenRouter</option>
+                        </select>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <input type="text" name="modelo[<?php echo $sec; ?>]"
+                               class="field__input" style="min-width:220px;"
+                               list="modelos-<?php echo $tipo; ?>"
+                               value="<?php echo htmlspecialchars($row['modelo']); ?>">
+                    </td>
+                    <td>
+                        <?php if (!$esImagen): ?>
+                        <input type="number" name="max_tokens[<?php echo $sec; ?>]"
+                               class="field__input" style="width:100px;" min="50" max="8000" step="50"
+                               value="<?php echo (int) $row['max_tokens']; ?>">
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <span class="admin-text-muted" style="font-size:var(--admin-body-sm);">
+                            <?php echo $row['actualizado_en'] ? date('d/m/Y H:i', strtotime($row['actualizado_en'])) : '—'; ?>
+                        </span>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php
+};
 
 $titulo_pagina = 'Configuración IA — Admin';
 include 'header.php';
@@ -97,23 +173,11 @@ include 'header.php';
     </p>
 
     <header class="admin-page-header">
-        <h1 class="admin-page-title">Configuración IA por sección</h1>
+        <h1 class="admin-page-title">Configuración de IA por tarea</h1>
         <p class="admin-page-subtitle">
-            Elegí qué proveedor y modelo usa cada tarea de IA del panel. Cambios aplican de inmediato, sin tocar código.
+            Elegí qué proveedor y qué modelo usa cada tarea de IA del panel. Los cambios se aplican al instante, sin tocar código.
         </p>
     </header>
-
-    <!-- Estado de las API keys -->
-    <div style="display:flex; gap:var(--espacio-tres); flex-wrap:wrap; margin-bottom:var(--espacio-cuatro);">
-        <span class="admin-pill <?php echo $claudeOk ? 'admin-pill--exito' : 'admin-pill--error'; ?>">
-            <i data-lucide="<?php echo $claudeOk ? 'check-circle-2' : 'circle-x'; ?>" style="width:12px;height:12px;"></i>
-            CLAUDE_API_KEY <?php echo $claudeOk ? 'configurada' : 'NO configurada'; ?>
-        </span>
-        <span class="admin-pill <?php echo $openrouterOk ? 'admin-pill--exito' : 'admin-pill--error'; ?>">
-            <i data-lucide="<?php echo $openrouterOk ? 'check-circle-2' : 'circle-x'; ?>" style="width:12px;height:12px;"></i>
-            OPENROUTER_API_KEY <?php echo $openrouterOk ? 'configurada' : 'NO configurada'; ?>
-        </span>
-    </div>
 
     <?php if ($mensaje): ?>
     <div class="admin-banner admin-banner--success" style="margin-bottom:var(--espacio-cuatro);">
@@ -122,73 +186,82 @@ include 'header.php';
     </div>
     <?php endif; ?>
 
-    <?php if (!$claudeOk || !$openrouterOk): ?>
-    <div class="admin-banner admin-banner--warning" style="margin-bottom:var(--espacio-cuatro);">
-        <i data-lucide="alert-triangle" class="icono admin-banner__icon"></i>
-        <div class="admin-banner__content">
-            Si asignás una sección a un proveedor cuya API key no está configurada, esa sección fallará al usarse.
-            Las keys se configuran en el <code>.env</code> del servidor (nunca en este panel).
+    <!-- ── Claves de API (solo estado; se configuran en el .env) ── -->
+    <section class="ficha-card" style="margin-bottom:var(--espacio-cuatro);">
+        <h2 class="ficha-card__title">
+            <i data-lucide="key-round" class="icono"></i>
+            Claves de API
+        </h2>
+        <?php foreach ($claves as $grupo => $lista): ?>
+        <div style="margin-bottom:var(--espacio-tres);">
+            <div class="admin-text-muted" style="font-size:var(--admin-caption); font-weight:700; text-transform:uppercase; letter-spacing:.04em; margin-bottom:.4rem;"><?php echo $grupo; ?></div>
+            <div style="display:flex; gap:var(--espacio-dos); flex-wrap:wrap;">
+                <?php foreach ($lista as $nombre => $c): ?>
+                <span class="admin-pill <?php echo $c['ok'] ? 'admin-pill--exito' : 'admin-pill--error'; ?>" title="<?php echo htmlspecialchars($c['uso']); ?>">
+                    <i data-lucide="<?php echo $c['ok'] ? 'check-circle-2' : 'circle-x'; ?>" style="width:12px;height:12px;"></i>
+                    <?php echo $nombre; ?> <?php echo $c['ok'] ? 'configurada' : 'sin configurar'; ?>
+                </span>
+                <?php endforeach; ?>
+            </div>
         </div>
-    </div>
-    <?php endif; ?>
+        <?php endforeach; ?>
+        <?php if ($faltaAlguna): ?>
+        <div class="admin-banner admin-banner--warning" style="margin:0;">
+            <i data-lucide="alert-triangle" class="icono admin-banner__icon"></i>
+            <div class="admin-banner__content">
+                Si una tarea usa un proveedor cuya clave no está configurada, esa tarea fallará al usarse.
+                Las claves se cargan en el archivo <code>.env</code> del servidor, nunca en este panel.
+            </div>
+        </div>
+        <?php endif; ?>
+    </section>
 
     <form method="POST">
-        <?php foreach (['texto' => 'Secciones de texto', 'vision' => 'Secciones de visión (análisis de imágenes)'] as $tipo => $tituloGrupo): ?>
-        <?php if (empty($porTipo[$tipo])) continue; ?>
+
+        <!-- ── IA de texto ── -->
+        <?php if ($porTipo['texto']): ?>
         <section class="ficha-card" style="margin-bottom:var(--espacio-cuatro);">
             <h2 class="ficha-card__title">
-                <i data-lucide="<?php echo $tipo === 'texto' ? 'file-text' : 'image'; ?>" class="icono"></i>
-                <?php echo $tituloGrupo; ?>
+                <i data-lucide="file-text" class="icono"></i>
+                IA de texto
+            </h2>
+            <p class="admin-text-muted" style="margin:0 0 var(--espacio-tres); font-size:var(--admin-body-sm);">
+                Tareas que leen y escriben texto: descripciones, horarios, precios, SEO, mensajes, etc.
+            </p>
+            <?php $tablaSecciones('texto', $porTipo['texto']); ?>
+        </section>
+        <?php endif; ?>
+
+        <!-- ── IA de imágenes ── -->
+        <?php if ($porTipo['vision'] || $porTipo['imagen']): ?>
+        <section class="ficha-card" style="margin-bottom:var(--espacio-cuatro);">
+            <h2 class="ficha-card__title">
+                <i data-lucide="image" class="icono"></i>
+                IA de imágenes
             </h2>
 
-            <div class="admin-table-wrap">
-                <table class="admin-table">
-                    <thead>
-                        <tr>
-                            <th>Sección</th>
-                            <th>Proveedor</th>
-                            <th>Modelo</th>
-                            <th>Max tokens</th>
-                            <th>Última actualización</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($porTipo[$tipo] as $row): $sec = $row['seccion']; ?>
-                        <tr>
-                            <td>
-                                <input type="hidden" name="seccion[]" value="<?php echo htmlspecialchars($sec); ?>">
-                                <strong><?php echo htmlspecialchars($row['label']); ?></strong>
-                                <div class="admin-text-muted" style="font-size:var(--admin-caption); font-family:monospace;"><?php echo htmlspecialchars($sec); ?></div>
-                            </td>
-                            <td>
-                                <select name="proveedor[<?php echo htmlspecialchars($sec); ?>]" class="field__select">
-                                    <option value="claude" <?php echo $row['proveedor'] === 'claude' ? 'selected' : ''; ?>>Claude</option>
-                                    <option value="openrouter" <?php echo $row['proveedor'] === 'openrouter' ? 'selected' : ''; ?>>OpenRouter</option>
-                                </select>
-                            </td>
-                            <td>
-                                <input type="text" name="modelo[<?php echo htmlspecialchars($sec); ?>]"
-                                       class="field__input" style="min-width:220px;"
-                                       list="modelos-<?php echo $tipo; ?>"
-                                       value="<?php echo htmlspecialchars($row['modelo']); ?>">
-                            </td>
-                            <td>
-                                <input type="number" name="max_tokens[<?php echo htmlspecialchars($sec); ?>]"
-                                       class="field__input" style="width:100px;" min="50" max="8000" step="50"
-                                       value="<?php echo (int) $row['max_tokens']; ?>">
-                            </td>
-                            <td>
-                                <span class="admin-text-muted" style="font-size:var(--admin-body-sm);">
-                                    <?php echo $row['actualizado_en'] ? date('d/m/Y H:i', strtotime($row['actualizado_en'])) : '—'; ?>
-                                </span>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
+            <?php if ($porTipo['vision']): ?>
+            <h3 style="display:flex; align-items:center; gap:.4rem; font-size:1rem; margin:0 0 .3rem;">
+                <i data-lucide="scan-eye" class="icono" style="width:16px;height:16px;"></i> Análisis de imágenes (visión)
+            </h3>
+            <p class="admin-text-muted" style="margin:0 0 var(--espacio-tres); font-size:var(--admin-body-sm);">
+                La IA mira una imagen existente para clasificarla o escribir su texto alternativo. Usa modelos con visión.
+            </p>
+            <?php $tablaSecciones('vision', $porTipo['vision']); ?>
+            <?php endif; ?>
+
+            <?php if ($porTipo['imagen']): ?>
+            <h3 style="display:flex; align-items:center; gap:.4rem; font-size:1rem; margin:var(--espacio-cuatro) 0 .3rem;">
+                <i data-lucide="wand-sparkles" class="icono" style="width:16px;height:16px;"></i> Generación de imágenes
+            </h3>
+            <p class="admin-text-muted" style="margin:0 0 var(--espacio-tres); font-size:var(--admin-body-sm);">
+                Crea imágenes nuevas a partir de una descripción. Siempre vía OpenRouter (Claude no genera imágenes).
+                Modelos disponibles: <a href="https://openrouter.ai/models?output_modalities=image" target="_blank" rel="noopener">openrouter.ai/models</a>.
+            </p>
+            <?php $tablaSecciones('imagen', $porTipo['imagen']); ?>
+            <?php endif; ?>
         </section>
-        <?php endforeach; ?>
+        <?php endif; ?>
 
         <datalist id="modelos-texto">
             <?php foreach (array_merge($sugerenciasClaude, $sugerenciasOpenRouter) as $m): ?>
@@ -198,8 +271,15 @@ include 'header.php';
         <datalist id="modelos-vision">
             <option value="claude-sonnet-4-6">
             <option value="claude-sonnet-4-5-20250929">
+            <option value="claude-haiku-4-5-20251001">
             <option value="openai/gpt-4o">
             <option value="anthropic/claude-3.5-sonnet">
+        </datalist>
+        <datalist id="modelos-imagen">
+            <option value="google/gemini-2.5-flash-image">
+            <option value="black-forest-labs/flux.2-pro">
+            <option value="openai/gpt-image-1">
+            <option value="bytedance-seed/seedream-4.5">
         </datalist>
 
         <button type="submit" class="boton tres">
@@ -215,14 +295,14 @@ include 'header.php';
             Herramientas
         </h2>
         <p style="font-size:.85rem; color:var(--admin-text-suave); margin:0 0 var(--espacio-tres); line-height:1.5;">
-            Genera el mensaje WhatsApp "auto" para todas las fichas que todavía no tienen ninguna versión guardada
-            (ej. después de desplegar esta feature). No pisa fichas donde ya se activó una versión manual o de IA.
+            Genera el mensaje de WhatsApp automático para todas las fichas que todavía no tienen ninguna versión guardada
+            (por ejemplo, después de desplegar esta función). No toca las fichas que ya tienen activa una versión manual o de IA.
         </p>
-        <form method="POST" onsubmit="return confirm('¿Generar el mensaje WhatsApp automático para todas las fichas que aún no tienen ninguna versión guardada?');">
+        <form method="POST" onsubmit="return confirm('¿Generar el mensaje de WhatsApp automático para todas las fichas que aún no tienen ninguna versión guardada?');">
             <input type="hidden" name="accion" value="backfill_whatsapp">
             <button type="submit" class="boton dos">
                 <i data-lucide="message-circle" class="icono"></i>
-                Generar mensajes WhatsApp faltantes
+                Generar mensajes de WhatsApp faltantes
             </button>
         </form>
     </section>
