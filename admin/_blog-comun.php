@@ -77,6 +77,8 @@ function blogProcesarImagen(string $tmp, string $nombreBase, int $maxAncho = 160
 
 /** Logo que se estampa (opcional) en imágenes importadas/generadas desde el editor. */
 const BLOG_LOGO_MARCA = 'assets/img/marca/logo-marca-agua.png';
+/** Versión para fondos oscuros (patita terracota + texto claro); opcional. */
+const BLOG_LOGO_MARCA_OSCURO = 'assets/img/marca/logo-marca-agua-fondo-oscuro.png';
 
 /** Hosts desde los que se permite importar fotos de banco. */
 const BLOG_HOSTS_BANCO = ['images.pexels.com', 'pixabay.com', 'cdn.pixabay.com'];
@@ -172,7 +174,7 @@ function blogRecortarTexto(string $texto, int $max): string
  */
 function blogImagenSeo(PDO $pdo, string $tmp, array $ctx, array $altsUsados = []): array
 {
-    $fallback = ['alt' => '', 'slug' => slugificar($ctx['keyword'] ?: $ctx['titulo'] ?: 'imagen-blog'), 'titulo' => '', 'caption' => '', 'ok' => false];
+    $fallback = ['alt' => '', 'slug' => slugificar($ctx['keyword'] ?: $ctx['titulo'] ?: 'imagen-blog'), 'titulo' => '', 'caption' => '', 'foco' => null, 'ok' => false];
 
     // Versión reducida para el modelo (más barata y rápida)
     $mini = sys_get_temp_dir() . '/blgseo_' . bin2hex(random_bytes(4)) . '.webp';
@@ -206,6 +208,24 @@ Devuelve SOLO un JSON con estas claves:
 - "titulo": título corto de la imagen (máx. 70 caracteres).
 - "caption": pie de foto opcional de UNA frase de 140 caracteres como máximo que aporte contexto útil al lector sobre el tema del artículo; en tono cálido y respetuoso. Cadena vacía si no aporta nada.
 PROMPT;
+    $esPortada = ($ctx['uso'] ?? '') === 'portada';
+    if ($esPortada) {
+        $prompt .= <<<'FOCO'
+
+- "foco": cajas que delimitan lo importante de la imagen, para decidir un recorte panorámico 16:9 sin esconder nada esencial. Objeto con dos cajas, cada una {"x_min":..,"y_min":..,"x_max":..,"y_max":..} con enteros de 0 a 1000 relativos al ancho y alto de la imagen (0,0 = esquina superior izquierda):
+  · "completo": todo lo esencial de la escena (sujeto principal entero y lo que le da sentido, p. ej. la persona y las flores que toca). No incluyas fondo ni elementos decorativos sueltos.
+  · "principal": solo el motivo protagonista, lo mínimo que nunca debe cortarse (en una persona, cabeza y manos y el objeto con el que interactúa; en un animal, el animal entero; en un objeto, el objeto). Ajustada, sin margen extra.
+FOCO;
+    }
+    // Imágenes subidas a mano: puede que ya lleven nuestra marca de agua (p. ej. una portada
+    // descargada y vuelta a subir). Se pregunta en la misma llamada para no duplicar el logo.
+    $detectarMarca = !empty($ctx['detectar_marca']);
+    if ($detectarMarca) {
+        $prompt .= <<<'MARCA'
+
+- "marca_previa": true si la imagen YA muestra en alguna esquina la marca de agua o logotipo de "Crematorios de Mascotas" (texto "Crematorios de Mascotas" con una pequeña huella de pata); false en cualquier otro caso (otros logos no cuentan).
+MARCA;
+    }
 
     $resp = llamarLLM($pdo, 'blog_imagen_seo', $prompt, $base64, 'image/webp');
     if (!$resp['ok']) return $fallback + ['error' => $resp['error']];
@@ -219,8 +239,47 @@ PROMPT;
         'slug'    => mb_substr($slug, 0, 60),
         'titulo'  => mb_substr(trim((string) ($j['titulo'] ?? '')), 0, 120),
         'caption' => blogRecortarTexto(trim((string) ($j['caption'] ?? '')), 160),
+        'foco'    => $esPortada ? blogNormalizarFoco($j['foco'] ?? null) : null,
+        'marca_previa' => $detectarMarca && filter_var($j['marca_previa'] ?? false, FILTER_VALIDATE_BOOLEAN),
         'ok'      => true,
     ];
+}
+
+/**
+ * Valida la caja que devuelve la IA (enteros 0-1000) y la pasa a 0..1
+ * ['x0','y0','x1','y1']. Null si falta, está invertida o es absurdamente pequeña.
+ */
+function blogNormalizarFoco($foco): ?array
+{
+    if (!is_array($foco)) return null;
+    $caja = function ($c): ?array {
+        if (!is_array($c)) return null;
+        $v = fn($k) => isset($c[$k]) && is_numeric($c[$k]) ? max(0.0, min(1000.0, (float) $c[$k])) / 1000 : null;
+        [$x0, $y0, $x1, $y1] = [$v('x_min'), $v('y_min'), $v('x_max'), $v('y_max')];
+        if (in_array(null, [$x0, $y0, $x1, $y1], true) || $x1 - $x0 < 0.05 || $y1 - $y0 < 0.05) return null;
+        return ['x0' => $x0, 'y0' => $y0, 'x1' => $x1, 'y1' => $y1];
+    };
+    // Compatibilidad: si el modelo devuelve una sola caja plana, se toma como "completo"
+    $completo  = $caja($foco['completo'] ?? (isset($foco['x_min']) ? $foco : null));
+    $principal = $caja($foco['principal'] ?? null);
+    $res = $completo ?? $principal;
+    if (!$res) return null;
+    if ($principal && $completo) $res['min'] = $principal;
+    return $res;
+}
+
+/**
+ * Encuadra a 16:9 una imagen de portada (según la caja de la IA) y devuelve la ruta
+ * del PNG resultante (para pasarlo luego por el logo y el WebP), o null si falla.
+ * $modo: 'igual' | 'recorte' | 'recorte-centrado' | 'fondo'
+ */
+function blogEncuadrarPortada(string $tmp, ?array $foco, ?string &$modo = null, ?array &$ventana = null): ?string
+{
+    $dest = sys_get_temp_dir() . '/blgenc_' . bin2hex(random_bytes(4)) . '.png';
+    $r = ImagenHelper::encuadrar16x9($tmp, $dest, $foco, 1600, $ventana);
+    if ($r === false) return null;
+    $modo = $r;
+    return $dest;
 }
 
 /**
@@ -319,4 +378,83 @@ function blogSubnav(string $actual): void
     }
     echo '<a class="blog-admin-subnav__link blog-admin-subnav__link--externo" href="' . blogUrlIndice() . '" target="_blank"><i data-lucide="external-link" class="icono"></i>Ver blog</a>';
     echo '</nav>';
+}
+
+/** Contexto del artículo enviado por el editor, recortado. */
+function ctxArticulo(array $in): array
+{
+    $c = is_array($in['contexto'] ?? null) ? $in['contexto'] : [];
+    return [
+        'titulo'   => mb_substr(trim((string) ($c['titulo'] ?? '')), 0, 255),
+        'extracto' => mb_substr(trim((string) ($c['extracto'] ?? '')), 0, 600),
+        'keyword'  => mb_substr(trim((string) ($c['keyword'] ?? '')), 0, 150),
+        'seccion'  => mb_substr(trim((string) ($c['seccion'] ?? '')), 0, 255),
+        'uso'      => ($c['uso'] ?? '') === 'portada' ? 'portada' : 'cuerpo',
+    ];
+}
+
+/**
+ * Proceso común de una imagen nueva (banco, IA o subida):
+ * visión (alt/slug/title/pie + foco) → [portada] encuadre 16:9 → [logo] → WebP → registro.
+ * Borra los temporales de $tmpBorrar al terminar.
+ *
+ * @return array datos listos para el editor (ok, file, alt, titulo, caption, avisos)
+ */
+function importarPipeline(PDO $pdo, string $tmp, array $ctx, array $altsUsados, bool $conLogo, string $origen, array &$meta, ?int $articuloId, array $tmpBorrar): array
+{
+    $avisos = [];
+    try {
+        $ctx['detectar_marca'] = in_array($origen, ['subida', 'url', 'pegada'], true);
+        $seo = blogImagenSeo($pdo, $tmp, $ctx, $altsUsados);
+        if (!$seo['ok']) $avisos[] = 'La IA no pudo generar el texto alternativo: escríbelo a mano.';
+
+        $origenFinal = $tmp;
+        $ventana = null;
+
+        // Portada: 16:9 sin esconder lo importante (antes del logo, para que el logo quede dentro)
+        if ($ctx['uso'] === 'portada') {
+            $enc = blogEncuadrarPortada($tmp, $seo['foco'], $modo, $ventana);
+            if ($enc) {
+                $origenFinal = $enc;
+                $tmpBorrar[] = $enc;
+                if ($modo === 'recorte-centrado') $avisos[] = 'No se pudo localizar el motivo principal: la portada se recortó centrada. Revisa cómo ha quedado.';
+                if ($modo === 'fondo') $avisos[] = 'La foto no cabe en 16:9 sin cortar lo importante: se ha ajustado entera sobre un fondo desenfocado.';
+            } else {
+                $avisos[] = 'No se pudo encuadrar la portada a 16:9.';
+            }
+        }
+
+        // Ya traía el logo: se omite el paso sin avisar... salvo que el encuadre de la portada
+        // lo haya recortado (se conoce la zona conservada), en cuyo caso se estampa uno nuevo.
+        if ($conLogo && !empty($seo['marca_previa']) && ImagenHelper::logoSobreviveAlRecorte($ventana)) {
+            $conLogo = false;
+            $meta['con_logo'] = 1;
+        }
+        if ($conLogo) {
+            $logo = ROOT_PATH . '/' . BLOG_LOGO_MARCA;
+            $conMarca = sys_get_temp_dir() . '/blglogo_' . bin2hex(random_bytes(4)) . '.png';
+            if (ImagenHelper::aplicarLogo($origenFinal, $conMarca, $logo, 0.14, 90, ROOT_PATH . '/' . BLOG_LOGO_MARCA_OSCURO)) {
+                $origenFinal = $conMarca;
+                $tmpBorrar[] = $conMarca;
+                $meta['con_logo'] = 1;
+            } else {
+                $avisos[] = 'No se pudo añadir el logo (falta ' . BLOG_LOGO_MARCA . ').';
+            }
+        }
+
+        $res = blogProcesarImagen($origenFinal, $seo['slug'], 1600);
+        $meta += ['alt_text' => $seo['alt'] ?: null, 'titulo' => $seo['titulo'] ?: null, 'caption' => $seo['caption'] ?: null];
+        blogRegistrarImagen($articuloId, $res, $origen, $meta);
+    } finally {
+        foreach ($tmpBorrar as $t) if (is_file($t)) @unlink($t);
+    }
+
+    return [
+        'ok'      => true,
+        'file'    => ['url' => blogUrlArchivo($res['ruta']), 'ruta' => $res['ruta'], 'media' => $res['media'], 'ancho' => $res['ancho'], 'alto' => $res['alto']],
+        'alt'     => $seo['alt'],
+        'titulo'  => $seo['titulo'],
+        'caption' => $seo['caption'],
+        'avisos'  => $avisos,
+    ];
 }

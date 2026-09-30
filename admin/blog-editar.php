@@ -178,16 +178,22 @@ $sel = fn($v, $lista) => in_array((string) $v, array_map('strval', $lista), true
 
         <!-- ═══════════ CENTRO: portada + texto ═══════════ -->
         <div class="blog-editor__centro">
-            <div class="blog-editor__portada" id="bed-portada" tabindex="0" role="button" aria-label="Imagen de portada">
+            <div class="blog-editor__portada" id="bed-portada" role="img" aria-label="Imagen de portada">
                 <div class="blog-editor__portada-vacia" id="bed-portada-vacia">
                     <i data-lucide="image-plus" class="icono"></i>
                     <strong>Imagen de portada</strong><br>
-                    Arrástrala aquí o haz clic para elegirla (JPG, PNG o WebP, máx. 5 MB)
+                    Arrastra una imagen aquí o usa los botones de abajo (JPG, PNG o WebP, máx. 5 MB).<br>
+                    Se encuadra a 16:9 sin cortar lo importante.
                 </div>
                 <img id="bed-portada-img" alt="" hidden>
                 <div class="blog-editor__portada-acciones" id="bed-portada-acciones" hidden>
-                    <button type="button" id="bed-portada-cambiar"><i data-lucide="refresh-cw" class="icono"></i> Cambiar</button>
+                    <button type="button" id="bed-portada-cambiar" aria-haspopup="true" aria-expanded="false"><i data-lucide="refresh-cw" class="icono"></i> Cambiar</button>
                     <button type="button" id="bed-portada-quitar"><i data-lucide="trash-2" class="icono"></i> Quitar</button>
+                    <div class="blog-editor__portada-menu" id="bed-portada-menu" hidden>
+                        <button type="button" data-origen="subir"><i data-lucide="upload" class="icono"></i> Subir archivo</button>
+                        <button type="button" data-origen="banco"><i data-lucide="images" class="icono"></i> Buscar foto de banco</button>
+                        <button type="button" data-origen="ia"><i data-lucide="wand-sparkles" class="icono"></i> Generar con IA</button>
+                    </div>
                 </div>
                 <input type="file" id="bed-portada-file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
             </div>
@@ -195,6 +201,7 @@ $sel = fn($v, $lista) => in_array((string) $v, array_map('strval', $lista), true
                 <button type="button" class="boton dos pequeno" id="bed-portada-subir"><i data-lucide="upload" class="icono"></i> Subir archivo</button>
                 <button type="button" class="boton dos pequeno" id="bed-portada-banco"><i data-lucide="images" class="icono"></i> Buscar foto de banco</button>
                 <button type="button" class="boton dos pequeno" id="bed-portada-ia"><i data-lucide="wand-sparkles" class="icono"></i> Generar con IA</button>
+                <label class="field__opcion" id="bed-portada-logo-wrap" title="Se aplica al subir un archivo, en la portada y en las imágenes del texto (en banco e IA se elige en su ventana). Si la imagen ya lleva el logo, no se repite."><input type="checkbox" class="field__check" id="bed-portada-logo" checked><span>Añadir logo al subir archivos (portada y texto)</span></label>
             </div>
             <div class="field blog-editor__alt" id="bed-portada-alt-wrap" hidden>
                 <label class="field__label" for="bed-portada-alt">Texto alternativo de la portada <span class="field__req">*</span></label>

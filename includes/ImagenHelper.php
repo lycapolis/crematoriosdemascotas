@@ -314,10 +314,15 @@ class ImagenHelper
      * las versiones redimensionadas heredan el logo en la misma proporción.
      * El resultado se guarda como PNG (sin pérdida) en $destino.
      *
-     * @param float $anchoRel  Ancho del logo relativo al de la imagen (0.12 = 12 %)
-     * @param int   $opacidad  0-100
+     * Sin placa: se mide la luminosidad del fondo justo donde irá el logo. Si es
+     * oscuro se usa $logoOscuro (versión de marca con texto claro); sin ese archivo,
+     * los trazos oscuros del logo se recolorean a crema. Sin sombras ni placas.
+     *
+     * @param float       $anchoRel   Ancho del logo relativo al de la imagen (0.14 = 14 %)
+     * @param int         $opacidad   0-100
+     * @param string|null $logoOscuro PNG para fondos oscuros (mismas proporciones)
      */
-    public static function aplicarLogo(string $origen, string $destino, string $logoPng, float $anchoRel = 0.22, int $opacidad = 92): bool
+    public static function aplicarLogo(string $origen, string $destino, string $logoPng, float $anchoRel = 0.14, int $opacidad = 90, ?string $logoOscuro = null): bool
     {
         if (!is_file($logoPng) || !is_file($origen)) return false;
 
@@ -330,13 +335,96 @@ class ImagenHelper
             case IMAGETYPE_WEBP: $img = @imagecreatefromwebp($origen); break;
             default: return false;
         }
-        $logo = @imagecreatefrompng($logoPng);
-        if (!$img || !$logo) return false;
+        if (!$img) return false;
+        imagepalettetotruecolor($img);
 
         $ancho = imagesx($img);
         $alto  = imagesy($img);
 
-        // Recortar los márgenes transparentes del PNG (el tamaño se calcula sobre el logo real)
+        // Logo recortado a su contenido y escalado (conserva el canal alfa)
+        $lw = max(80, (int) round($ancho * $anchoRel));
+        $esc = self::logoEscalado($logoPng, $lw);
+        if (!$esc) return false;
+        $lh = imagesy($esc);
+
+        // Posición: esquina inferior derecha, margen del 2,5 % del ancho
+        $margen = (int) round($ancho * 0.025);
+        $px = max(0, $ancho - $lw - $margen);
+        $py = max(0, $alto - $lh - $margen);
+
+        // Luminosidad relativa media (WCAG, canales linealizados) del fondo bajo el logo,
+        // muestreando cada 3 px. Con el logo marrón (L≈0,09) y el claro (L=1) el contraste
+        // se iguala en L≈0,30: por debajo de eso el fondo es "oscuro" y se usa el logo claro.
+        $suma = 0; $n = 0;
+        $lin = fn(int $v) => pow($v / 255, 2.2);
+        for ($x = max(0, $px - 6); $x < min($ancho, $px + $lw + 6); $x += 3) {
+            for ($y = max(0, $py - 6); $y < min($alto, $py + $lh + 6); $y += 3) {
+                $c = imagecolorat($img, $x, $y);
+                $suma += 0.2126 * $lin(($c >> 16) & 0xFF) + 0.7152 * $lin(($c >> 8) & 0xFF) + 0.0722 * $lin($c & 0xFF);
+                $n++;
+            }
+        }
+        $fondoOscuro = $n > 0 && ($suma / $n) < 0.30;
+
+        // Fondo oscuro: se usa la versión de marca pensada para fondos oscuros (texto claro).
+        // Sin ese archivo, se recolorean los trazos oscuros a crema como plan B.
+        $recolorear = false;
+        if ($fondoOscuro) {
+            $alt = $logoOscuro ? self::logoEscalado($logoOscuro, $lw) : null;
+            if ($alt) {
+                imagedestroy($esc);
+                $esc = $alt;
+                $lh = imagesy($esc);
+                $py = max(0, $alto - $lh - $margen);
+            } else {
+                $recolorear = true;
+            }
+        }
+
+        // Opacidad (+ plan B de recoloreado) en una pasada.
+        // GD no combina la opacidad con el alfa del PNG, así que se ajusta píxel a píxel.
+        $factor = max(0, min(100, $opacidad)) / 100;
+        for ($x = 0; $x < $lw; $x++) {
+            for ($y = 0; $y < $lh; $y++) {
+                $c = imagecolorat($esc, $x, $y);
+                $a = ($c >> 24) & 0x7F;
+                if ($a >= 127) continue;
+                $r = ($c >> 16) & 0xFF; $g = ($c >> 8) & 0xFF; $b = $c & 0xFF;
+                if ($recolorear && (0.299 * $r + 0.587 * $g + 0.114 * $b) < 110) { $r = 250; $g = 243; $b = 235; }
+                $nuevoA = 127 - (int) round((127 - $a) * $factor);
+                imagesetpixel($esc, $x, $y, ($nuevoA << 24) | ($r << 16) | ($g << 8) | $b);
+            }
+        }
+
+        imagealphablending($img, true);
+        imagecopy($img, $esc, $px, $py, 0, 0, $lw, $lh);
+
+        $ok = imagepng($img, $destino, 3);
+        imagedestroy($img);
+        imagedestroy($esc);
+        return $ok;
+    }
+
+    /**
+     * ¿Sigue visible el logo de marca (estampado por aplicarLogo en la esquina inferior derecha,
+     * a un margen del 2,5 % del ancho) tras conservar solo la zona $ventana de la imagen?
+     * $ventana: salida de encuadrar16x9; null = no se recortó nada (o se encajó entera).
+     */
+    public static function logoSobreviveAlRecorte(?array $ventana): bool
+    {
+        if (!$ventana) return true;
+        $mitadMargen = $ventana['w'] * 0.025 / 2;
+        return ($ventana['cy'] + $ventana['ch'] >= $ventana['h'] - $mitadMargen)
+            && ($ventana['cx'] + $ventana['cw'] >= $ventana['w'] - $mitadMargen);
+    }
+
+    /** Carga un logo PNG, recorta sus márgenes transparentes y lo escala al ancho dado (con alfa). */
+    private static function logoEscalado(string $ruta, int $lw)
+    {
+        if (!is_file($ruta)) return null;
+        $logo = @imagecreatefrompng($ruta);
+        if (!$logo) return null;
+        imagepalettetotruecolor($logo);
         $x0 = imagesx($logo); $y0 = imagesy($logo); $x1 = -1; $y1 = -1;
         for ($x = 0; $x < imagesx($logo); $x++) {
             for ($y = 0; $y < imagesy($logo); $y++) {
@@ -345,55 +433,124 @@ class ImagenHelper
                 }
             }
         }
-        if ($x1 < 0) return false; // logo completamente transparente
+        if ($x1 < 0) { imagedestroy($logo); return null; } // completamente transparente
         $cw = $x1 - $x0 + 1;
         $ch = $y1 - $y0 + 1;
-
-        // Logo escalado (conserva el canal alfa)
-        $lw = max(60, (int) round($ancho * $anchoRel));
         $lh = max(1, (int) round($ch * ($lw / $cw)));
         $esc = imagecreatetruecolor($lw, $lh);
         imagealphablending($esc, false);
         imagesavealpha($esc, true);
         imagefill($esc, 0, 0, imagecolorallocatealpha($esc, 0, 0, 0, 127));
         imagecopyresampled($esc, $logo, 0, 0, $x0, $y0, $lw, $lh, $cw, $ch);
+        imagedestroy($logo);
+        return $esc;
+    }
 
-        // Opacidad: GD no la combina con el alfa del PNG, así que se ajusta píxel a píxel
-        $factor = max(0, min(100, $opacidad)) / 100;
-        for ($x = 0; $x < $lw; $x++) {
-            for ($y = 0; $y < $lh; $y++) {
-                $c = imagecolorat($esc, $x, $y);
-                $a = ($c >> 24) & 0x7F;
-                $nuevoA = 127 - (int) round((127 - $a) * $factor);
-                imagesetpixel($esc, $x, $y, imagecolorallocatealpha($esc, ($c >> 16) & 0xFF, ($c >> 8) & 0xFF, $c & 0xFF, $nuevoA));
+    /**
+     * Encuadra una imagen a 16:9 sin esconder lo importante (portadas del blog).
+     *
+     * - Si ya es (casi) 16:9, no toca nada.
+     * - Si no, corta una ventana 16:9 que CONTENGA la caja del elemento principal
+     *   ($caja en 0..1: x0, y0, x1, y1), centrada en ella.
+     * - Si no hay caja o no cabe en la ventana (foto muy vertical, sujeto enorme),
+     *   NO recorta: encaja la foto entera sobre un fondo desenfocado de sí misma.
+     * El resultado se guarda como PNG en $destino (se pasa luego por aplicarLogo y WebP).
+     *
+     * @param array|null $caja ['x0'=>, 'y0'=>, 'x1'=>, 'y1'=>] normalizada 0..1
+     * @return string|false  'igual' | 'recorte' | 'recorte-centrado' | 'fondo' | false si falla
+     */
+    public static function encuadrar16x9(string $origen, string $destino, ?array $caja, int $anchoSalida = 1600, ?array &$ventana = null)
+    {
+        $ventana = null; // zona de la imagen original que se ha conservado (cx, cy, cw, ch sobre w × h)
+        $info = @getimagesize($origen);
+        if ($info === false) return false;
+        switch ($info[2]) {
+            case IMAGETYPE_JPEG: $img = @imagecreatefromjpeg($origen); break;
+            case IMAGETYPE_PNG:  $img = @imagecreatefrompng($origen);  break;
+            case IMAGETYPE_GIF:  $img = @imagecreatefromgif($origen);  break;
+            case IMAGETYPE_WEBP: $img = @imagecreatefromwebp($origen); break;
+            default: return false;
+        }
+        if (!$img) return false;
+        imagepalettetotruecolor($img);
+        $w = imagesx($img);
+        $h = imagesy($img);
+        $R = 16 / 9;
+        $ratio = $w / $h;
+
+        // Ya es 16:9 (±2 %): se conserva tal cual
+        if (abs($ratio / $R - 1) <= 0.02) {
+            $ok = imagepng($img, $destino, 3);
+            imagedestroy($img);
+            return $ok ? 'igual' : false;
+        }
+
+        $modo = 'fondo';
+        $cx = $cy = $cw = $ch = 0;
+
+        // Cajas a respetar, de más a menos ambiciosa: la completa y, si esa no cabe, la
+        // del motivo principal ($caja['min']). Se intenta con un respiro del 3 % y sin él.
+        $cajas = [];
+        foreach ([$caja, is_array($caja) ? ($caja['min'] ?? null) : null] as $c) {
+            if (is_array($c) && isset($c['x0'], $c['y0'], $c['x1'], $c['y1'])) $cajas[] = $c;
+        }
+
+        $vertical = $ratio < $R; // más alta que 16:9 → se corta arriba/abajo; si no, a los lados
+        if ($vertical) { $cw = $w; $ch = (int) round($w / $R); $cx = 0; $eje = $h; $ven = $ch; }
+        else           { $ch = $h; $cw = (int) round($h * $R); $cy = 0; $eje = $w; $ven = $cw; }
+
+        if (!$cajas) {
+            $pos = (int) round(($eje - $ven) / 2);
+            if ($vertical) $cy = $pos; else $cx = $pos;
+            $modo = 'recorte-centrado'; // sin caja: plan B centrado
+        } else {
+            foreach ($cajas as $c) {
+                [$i0, $i1] = $vertical ? [$c['y0'], $c['y1']] : [$c['x0'], $c['x1']];
+                foreach ([0.03, 0.0] as $m) {
+                    $a = max(0.0, ((float) $i0 - $m) * $eje); $b = min((float) $eje, ((float) $i1 + $m) * $eje);
+                    if ($b - $a >= 4 && $b - $a <= $ven) {
+                        $pos = (int) round(max(0, min($eje - $ven, ($a + $b) / 2 - $ven / 2)));
+                        if ($vertical) $cy = $pos; else $cx = $pos;
+                        $modo = 'recorte';
+                        break 2;
+                    }
+                }
             }
         }
 
-        // Placa blanca semitransparente con esquinas redondeadas detrás del logo:
-        // así se lee sobre fondos oscuros, claros o con mucho detalle.
-        $margen = (int) round($ancho * 0.025);
-        $pad    = (int) round($lh * 0.35);
-        $pw = $lw + $pad * 2;
-        $ph = $lh + $pad * 2;
-        $px = $ancho - $pw - $margen;
-        $py = $alto - $ph - $margen;
-        $r  = (int) round($ph * 0.3);
-        imagealphablending($img, true);
-        $blanco = imagecolorallocatealpha($img, 255, 255, 255, 30); // ~76 % opaco
-        imagefilledrectangle($img, $px + $r, $py, $px + $pw - $r - 1, $py + $ph - 1, $blanco);
-        imagefilledrectangle($img, $px, $py + $r, $px + $r - 1, $py + $ph - $r - 1, $blanco);
-        imagefilledrectangle($img, $px + $pw - $r, $py + $r, $px + $pw - 1, $py + $ph - $r - 1, $blanco);
-        foreach ([[$px + $r, $py + $r, 180], [$px + $pw - $r - 1, $py + $r, 270], [$px + $pw - $r - 1, $py + $ph - $r - 1, 0], [$px + $r, $py + $ph - $r - 1, 90]] as [$cx, $cy, $ini]) {
-            imagefilledarc($img, $cx, $cy, $r * 2, $r * 2, $ini, $ini + 90, $blanco, IMG_ARC_PIE);
+        $esRecorte = $modo !== 'fondo';
+        $ventana = $esRecorte ? ['cx' => $cx, 'cy' => $cy, 'cw' => $cw, 'ch' => $ch, 'w' => $w, 'h' => $h] : null;
+        $salW = min($anchoSalida, $esRecorte ? $cw : $anchoSalida);
+        $salW = max(320, $salW);
+        $salH = (int) round($salW / $R);
+        $out = imagecreatetruecolor($salW, $salH);
+
+        if ($esRecorte) {
+            imagecopyresampled($out, $img, 0, 0, $cx, $cy, $salW, $salH, $cw, $ch);
+        } else {
+            // Fondo: la misma foto rellenando el lienzo, muy reducida y desenfocada
+            $pw = 320; $ph = (int) round($pw / $R);
+            $peq = imagecreatetruecolor($pw, $ph);
+            $esc = max($pw / $w, $ph / $h);
+            $sw = (int) ceil($w * $esc); $sh = (int) ceil($h * $esc);
+            $tmp = imagecreatetruecolor($sw, $sh);
+            imagecopyresampled($tmp, $img, 0, 0, 0, 0, $sw, $sh, $w, $h);
+            imagecopy($peq, $tmp, 0, 0, (int) (($sw - $pw) / 2), (int) (($sh - $ph) / 2), $pw, $ph);
+            imagedestroy($tmp);
+            for ($i = 0; $i < 25; $i++) imagefilter($peq, IMG_FILTER_GAUSSIAN_BLUR);
+            imagefilter($peq, IMG_FILTER_BRIGHTNESS, -25);
+            imagecopyresampled($out, $peq, 0, 0, 0, 0, $salW, $salH, $pw, $ph);
+            imagedestroy($peq);
+            // Foto entera, centrada, ajustada al alto
+            $fh = $salH; $fw = (int) round($w * ($salH / $h));
+            if ($fw > $salW) { $fw = $salW; $fh = (int) round($h * ($salW / $w)); }
+            imagecopyresampled($out, $img, (int) (($salW - $fw) / 2), (int) (($salH - $fh) / 2), 0, 0, $fw, $fh, $w, $h);
         }
 
-        imagecopy($img, $esc, $px + $pad, $py + $pad, 0, 0, $lw, $lh);
-
-        $ok = imagepng($img, $destino, 3);
+        $ok = imagepng($out, $destino, 3);
         imagedestroy($img);
-        imagedestroy($logo);
-        imagedestroy($esc);
-        return $ok;
+        imagedestroy($out);
+        return $ok ? $modo : false;
     }
 
     /**

@@ -133,7 +133,12 @@ function blogUrlArchivo(?string $ruta): string
 function blogHtmlCreditoImagen(?array $credito, bool $etiquetaIa = false): string
 {
     $e = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
-    if ($etiquetaIa) return '<span class="blog-credito">Imagen generada con IA</span>';
+    $icono = fn(string $d) => '<svg class="blog-credito__icono" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' . $d . '</svg>';
+    if ($etiquetaIa) {
+        return '<span class="blog-credito blog-credito--ia">'
+             . $icono('<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.7 1.8L21.5 17.5l-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7z"/>')
+             . '<span class="blog-credito__texto">Imagen generada con IA</span></span>';
+    }
     if (!$credito || !in_array($credito['fuente'] ?? '', ['pexels', 'pixabay'], true)) return '';
 
     $banco = $credito['fuente'] === 'pexels' ? 'Pexels' : 'Pixabay';
@@ -143,19 +148,28 @@ function blogHtmlCreditoImagen(?array $credito, bool $etiquetaIa = false): strin
     $home  = $credito['fuente'] === 'pexels' ? 'https://www.pexels.com/' : 'https://pixabay.com/';
     $autor = trim((string) ($credito['nombre'] ?? ''));
 
-    return '<span class="blog-credito">Foto' . ($autor !== '' ? ': ' . $link((string) ($credito['url'] ?? ''), $autor) : '')
-         . ' en ' . $link((string) ($credito['fuente_url'] ?? '') ?: $home, $banco) . '</span>';
+    return '<span class="blog-credito blog-credito--banco">'
+         . $icono('<path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/>')
+         . '<span class="blog-credito__texto">Foto' . ($autor !== '' ? ': ' . $link((string) ($credito['url'] ?? ''), $autor) : '')
+         . ' en ' . $link((string) ($credito['fuente_url'] ?? '') ?: $home, $banco) . '</span></span>';
+}
+
+/** Procedencia de una imagen (fila de blog_imagenes) o null si no consta. */
+function blogProcedenciaImagen(?string $ruta): ?array
+{
+    if (!$ruta) return null;
+    try {
+        $st = obtenerConexion()->prepare("SELECT origen, credito_nombre, credito_url, fuente_url, etiqueta_ia FROM blog_imagenes WHERE ruta = :r ORDER BY id DESC LIMIT 1");
+        $st->execute([':r' => $ruta]);
+        $f = $st->fetch(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) { return null; } // migración de columnas no aplicada
+    return $f ?: null;
 }
 
 /** Crédito de la portada (se guarda en blog_imagenes, no en el artículo). */
 function blogCreditoPortada(?string $ruta): string
 {
-    if (!$ruta) return '';
-    try {
-        $st = obtenerConexion()->prepare("SELECT origen, credito_nombre, credito_url, fuente_url, etiqueta_ia FROM blog_imagenes WHERE ruta = :r ORDER BY id DESC LIMIT 1");
-        $st->execute([':r' => $ruta]);
-        $f = $st->fetch(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) { return ''; } // migración de columnas no aplicada
+    $f = blogProcedenciaImagen($ruta);
     if (!$f) return '';
     return blogHtmlCreditoImagen(
         ['fuente' => $f['origen'], 'nombre' => $f['credito_nombre'], 'url' => $f['credito_url'], 'fuente_url' => $f['fuente_url']],
@@ -895,8 +909,10 @@ function blogRenderContenido(array $articulo, array $opts = []): array
                 $srcset = $media ? ' srcset="' . $e($media) . ' 800w, ' . $e($src) . ' ' . ($ancho ?: 1600) . 'w" sizes="(max-width: 800px) 100vw, 760px"' : '';
                 $dims = ($ancho && $alto) ? ' width="' . $ancho . '" height="' . $alto . '"' : '';
                 $credito = blogHtmlCreditoImagen(is_array($d['credito'] ?? null) ? $d['credito'] : null, ($d['origen'] ?? '') === 'ia' && !empty($d['etiqueta_ia']));
-                $html .= '<figure class="' . $cls . '"><img src="' . $e($src) . '"' . $srcset . $dims . ' alt="' . $e($alt) . '" loading="lazy" decoding="async">';
-                if ($caption !== '' || $credito !== '') $html .= '<figcaption>' . $caption . ($caption !== '' && $credito !== '' ? ' ' : '') . $credito . '</figcaption>';
+                // La insignia (IA / crédito de banco) va SOBRE la imagen, abajo a la izquierda;
+                // el pie de foto queda solo para la descripción.
+                $html .= '<figure class="' . $cls . '"><div class="blog-figura__marco"><img src="' . $e($src) . '"' . $srcset . $dims . ' alt="' . $e($alt) . '" loading="lazy" decoding="async">' . $credito . '</div>';
+                if ($caption !== '') $html .= '<figcaption>' . $caption . '</figcaption>';
                 $html .= "</figure>\n";
                 $imagenes[] = blogUrlAbsoluta($src);
                 break;
@@ -999,6 +1015,24 @@ function blogPrepararJsonEditor(?string $json): string
 function blogSchemaArticulo(array $a, array $render, array $migas, string $urlCanonica): array
 {
     $imagen = $a['portada_ruta'] ? blogUrlAbsoluta(blogUrlArchivo($a['portada_ruta'])) : null;
+    if ($imagen) {
+        // ImageObject con la procedencia (vocabulario schema.org, solo datos que constan en blog_imagenes)
+        $proc = blogProcedenciaImagen($a['portada_ruta']);
+        $io = ['@type' => 'ImageObject', 'url' => $imagen];
+        if ($proc && $proc['origen'] === 'ia' && (int) $proc['etiqueta_ia'] === 1) {
+            $io['creditText'] = 'Imagen generada con IA';
+        } elseif ($proc && in_array($proc['origen'], ['pexels', 'pixabay'], true)) {
+            $banco = $proc['origen'] === 'pexels' ? 'Pexels' : 'Pixabay';
+            $autorFoto = trim((string) $proc['credito_nombre']);
+            $io['creditText'] = 'Foto' . ($autorFoto !== '' ? ': ' . $autorFoto : '') . ' en ' . $banco;
+            if ($autorFoto !== '') {
+                $io['creator'] = array_filter(['@type' => 'Person', 'name' => $autorFoto, 'url' => $proc['credito_url'] ?: null]);
+                $io['copyrightNotice'] = '© ' . $autorFoto . ' (' . $banco . ')';
+            }
+            if (!empty($proc['fuente_url'])) $io['acquireLicensePage'] = $proc['fuente_url'];
+        }
+        $imagen = $io;
+    }
     $autor = !empty($a['autor_nombre'])
         ? array_filter([
             '@type'       => 'Person',
@@ -1014,7 +1048,7 @@ function blogSchemaArticulo(array $a, array $render, array $migas, string $urlCa
         '@id'              => $urlCanonica . '#articulo',
         'headline'         => mb_substr($a['titulo'], 0, 110),
         'description'      => $a['meta_description'] ?: $a['extracto'],
-        'image'            => $imagen ? [$imagen] : ($render['imagenes'] ?: null),
+        'image'            => $imagen ? [$imagen] : ($render['imagenes'] ?: null), // ImageObject (portada) o URLs
         'datePublished'    => blogFechaIso($a['publicado_at']),
         'dateModified'     => blogFechaIso($a['actualizado_contenido_at'] ?: $a['updated_at']),
         'author'           => $autor,

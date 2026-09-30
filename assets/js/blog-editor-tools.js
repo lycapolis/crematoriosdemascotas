@@ -211,8 +211,46 @@
                     document.dispatchEvent(new CustomEvent('blog:cambio'));
                 });
                 ['keydown', 'paste', 'cut'].forEach(function (ev) { inp.addEventListener(ev, function (e) { e.stopPropagation(); }); });
+                // Cada campo va en su "cajita" con una etiqueta pequeña debajo del texto
+                // (solo para el admin: evita confundir el pie de foto con el texto alternativo).
+                // La etiqueta queda FUERA del contenteditable del pie, así no se guarda como contenido.
+                function caja(clase, contenido, etiqueta) {
+                    var c = document.createElement('div');
+                    c.className = 'bed-caja ' + clase;
+                    var l = document.createElement('div');
+                    l.className = 'bed-caja__etiqueta';
+                    l.textContent = etiqueta;
+                    if (contenido.parentNode) contenido.parentNode.insertBefore(c, contenido);
+                    c.appendChild(contenido);
+                    c.appendChild(l);
+                    return c;
+                }
+                var pie = wrap.querySelector('.image-tool__caption');
+                if (pie && pie.parentNode) {
+                    caja('bed-caja--pie', pie, 'Pie de foto · opcional · se ve publicado debajo de la imagen');
+                    // Al borrar todo el texto, el navegador deja un <br> y el campo deja de estar :empty,
+                    // así que el texto de ayuda "Pie de foto (opcional)" no volvía a aparecer.
+                    var vaciarSiSinTexto = function () { if (pie.innerHTML !== '' && !pie.textContent.trim()) pie.innerHTML = ''; };
+                    pie.addEventListener('input', vaciarSiSinTexto);
+                    pie.addEventListener('blur', vaciarSiSinTexto);
+                }
                 wrap.appendChild(inp);
+                caja('bed-caja--alt', inp, 'Texto alternativo SEO');
+                this._inputAlt = inp;
                 return wrap;
+            }
+            // Tras subir un archivo (o pegar una imagen), el servidor devuelve el alt y el pie
+            // generados por la IA (mismo proceso que banco/IA): se rellenan las cajitas.
+            onUpload(response) {
+                super.onUpload(response);
+                if (!response || !response.success || !response.file) return;
+                if (response.alt) {
+                    this._alt = response.alt;
+                    if (this._inputAlt) { this._inputAlt.value = response.alt; this._inputAlt.classList.remove('bed-alt--vacio'); }
+                }
+                if (response.caption && this.ui && typeof this.ui.fillCaption === 'function') this.ui.fillCaption(response.caption);
+                (response.avisos || []).forEach(function (m) { if (window.toast && window.toast.error) window.toast.error(m); });
+                document.dispatchEvent(new CustomEvent('blog:cambio'));
             }
             save(el) {
                 var d = super.save(el);

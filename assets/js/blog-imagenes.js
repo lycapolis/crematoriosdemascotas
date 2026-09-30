@@ -168,7 +168,7 @@
         $('bimg-prompt').value = '';
 
         var cfg = C().imagenes || {};
-        $('bimg-logo').checked = false;
+        $('bimg-logo').checked = !!cfg.logo; // marcado por defecto (si existe el archivo del logo)
         $('bimg-logo').disabled = !cfg.logo;
         $('bimg-logo-wrap').title = cfg.logo ? 'Logo pequeño y semitransparente en la esquina inferior derecha' : 'Falta el archivo assets/img/marca/logo-marca-agua.png';
 

@@ -53,6 +53,20 @@ try {
         throw new Exception('No se recibió ninguna imagen.');
     }
 
+    // Editor de artículos (?analizar=1): mismo proceso que banco/IA — visión (alt, pie, nombre de
+    // archivo), detección de logo previo y logo opcional (cabecera X-Blog-Logo). Sin encuadre 16:9.
+    if (($_GET['analizar'] ?? $body['analizar'] ?? '') === '1' && ($body['uso'] ?? $_GET['uso'] ?? '') !== 'autor') {
+        @set_time_limit(120);
+        $extra = json_decode(rawurldecode((string) ($_SERVER['HTTP_X_BLOG_CONTEXTO'] ?? '')), true) ?: [];
+        $ctx = ctxArticulo(['contexto' => (is_array($extra['contexto'] ?? null) ? $extra['contexto'] : []) + ['uso' => 'cuerpo']]);
+        $alts = array_values(array_filter(array_map(fn($a) => mb_substr(trim((string) $a), 0, 200), (array) ($extra['alts'] ?? []))));
+        $conLogo = (($_SERVER['HTTP_X_BLOG_LOGO'] ?? '') === '1') && is_file(ROOT_PATH . '/' . BLOG_LOGO_MARCA);
+        $meta = ['con_logo' => 0, 'etiqueta_ia' => 0];
+        $copia = blogGuardarTemp((string) file_get_contents($tmp)); // el pipeline borra su copia al terminar
+        $out = importarPipeline(obtenerConexion(), $copia, $ctx, $alts, $conLogo, $origen, $meta, $articuloId, [$copia]);
+        blogJson(['success' => 1, 'file' => $out['file'], 'alt' => $out['alt'], 'caption' => $out['caption'], 'avisos' => $out['avisos']]);
+    }
+
     $res = blogProcesarImagen($tmp, $nombre, $maxAncho);
     blogRegistrarImagen($articuloId, $res, $origen);
 

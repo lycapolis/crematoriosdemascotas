@@ -17,7 +17,13 @@ require_once __DIR__ . '/_blog-comun.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') blogJson(['ok' => false, 'mensaje' => 'Método no permitido'], 405);
 
-$in = json_decode(file_get_contents('php://input'), true) ?: [];
+if (!empty($_FILES['image'])) {
+    // Subida de archivo (multipart): el contexto llega como JSON dentro de un campo
+    $in = $_POST;
+    foreach (['contexto', 'alts_usados'] as $k) if (isset($in[$k]) && is_string($in[$k])) $in[$k] = json_decode($in[$k], true) ?: [];
+} else {
+    $in = json_decode(file_get_contents('php://input'), true) ?: [];
+}
 $token = $in['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
 if (!validarTokenCSRF((string) $token)) blogJson(['ok' => false, 'mensaje' => 'La sesión expiró. Recargá la página.'], 403);
 
@@ -32,19 +38,6 @@ const BLOG_IA_ESTILOS = [
 ];
 // Salvaguardas fijas: nada de texto/marcas, ni negocios o personas reales, ni escenas morbosas
 const BLOG_IA_REGLAS = 'No text, no letters, no words, no logos, no watermarks, no signage, no brand names. No recognizable real people, no real businesses or facilities. Nothing graphic, morbid or medical: no visible remains, no spilled ashes, no cremation equipment.';
-
-/** Contexto del artículo enviado por el editor, recortado. */
-function ctxArticulo(array $in): array
-{
-    $c = is_array($in['contexto'] ?? null) ? $in['contexto'] : [];
-    return [
-        'titulo'   => mb_substr(trim((string) ($c['titulo'] ?? '')), 0, 255),
-        'extracto' => mb_substr(trim((string) ($c['extracto'] ?? '')), 0, 600),
-        'keyword'  => mb_substr(trim((string) ($c['keyword'] ?? '')), 0, 150),
-        'seccion'  => mb_substr(trim((string) ($c['seccion'] ?? '')), 0, 255),
-        'uso'      => ($c['uso'] ?? '') === 'portada' ? 'portada' : 'cuerpo',
-    ];
-}
 
 /** Tokens de imágenes IA generadas y aún no importadas (en sesión, caducan a las 2 h). */
 function iaTemporales(): array
@@ -184,42 +177,24 @@ PROMPT;
                 blogJson(['ok' => false, 'mensaje' => 'Fuente de imagen no válida.']);
             }
 
-            try {
-                $seo = blogImagenSeo($pdo, $tmp, $ctx, $altsUsados);
+            $out = importarPipeline($pdo, $tmp, $ctx, $altsUsados, $conLogo, $fuente, $meta, $articuloId, $tmpBorrar);
+            blogJson($out + ['origen' => $fuente, 'credito' => $credito, 'etiqueta_ia' => (bool) $meta['etiqueta_ia']]);
 
-                $origenFinal = $tmp;
-                $avisoLogo = null;
-                if ($conLogo) {
-                    $logo = ROOT_PATH . '/' . BLOG_LOGO_MARCA;
-                    $conMarca = sys_get_temp_dir() . '/blglogo_' . bin2hex(random_bytes(4)) . '.png';
-                    if (ImagenHelper::aplicarLogo($tmp, $conMarca, $logo)) {
-                        $origenFinal = $conMarca;
-                        $tmpBorrar[] = $conMarca;
-                        $meta['con_logo'] = 1;
-                    } else {
-                        $avisoLogo = 'No se pudo añadir el logo (falta ' . BLOG_LOGO_MARCA . ').';
-                    }
-                }
-
-                $res = blogProcesarImagen($origenFinal, $seo['slug'], 1600);
-                $meta += ['alt_text' => $seo['alt'] ?: null, 'titulo' => $seo['titulo'] ?: null, 'caption' => $seo['caption'] ?: null];
-                blogRegistrarImagen($articuloId, $res, $fuente, $meta);
-            } finally {
-                foreach ($tmpBorrar as $t) if (is_file($t)) @unlink($t);
-            }
-
-            $avisos = array_filter([$avisoLogo, $seo['ok'] ? null : 'La IA no pudo generar el texto alternativo: escríbelo a mano.']);
-            blogJson([
-                'ok'      => true,
-                'file'    => ['url' => blogUrlArchivo($res['ruta']), 'ruta' => $res['ruta'], 'media' => $res['media'], 'ancho' => $res['ancho'], 'alto' => $res['alto']],
-                'alt'     => $seo['alt'],
-                'titulo'  => $seo['titulo'],
-                'caption' => $seo['caption'],
-                'origen'  => $fuente,
-                'credito' => $credito,
-                'etiqueta_ia' => (bool) $meta['etiqueta_ia'],
-                'avisos'  => array_values($avisos),
-            ]);
+        // ── Subir archivo propio: mismo proceso que banco/IA (visión + encuadre + optimización) ──
+        case 'subir':
+            @set_time_limit(120);
+            if (empty($_FILES['image']['tmp_name'])) blogJson(['ok' => false, 'mensaje' => 'No se recibió ninguna imagen.']);
+            $val = ImagenHelper::validar($_FILES['image']);
+            if (!$val['ok']) blogJson(['ok' => false, 'mensaje' => $val['error']]);
+            $ctx = ctxArticulo($in);
+            $altsUsados = array_values(array_filter(array_map(fn($a) => mb_substr(trim((string) $a), 0, 200), (array) ($in['alts_usados'] ?? []))));
+            $meta = ['con_logo' => 0, 'etiqueta_ia' => 0];
+            $tmpBorrar = [];
+            // Copia temporal propia (el temporal de PHP se borra solo al terminar la petición)
+            $tmp = blogGuardarTemp((string) file_get_contents($_FILES['image']['tmp_name']));
+            $tmpBorrar[] = $tmp;
+            $out = importarPipeline($pdo, $tmp, $ctx, $altsUsados, !empty($in['con_logo']), 'subida', $meta, (int) ($in['articulo_id'] ?? 0) ?: null, $tmpBorrar);
+            blogJson($out + ['origen' => 'subida', 'credito' => null, 'etiqueta_ia' => false]);
 
         default:
             blogJson(['ok' => false, 'mensaje' => 'Acción no válida.'], 400);

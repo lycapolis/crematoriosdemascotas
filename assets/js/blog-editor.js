@@ -74,7 +74,34 @@
 
     function crearEditor() {
         var Imagen = T.crearBedImagen() || window.ImageTool;
-        var endpoint = C.urls.subir + '?articulo_id=' + (C.id || 0);
+        // ?analizar=1 → el servidor hace el mismo proceso que con banco/IA (alt, pie, logo opcional)
+        var endpoint = C.urls.subir + '?articulo_id=' + (C.id || 0) + '&analizar=1';
+        // Cabeceras de cada subida, calculadas EN EL MOMENTO de subir (contexto del artículo y casilla del logo).
+        // Van en un uploader propio: Editor.js clona la configuración al arrancar, así que un objeto con
+        // valores "vivos" no serviría.
+        function cabecerasSubida() {
+            var enBloques = editor && editor.blocks && typeof editor.blocks.getCurrentBlockIndex === 'function';
+            var ctx = contextoImagen('cuerpo', enBloques ? editor.blocks.getCurrentBlockIndex() + 1 : 0);
+            ctx.extracto = (ctx.extracto || '').slice(0, 300);
+            var chk = $('bed-portada-logo');
+            return {
+                'X-CSRF-Token': C.csrf,
+                'X-Blog-Contexto': encodeURIComponent(JSON.stringify({ contexto: ctx, alts: altsUsados().slice(0, 6).map(function (a) { return a.slice(0, 100); }) })),
+                'X-Blog-Logo': (chk && chk.checked && C.imagenes && C.imagenes.logo) ? '1' : '0'
+            };
+        }
+        var uploaderBlog = {
+            uploadByFile: function (file) {
+                var fd = new FormData();
+                fd.append('image', file);
+                return fetch(endpoint, { method: 'POST', body: fd, headers: cabecerasSubida() }).then(function (r) { return r.json(); });
+            },
+            uploadByUrl: function (url) {
+                var h = cabecerasSubida();
+                h['Content-Type'] = 'application/json';
+                return fetch(endpoint, { method: 'POST', headers: h, body: JSON.stringify({ url: url }) }).then(function (r) { return r.json(); });
+            }
+        };
         editor = new window.EditorJS({
             holder: 'editorjs',
             data: (C.contenido && C.contenido.blocks) ? C.contenido : { blocks: [] },
@@ -89,7 +116,7 @@
                     endpoints: { byFile: endpoint, byUrl: endpoint },
                     field: 'image',
                     types: 'image/jpeg,image/png,image/webp,image/gif',
-                    additionalRequestHeaders: { 'X-CSRF-Token': C.csrf },
+                    uploader: uploaderBlog,
                     captionPlaceholder: 'Pie de foto (opcional)',
                     buttonContent: 'Elegir imagen o arrastrarla aquí'
                 } },
@@ -395,20 +422,27 @@
         carg.className = 'blog-editor__portada-cargando';
         carg.textContent = 'Subiendo imagen…';
         zona.appendChild(carg);
+        carg.textContent = 'Analizando y encuadrando la imagen…';
+        // Mismo proceso que banco/IA: visión (alt + motivo principal) → encuadre 16:9 → WebP
         var fd = new FormData();
+        fd.append('accion', 'subir');
         fd.append('image', archivo);
-        fd.append('nombre', $('bed-slug').value || slugificar($('bed-titulo').value) || 'portada');
+        fd.append('contexto', JSON.stringify(contextoImagen('portada')));
+        fd.append('alts_usados', JSON.stringify(altsUsados()));
         fd.append('articulo_id', C.id || 0);
-        fetch(C.urls.subir, { method: 'POST', body: fd, headers: { 'X-CSRF-Token': C.csrf } })
+        if ($('bed-portada-logo').checked && C.imagenes && C.imagenes.logo) fd.append('con_logo', '1');
+        fetch(C.urls.imagenes, { method: 'POST', body: fd, headers: { 'X-CSRF-Token': C.csrf } })
             .then(function (r) { return r.json(); })
             .then(function (d) {
-                if (!d.success) throw new Error(d.mensaje || 'No se pudo subir la imagen');
+                if (!d.ok) throw new Error(d.mensaje || 'No se pudo subir la imagen');
+                (d.avisos || []).forEach(function (m) { aviso('error', m); });
                 portada = { ruta: d.file.ruta, url: d.file.url };
+                $('bed-portada-alt').value = d.alt || '';
                 pintarPortada();
                 marcarSucio();
                 analizarSeo();
-                if (!$('bed-portada-alt').value.trim()) $('bed-portada-alt').focus();
-                aviso('ok', 'Portada subida. Escribe su texto alternativo.');
+                if (!d.alt) $('bed-portada-alt').focus();
+                aviso('ok', 'Portada lista. Revisa el texto alternativo.');
             })
             .catch(function (err) { aviso('error', err.message); })
             .finally(function () { carg.remove(); });
@@ -416,11 +450,7 @@
     function engancharPortada() {
         var zona = $('bed-portada');
         var input = $('bed-portada-file');
-        zona.addEventListener('click', function (e) {
-            if (e.target.closest('#bed-portada-quitar')) return;
-            input.click();
-        });
-        zona.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } });
+        // El clic en la zona NO hace nada (evita aperturas por error): se elige con los botones o arrastrando.
         input.addEventListener('change', function () { subirPortada(input.files[0]); input.value = ''; });
         ['dragenter', 'dragover'].forEach(function (ev) {
             zona.addEventListener(ev, function (e) {
@@ -439,6 +469,22 @@
             portada = { ruta: '', url: '' };
             pintarPortada(); marcarSucio(); analizarSeo();
         });
+        // "Cambiar": menú con los tres orígenes (mismos botones que hay debajo de la portada)
+        var menu = $('bed-portada-menu'), btnCambiar = $('bed-portada-cambiar');
+        function cerrarMenu() { menu.hidden = true; btnCambiar.setAttribute('aria-expanded', 'false'); }
+        btnCambiar.addEventListener('click', function (e) {
+            e.stopPropagation();
+            menu.hidden = !menu.hidden;
+            btnCambiar.setAttribute('aria-expanded', menu.hidden ? 'false' : 'true');
+        });
+        menu.addEventListener('click', function (e) {
+            var b = e.target.closest('button[data-origen]');
+            if (!b) return;
+            cerrarMenu();
+            $({ subir: 'bed-portada-subir', banco: 'bed-portada-banco', ia: 'bed-portada-ia' }[b.dataset.origen]).click();
+        });
+        document.addEventListener('click', function (e) { if (!menu.hidden && !e.target.closest('#bed-portada-acciones')) cerrarMenu(); });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !menu.hidden) cerrarMenu(); });
         $('bed-portada-alt').addEventListener('input', function () { marcarSucio(); analizarSeo(); });
         $('bed-portada-subir').addEventListener('click', function () { input.click(); });
         $('bed-portada-banco').addEventListener('click', function () { abrirImagenPortada('banco'); });
@@ -451,7 +497,7 @@
     // ═══════════════════════════════════════════════════════
     function contextoImagen(uso, indice) {
         var seccion = '';
-        if (uso === 'cuerpo' && editor) {
+        if (uso === 'cuerpo' && editor && editor.blocks && typeof editor.blocks.getBlocksCount === 'function') {
             // Subtítulo más cercano por encima del punto de inserción
             for (var i = Math.min(indice, editor.blocks.getBlocksCount()) - 1; i >= 0; i--) {
                 var b = editor.blocks.getBlockByIndex(i);

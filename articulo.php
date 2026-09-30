@@ -138,7 +138,7 @@ $tocHtml = function (string $variante) use ($toc) {
         <figure class="articulo__portada">
             <img src="<?php echo limpiar($portadaUrl); ?>" alt="<?php echo limpiar($art['portada_alt'] ?: $art['titulo']); ?>" fetchpriority="high" decoding="async">
             <?php if ($creditoPortada = blogCreditoPortada($art['portada_ruta'] ?? '')): ?>
-            <figcaption class="articulo__portada-credito"><?php echo $creditoPortada; ?></figcaption>
+            <?php echo $creditoPortada; ?>
             <?php endif; ?>
         </figure>
         <?php endif; ?>

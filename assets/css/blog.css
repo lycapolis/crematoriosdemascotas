@@ -245,14 +245,8 @@
 }
 .articulo__portada img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .articulo__portada { position: relative; }
-.articulo__portada-credito {
-    position: absolute; right: .6rem; bottom: .6rem; max-width: calc(100% - 1.2rem);
-    padding: .15rem .55rem; border-radius: var(--radio-uno, 6px); background: rgba(0, 0, 0, .5);
-    color: #fff; font-size: .72rem; line-height: 1.4;
-}
-.articulo__portada-credito a { color: inherit; text-decoration: underline; }
 @media (max-width: 640px) {
-    .articulo__portada { border-radius: var(--radio-dos); margin-bottom: var(--espacio-cuatro); aspect-ratio: 4 / 3; }
+    .articulo__portada { border-radius: var(--radio-dos); margin-bottom: var(--espacio-cuatro); } /* mismo 16:9 que en escritorio y en el editor */
 }
 
 /* Layout: cuerpo + columna lateral (TOC sticky) */
@@ -352,11 +346,25 @@
     margin-top: .6rem; font-size: var(--fs-dos); color: var(--color-seis-claro-02);
     text-align: center; line-height: 1.5;
 }
-.blog-credito { display: inline-block; font-size: .85em; opacity: .85; }
-.blog-credito a { color: inherit; }
+/* Insignia de procedencia (IA / foto de banco): sobre la imagen, abajo a la izquierda.
+   El logo de la marca va grabado abajo a la derecha, así que nunca se pisan. */
+.blog-figura__marco { position: relative; }
+.blog-credito {
+    position: absolute; left: .6rem; bottom: .6rem; z-index: 1;
+    display: inline-flex; align-items: center; gap: .3rem; max-width: calc(50% - .6rem);
+    padding: .2rem .55rem; border-radius: var(--radio-full);
+    background: rgba(0, 0, 0, .6); color: #fff;
+    font-size: .72rem; line-height: 1.3; font-weight: 500;
+}
+.blog-credito__icono { flex-shrink: 0; }
+.blog-credito__texto { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.blog-credito a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+@media (max-width: 640px) {
+    .blog-credito { left: .4rem; bottom: .4rem; max-width: calc(60% - .4rem); font-size: .66rem; padding: .15rem .45rem; }
+}
 .blog-figura--borde img { border: 1px solid rgba(90, 62, 47, 0.15); }
 .blog-figura--fondo { background: var(--color-cinco); padding: var(--espacio-cuatro); border-radius: var(--radio-dos); }
-.blog-figura--fondo img { max-width: 70%; margin: 0 auto; }
+.blog-figura--fondo .blog-figura__marco { max-width: 70%; margin: 0 auto; }
 @media (min-width: 1000px) {
     .blog-figura--ancha { margin-left: -60px; margin-right: -60px; }
 }

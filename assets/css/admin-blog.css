@@ -127,8 +127,8 @@
 /* Portada */
 .blog-editor__portada {
     position: relative; border: 2px dashed var(--admin-linea-fuerte); border-radius: var(--admin-r-lg);
-    background: var(--admin-papel-alt); aspect-ratio: 16 / 7; overflow: hidden;
-    display: flex; align-items: center; justify-content: center; text-align: center; cursor: pointer;
+    background: var(--admin-papel-alt); aspect-ratio: 16 / 9; overflow: hidden; /* = portada pública (.articulo__portada) */
+    display: flex; align-items: center; justify-content: center; text-align: center;
     transition: border-color .15s, background .15s;
 }
 .blog-editor__portada:hover, .blog-editor__portada--sobre { border-color: var(--admin-brand); background: var(--admin-brand-soft); }
@@ -142,6 +142,14 @@
     display: inline-flex; align-items: center; gap: .3rem; box-shadow: var(--admin-sombra-suave);
 }
 .blog-editor__portada-acciones .icono { width: 14px; height: 14px; }
+.blog-editor__portada-menu {
+    position: absolute; top: calc(100% + .35rem); right: 0; min-width: 12.5rem;
+    display: flex; flex-direction: column; gap: .15rem; padding: .3rem; text-align: left;
+    background: #fff; border-radius: var(--admin-r-sm); box-shadow: var(--admin-sombra-suave), 0 0 0 1px var(--admin-linea-fuerte);
+}
+.blog-editor__portada-menu[hidden] { display: none; }
+.blog-editor__portada-menu button { box-shadow: none; background: transparent; justify-content: flex-start; width: 100%; }
+.blog-editor__portada-menu button:hover { background: var(--admin-brand-soft); }
 .blog-editor__portada-cargando { position: absolute; inset: 0; background: rgba(255,255,255,.8); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--admin-brand); z-index: 3; }
 .blog-editor__alt { margin-top: .6rem; }
 
@@ -180,6 +188,35 @@
 .ce-block--resaltado { animation: bedResaltar 1.4s ease; }
 @keyframes bedResaltar { 0%, 30% { background: var(--admin-brand-soft); } 100% { background: transparent; } }
 .blog-editor__drop-linea { position: absolute; left: var(--espacio-cinco); right: var(--espacio-cinco); height: 3px; background: var(--admin-brand); border-radius: 3px; pointer-events: none; z-index: 5; box-shadow: 0 0 0 3px var(--admin-brand-soft); }
+
+/* Imagen: la librería posiciona el pie de foto en absoluto (bottom:0) reservando 50 px;
+   con pies largos o con el campo alt debajo se solapaban con el bloque siguiente.
+   Se deja el pie en el flujo: imagen → pie de foto → texto alternativo. */
+#editorjs .image-tool--caption { padding-bottom: 0; }
+#editorjs .image-tool__caption { position: static; margin: .5rem 0 0; }
+
+/* Cajitas con etiqueta interna (solo admin) */
+.bed-caja { margin-top: .5rem; border: 1px solid var(--admin-linea); border-radius: var(--admin-r-sm); background: var(--admin-superficie); overflow: hidden; }
+.bed-caja--alt { background: var(--admin-papel); }
+.bed-caja--alt:has(.bed-alt--vacio) { border-color: var(--admin-tone-alerta-bord); background: var(--admin-tone-alerta-bg); }
+.bed-caja:focus-within { border-color: var(--admin-brand); box-shadow: var(--admin-sombra-foco); }
+.bed-caja__etiqueta {
+    padding: 0 .75rem .45rem; font-size: .68rem; line-height: 1.2; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .03em; color: var(--admin-tinta-tenue); user-select: none;
+}
+#editorjs .bed-caja .image-tool__caption,
+#editorjs .bed-caja .image-tool__caption:focus,
+#editorjs .bed-caja .image-tool__caption:focus-visible {
+    margin: 0; border: 0 !important; box-shadow: none !important; outline: none !important; background: transparent;
+    border-radius: 0; padding: .6rem .75rem;
+}
+#editorjs .bed-caja .bed-alt { margin: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+/* Pie vacío: cajita siempre visible (con "Pie de foto (opcional)" de fondo), en trazo discontinuo para invitar a usarla */
+.bed-caja--pie:has(.image-tool__caption:empty) { border-style: dashed; }
+#editorjs .bed-caja--pie .image-tool__caption { visibility: visible; min-height: 1.6rem; }
+/* La librería oculta el texto de ayuda mientras el campo tiene el foco; aquí se mantiene visible (como en el alt) */
+#editorjs .bed-caja .image-tool__caption[contentEditable=true][data-placeholder]:empty:focus::before { display: block; }
+#editorjs .bed-caja .image-tool__caption[data-placeholder]::before { pointer-events: none; }
 
 /* Imagen: campo alt debajo del bloque */
 .bed-alt {
