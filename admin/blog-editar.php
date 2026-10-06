@@ -424,6 +424,7 @@ $sel = fn($v, $lista) => in_array((string) $v, array_map('strval', $lista), true
                 </select>
                 <button type="submit" class="boton uno pequeno"><i data-lucide="search" class="icono"></i> Buscar</button>
             </form>
+            <div class="bimg-modal__sugerencias" id="bimg-sugerencias" hidden></div>
             <p class="bimg-modal__hint">Las búsquedas en inglés dan muchos más resultados. Las fotos se descargan a nuestro servidor, se optimizan (WebP, sin metadatos) y se cita al autor.</p>
             <div class="bimg-modal__grid" id="bimg-grid"></div>
             <div class="bimg-modal__mas" id="bimg-mas-wrap" hidden><button type="button" class="boton dos pequeno" id="bimg-mas">Cargar más</button></div>

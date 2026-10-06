@@ -21,6 +21,7 @@
     var pagina = 1;
     var tokenIa = '';
     var propuesto = false;
+    var anteriores = [];   // propuestas ya recibidas en esta sesión (para que la IA no repita)
 
     function C() { return window.BLOG_EDITOR || {}; }
     function aviso(tipo, msg) {
@@ -63,16 +64,33 @@
         if (!propuesto && (nombre === 'ia' ? !$('bimg-prompt').value.trim() : !$('bimg-q').value.trim())) proponer(nombre === 'banco');
     }
 
+    // Búsquedas alternativas propuestas por la IA (clic = buscar)
+    function sugerencias(lista) {
+        var cont = $('bimg-sugerencias');
+        lista = (lista || []).filter(Boolean);
+        if (lista.length < 2) { cont.hidden = true; cont.innerHTML = ''; return; }
+        cont.innerHTML = '<span class="bimg-modal__sugerencias-label">Otras ideas:</span>' + lista.map(function (q) {
+            return '<button type="button" class="bimg-modal__sugerencia" data-q="' + esc(q) + '">' + esc(q) + '</button>';
+        }).join('');
+        cont.hidden = false;
+        cont.querySelectorAll('[data-q]').forEach(function (b) {
+            b.addEventListener('click', function () { $('bimg-q').value = b.dataset.q; buscar(false); });
+        });
+    }
+
     // ─── Propuesta de búsqueda/escena a partir del artículo ─
     function proponer(buscarDespues) {
         var ctx = contexto();
         if (!ctx.titulo && !ctx.keyword) { estado('Escribe el título del artículo para recibir sugerencias.'); return; }
         propuesto = true;
         bloquear(true, 'Leyendo el artículo para sugerir imágenes…');
-        post('proponer', { contexto: ctx }).then(function (d) {
+        post('proponer', { contexto: ctx, anteriores: anteriores }).then(function (d) {
             if (d.consulta && !$('bimg-q').value.trim()) $('bimg-q').value = d.consulta;
             if (d.prompt) $('bimg-prompt').value = d.prompt;
-            if (d.aviso) aviso('error', d.aviso);
+            sugerencias([d.consulta].concat(d.alternativas || []));
+            [d.consulta].concat(d.alternativas || []).concat(d.prompt ? [d.prompt.slice(0, 120)] : []).forEach(function (t) { if (t) anteriores.push(t); });
+            anteriores = anteriores.slice(-10);
+            if (d.aviso) aviso(d.tipo_aviso === 'info' ? 'info' : 'error', d.aviso);
         }).catch(function (e) { aviso('error', e.message); })
           .finally(function () {
               bloquear(false);

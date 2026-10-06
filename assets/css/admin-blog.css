@@ -418,6 +418,11 @@
 .bimg-modal__buscador .field__input { flex: 1 1 240px; }
 .bimg-modal__buscador .field__select { flex: 0 0 auto; width: auto; }
 .bimg-modal__hint { margin: 0; font-size: var(--admin-caption); color: var(--admin-tinta-tenue); }
+.bimg-modal__sugerencias { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+.bimg-modal__sugerencias[hidden] { display: none; }
+.bimg-modal__sugerencias-label { font-size: var(--admin-caption); color: var(--admin-tinta-tenue); }
+.bimg-modal__sugerencia { font-size: var(--admin-caption); padding: .2rem .6rem; border: 1px solid var(--admin-linea); border-radius: 999px; background: var(--admin-superficie); cursor: pointer; }
+.bimg-modal__sugerencia:hover { border-color: var(--admin-brand); color: var(--admin-brand); }
 .bimg-modal__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: .6rem; }
 .bimg-modal__vacio { grid-column: 1 / -1; text-align: center; color: var(--admin-tinta-suave); padding: 2rem 1rem; margin: 0; }
 .bimg-modal__mas { text-align: center; }

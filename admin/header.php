@@ -184,7 +184,7 @@ $fechaHoy = $dias_es[(int)date('w')] . ', ' . (int)date('j') . ' de ' . $meses_e
 
             <?php if (esSuperAdmin() || tienePermiso($admin, 'gestionar_admins')): ?>
             <a href="<?php echo $base_url; ?>/admin/configuracion.php" class="admin-header__link"
-               style="<?php echo in_array($currentPage, ['configuracion.php','admins.php','admin-editar.php','configuracion-ia.php','configuracion-formularios.php']) ? 'opacity:1;font-weight:700;' : ''; ?>">
+               style="<?php echo in_array($currentPage, ['configuracion.php','admins.php','admin-editar.php','configuracion-ia.php','prompts-ia.php','configuracion-formularios.php']) ? 'opacity:1;font-weight:700;' : ''; ?>">
                 <i data-lucide="settings" class="icono" style="width:14px; height:14px; vertical-align:middle;"></i>
                 Configuración
             </a>

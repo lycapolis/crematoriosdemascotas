@@ -8,6 +8,7 @@ require_once __DIR__ . '/auth.php';
 require_once dirname(__DIR__) . '/includes/funciones.php';
 require_once dirname(__DIR__) . '/includes/blog.php';
 require_once dirname(__DIR__) . '/includes/ImagenHelper.php';
+require_once dirname(__DIR__) . '/includes/ia-prompts.php';
 
 requerirAutenticacion();
 requierePermiso('blog');
@@ -187,27 +188,21 @@ function blogImagenSeo(PDO $pdo, string $tmp, array $ctx, array $altsUsados = []
         $prohibidos = "\nAlt texts YA USADOS en este artículo (el tuyo debe ser claramente distinto):\n";
         foreach (array_slice($altsUsados, 0, 20) as $a) $prohibidos .= '- "' . str_replace('"', "'", $a) . "\"\n";
     }
-    $uso = ($ctx['uso'] ?? '') === 'portada' ? 'imagen de portada (destacada) del artículo' : 'imagen dentro del cuerpo del artículo';
+    $uso = iaPromptUsoFrase((string) ($ctx['uso'] ?? ''));
     $titulo   = $ctx['titulo'] ?? '';
     $extracto = mb_substr($ctx['extracto'] ?? '', 0, 400);
     $keyword  = $ctx['keyword'] ?? '';
     $seccion  = $ctx['seccion'] ?? '';
 
-    $prompt = <<<PROMPT
-Eres un experto en SEO y accesibilidad para un blog sobre cremación de mascotas y duelo en España.
-Mira la imagen y genera sus metadatos. Uso: $uso.
-
-Artículo: "$titulo"
-Entradilla: $extracto
-Palabra clave principal: $keyword
-Sección donde va la imagen: $seccion
-$prohibidos
-Devuelve SOLO un JSON con estas claves:
-- "alt": UNA sola frase completa de 60 a 120 caracteres. Describe de forma concreta lo que SE VE en la imagen (no inventes nada que no aparezca) y conéctalo con el tema del artículo usando la palabra clave solo si encaja de forma natural. Español de España, sin "imagen de" ni "foto de" al inicio.
-- "slug": nombre de archivo de 3 a 6 palabras, minúsculas, separadas por guiones, sin acentos, sin artículos ni fechas. Ej.: "perro-mayor-jardin-atardecer".
-- "titulo": título corto de la imagen (máx. 70 caracteres).
-- "caption": pie de foto opcional de UNA frase de 140 caracteres como máximo que aporte contexto útil al lector sobre el tema del artículo; en tono cálido y respetuoso. Cadena vacía si no aporta nada.
-PROMPT;
+    // Parte creativa editable (admin/prompts-ia.php) + contrato JSON fijo
+    $prompt = iaPromptRender($pdo, 'blog_imagen_seo', [
+        'titulo'      => $titulo,
+        'extracto'    => $extracto,
+        'keyword'     => $keyword,
+        'seccion'     => $seccion,
+        'uso'         => $uso,
+        'alts_usados' => $prohibidos,
+    ]);
     $esPortada = ($ctx['uso'] ?? '') === 'portada';
     if ($esPortada) {
         $prompt .= <<<'FOCO'

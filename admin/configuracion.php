@@ -35,6 +35,13 @@ $tarjetas = [
         'visible'      => esSuperAdmin(),
     ],
     [
+        'href'         => BASE_URL . '/admin/prompts-ia.php',
+        'icono'        => 'message-square-text',
+        'titulo'       => 'Prompts de IA',
+        'descripcion'  => 'Instrucciones de las tareas de IA: qué hace cada una, edición y versiones.',
+        'visible'      => esSuperAdmin(),
+    ],
+    [
         'href'         => BASE_URL . '/admin/configuracion-formularios.php',
         'icono'        => 'sliders',
         'titulo'       => 'Configuración de formularios',

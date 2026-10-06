@@ -14,6 +14,7 @@
  */
 
 require_once __DIR__ . '/_blog-comun.php';
+require_once dirname(__DIR__) . '/includes/ia-prompts.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') blogJson(['ok' => false, 'mensaje' => 'Método no permitido'], 405);
 
@@ -30,14 +31,9 @@ if (!validarTokenCSRF((string) $token)) blogJson(['ok' => false, 'mensaje' => 'L
 $pdo = obtenerConexion();
 $accion = (string) ($in['accion'] ?? '');
 
-// Estilos visuales para la IA (se añaden al prompt de escena)
-const BLOG_IA_ESTILOS = [
-    'realista'    => 'Photorealistic editorial photograph, natural soft warm light, shallow depth of field, full-frame camera, 35mm lens, authentic and candid, calm and respectful mood.',
-    'acuarela'    => 'Soft watercolor illustration, gentle warm pastel palette, delicate brush strokes, visible paper texture, comforting and tender.',
-    'minimalista' => 'Minimalist flat illustration, clean simple composition, soft muted palette, generous negative space, serene and calm.',
-];
-// Salvaguardas fijas: nada de texto/marcas, ni negocios o personas reales, ni escenas morbosas
-const BLOG_IA_REGLAS = 'No text, no letters, no words, no logos, no watermarks, no signage, no brand names. No recognizable real people, no real businesses or facilities. Nothing graphic, morbid or medical: no visible remains, no spilled ashes, no cremation equipment.';
+// Estilos visuales para la IA (se añaden al prompt de escena). Textos editables en
+// admin/prompts-ia.php (claves blog_estilo_*); salvaguardas fijas en BLOG_IA_REGLAS.
+const BLOG_IA_ESTILOS = ['realista', 'acuarela', 'minimalista'];
 
 /** Tokens de imágenes IA generadas y aún no importadas (en sesión, caducan a las 2 h). */
 function iaTemporales(): array
@@ -68,26 +64,57 @@ try {
             $base = $ctx['keyword'] ?: $ctx['titulo'];
             if ($base === '') blogJson(['ok' => false, 'mensaje' => 'Escribe primero el título del artículo.']);
 
-            $prompt = <<<PROMPT
-Eres editor gráfico de un blog en España sobre cremación de mascotas y el duelo por su pérdida.
-Propón la imagen ideal para este artículo ({$ctx['uso']}).
+            // Nivel de contexto (lo decide el código, no la IA):
+            //   completo = título + entradilla o sección · parcial = solo título o palabra clave
+            $completo = $ctx['titulo'] !== '' && ($ctx['extracto'] !== '' || $ctx['seccion'] !== '');
 
-Título: {$ctx['titulo']}
-Entradilla: {$ctx['extracto']}
-Palabra clave: {$ctx['keyword']}
-Sección concreta donde irá: {$ctx['seccion']}
+            // Propuestas previas de esta misma sesión del modal: la IA debe proponer algo distinto
+            $anteriores = [];
+            foreach ((array) ($in['anteriores'] ?? []) as $a) {
+                $a = trim(mb_substr((string) $a, 0, 160));
+                if ($a !== '') $anteriores[] = $a;
+            }
+            $anteriores = array_slice($anteriores, -10);
+            $yaPropuestas = $anteriores
+                ? "
+Ya propuestas antes para este artículo (propón algo claramente diferente):\n- " . implode("\n- ", $anteriores)
+                : '';
 
-Devuelve SOLO un JSON con:
-- "consulta": 2-4 palabras EN INGLÉS para buscar en un banco de fotos (Pexels/Pixabay). Concreta y visual (ej.: "old dog garden sunset", "cat urn memorial candle").
-- "prompt": descripción EN INGLÉS (40-70 palabras) de una escena conceptual, cálida y respetuosa para generar con IA: sujeto, entorno, luz y composición. Sin texto, sin logotipos, sin personas reconocibles, sin nada morboso. No incluyas el estilo artístico.
-PROMPT;
+            $prompt = iaPromptRender($pdo, 'blog_imagen_prompt', [
+                'titulo'        => $ctx['titulo'],
+                'extracto'      => $ctx['extracto'],
+                'keyword'       => $ctx['keyword'],
+                'seccion'       => $ctx['seccion'],
+                'uso'           => iaPromptUsoFrase($ctx['uso']),
+                'ya_propuestas' => $yaPropuestas,
+            ]);
             $r = llamarLLM($pdo, 'blog_imagen_prompt', $prompt);
             $j = $r['ok'] ? extraerJsonDeRespuesta((string) $r['texto']) : null;
+
+            // Consultas de banco: admite el formato nuevo ("consultas") y el antiguo ("consulta")
+            $consultas = [];
+            foreach ((array) ($j['consultas'] ?? [$j['consulta'] ?? '']) as $q) {
+                $q = trim(mb_substr((string) $q, 0, 80));
+                if ($q !== '' && !in_array(mb_strtolower($q), array_map('mb_strtolower', $consultas), true)) $consultas[] = $q;
+            }
+
+            $aviso = null; $tipoAviso = 'info';
+            if (!$j) {
+                $aviso = 'La IA no pudo proponer nada' . ($r['ok'] ? '' : ' (' . $r['error'] . ')') . '. Escribe la búsqueda a mano.';
+                $tipoAviso = 'error';
+            } elseif (!$completo) {
+                $aviso = 'Propuesta orientativa: solo hay título o palabra clave. Mejorará si añades la entradilla o la sección del artículo.';
+            } elseif (($j['contexto_suficiente'] ?? true) === false) {
+                $aviso = trim((string) ($j['aviso'] ?? '')) ?: 'La IA indica que le falta contexto: revisa la propuesta antes de usarla.';
+            }
+
             blogJson([
-                'ok'       => true,
-                'consulta' => trim((string) ($j['consulta'] ?? '')) ?: $base,
-                'prompt'   => trim((string) ($j['prompt'] ?? '')),
-                'aviso'    => $j ? null : 'La IA no pudo proponer nada' . ($r['ok'] ? '' : ' (' . $r['error'] . ')') . '. Escribe la búsqueda a mano.',
+                'ok'           => true,
+                'consulta'     => $consultas[0] ?? $base,
+                'alternativas' => array_slice($consultas, 1, 2),
+                'prompt'       => trim((string) ($j['prompt'] ?? '')),
+                'aviso'        => $aviso,
+                'tipo_aviso'   => $tipoAviso,
             ]);
 
         // ── Buscar en bancos de fotos ──
@@ -115,9 +142,10 @@ PROMPT;
             @set_time_limit(200);
             $escena = mb_substr(trim((string) ($in['prompt'] ?? '')), 0, 1500);
             if (mb_strlen($escena) < 10) blogJson(['ok' => false, 'mensaje' => 'Describe la escena que quieres generar.']);
-            $estilo  = BLOG_IA_ESTILOS[$in['estilo'] ?? ''] ?? BLOG_IA_ESTILOS['realista'];
+            $claveEstilo = in_array($in['estilo'] ?? '', BLOG_IA_ESTILOS, true) ? $in['estilo'] : 'realista';
             $aspecto = in_array($in['aspecto'] ?? '', ['16:9', '4:3', '3:2', '1:1'], true) ? $in['aspecto'] : '16:9';
-            $promptFinal = $escena . "\n\n" . $estilo . "\n" . BLOG_IA_REGLAS;
+            // estilo (editable) + salvaguardas fijas, unidos por el catálogo
+            $promptFinal = $escena . "\n\n" . iaPromptRender($pdo, 'blog_estilo_' . $claveEstilo);
 
             $r = llamarLLMImagen($pdo, 'blog_imagen_generar', $promptFinal, $aspecto);
             if (!$r['ok']) blogJson(['ok' => false, 'mensaje' => 'No se pudo generar la imagen: ' . $r['error']]);
