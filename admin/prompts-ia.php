@@ -85,6 +85,7 @@ $textoActual  = $textoForm  ?? iaPromptTexto($pdo, $clave);
 $evitarActual = $evitarForm ?? iaPromptEvitar($pdo, $clave);
 $editado      = $tablasOk && iaPromptFila($pdo, $clave) !== null;
 $versiones    = $tablasOk ? iaPromptVersiones($pdo, $clave) : [];
+$probable     = iaPromptProbable($pdo, $clave);
 
 // Vista previa: el texto vigente con datos de ejemplo + contrato
 $vistaPrevia = iaPromptSustituir($textoActual, $cat['variables'], $cat['ejemplo'] + ['evitar' => iaPromptEvitarFormateado($evitarActual)]);
@@ -119,6 +120,14 @@ include 'header.php';
     .prompt-ia__contrato { white-space: pre-wrap; font-family: ui-monospace, Consolas, monospace; font-size: .8rem; line-height: 1.5; background: var(--admin-fondo, #f4f4f5); border: 1px dashed var(--admin-linea); border-radius: var(--admin-r-md); padding: var(--espacio-tres); margin: 0; }
     .prompt-ia__acciones { display: flex; flex-wrap: wrap; gap: var(--espacio-dos); margin-top: var(--espacio-tres); }
     .prompt-ia__versiones { width: 100%; border-collapse: collapse; font-size: var(--admin-body-sm); }
+    .prompt-ia__panel { margin-top: var(--espacio-cuatro); padding: var(--espacio-tres); border: 1px solid var(--admin-linea); border-radius: var(--admin-r-md); background: var(--admin-superficie); }
+    .prompt-ia__panel[hidden] { display: none; }
+    .prompt-ia__panel-titulo { margin: 0 0 var(--espacio-dos); font-size: 1rem; }
+    .prompt-ia__diff { font-family: ui-monospace, Consolas, monospace; font-size: .8rem; line-height: 1.5; border: 1px solid var(--admin-linea); border-radius: var(--admin-r-md); max-height: 380px; overflow: auto; }
+    .prompt-ia__diff-linea { padding: .1rem .6rem; white-space: pre-wrap; word-break: break-word; }
+    .prompt-ia__diff-linea--add, .prompt-ia__diff-leyenda--add { background: #dcfce7; color: #14532d; }
+    .prompt-ia__diff-linea--del, .prompt-ia__diff-leyenda--del { background: #fee2e2; color: #7f1d1d; text-decoration: line-through; }
+    .prompt-ia__diff-leyenda { padding: 0 .35rem; border-radius: 3px; }
     .prompt-ia__versiones td { padding: .35rem .5rem; border-top: 1px solid var(--admin-linea); }
 </style>
 
@@ -259,8 +268,59 @@ include 'header.php';
                         <i data-lucide="rotate-ccw" class="icono"></i> Restaurar original
                     </button>
                     <?php endif; ?>
+                    <?php if ($probable): ?>
+                    <button type="button" class="boton dos" id="prompt-ia-probar">
+                        <i data-lucide="flask-conical" class="icono"></i> Probar
+                    </button>
+                    <?php endif; ?>
+                    <button type="button" class="boton dos" id="prompt-ia-mejorar">
+                        <i data-lucide="sparkles" class="icono"></i> Mejorar con IA
+                    </button>
                 </div>
+                <p class="field__hint" style="margin-top:.5rem;">
+                    «Probar» y «Mejorar con IA» usan lo que hay escrito ahora, aunque no lo hayas guardado, y gastan tokens reales. Nada se guarda hasta que pulses Guardar.
+                </p>
             </form>
+
+            <!-- ── Panel «Mejorar con IA» ── -->
+            <div class="prompt-ia__panel" id="prompt-ia-panel-mejorar" hidden>
+                <h3 class="prompt-ia__panel-titulo">Mejorar con IA</h3>
+                <div class="field">
+                    <label class="field__label" for="prompt-ia-instruccion">¿Qué quieres cambiar? <span style="font-weight:400;">(opcional)</span></label>
+                    <input type="text" class="field__input" id="prompt-ia-instruccion" maxlength="500" placeholder="Ej.: que proponga ideas menos tristes y más variadas">
+                </div>
+                <div class="prompt-ia__acciones" style="margin-top:var(--espacio-dos);">
+                    <button type="button" class="boton uno" id="prompt-ia-mejorar-go">
+                        <i data-lucide="wand-sparkles" class="icono"></i> <span>Pedir propuesta</span>
+                    </button>
+                </div>
+                <div id="prompt-ia-mejorar-res" hidden>
+                    <p class="field__hint" id="prompt-ia-mejorar-resumen" style="margin-top:var(--espacio-tres);"></p>
+                    <div class="prompt-ia__diff" id="prompt-ia-diff" aria-label="Diferencias entre tu texto y la propuesta"></div>
+                    <p class="field__hint"><span class="prompt-ia__diff-leyenda prompt-ia__diff-leyenda--del">Rojo</span> = se quita · <span class="prompt-ia__diff-leyenda prompt-ia__diff-leyenda--add">Verde</span> = se añade.</p>
+                    <div class="prompt-ia__acciones">
+                        <button type="button" class="boton uno" id="prompt-ia-usar">Usar en el editor</button>
+                        <button type="button" class="boton dos" id="prompt-ia-otra">Pedir otra</button>
+                        <button type="button" class="boton dos" id="prompt-ia-descartar">Descartar</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Panel «Probar» ── -->
+            <?php if ($probable): ?>
+            <div class="prompt-ia__panel" id="prompt-ia-panel-probar" hidden>
+                <h3 class="prompt-ia__panel-titulo">Resultado de la prueba</h3>
+                <p class="field__hint" id="prompt-ia-probar-meta"></p>
+                <span class="field__label">Respuesta de la IA</span>
+                <pre class="prompt-ia__contrato" id="prompt-ia-probar-resp"></pre>
+                <span class="field__label" style="margin-top:var(--espacio-tres); display:block;">Interpretada por el código</span>
+                <pre class="prompt-ia__contrato" id="prompt-ia-probar-json"></pre>
+                <details style="margin-top:var(--espacio-tres);">
+                    <summary style="cursor:pointer; font-weight:700;">Prompt exacto enviado</summary>
+                    <pre class="prompt-ia__contrato" id="prompt-ia-probar-prompt" style="margin-top:.6rem;"></pre>
+                </details>
+            </div>
+            <?php endif; ?>
 
             <details style="margin-top:var(--espacio-cuatro);">
                 <summary style="cursor:pointer; font-weight:700;">Así lo recibe la IA (con datos de ejemplo)</summary>
@@ -309,6 +369,115 @@ document.querySelectorAll('.prompt-ia__var').forEach(function (b) {
         t.selectionStart = t.selectionEnd = ini + b.dataset.var.length;
     });
 });
+
+// ── Probar y Mejorar con IA ──
+(function () {
+    var CSRF = <?php echo json_encode(generarTokenCSRF()); ?>;
+    var CLAVE = <?php echo json_encode($clave); ?>;
+    var AJAX = 'prompts-ia-ajax.php';
+    var $ = function (id) { return document.getElementById(id); };
+    var texto = $('prompt-ia-texto'), evitar = $('prompt-ia-evitar');
+    var propuesta = '';
+
+    function llamar(accion, extra, boton) {
+        var etiqueta = boton.innerHTML;
+        boton.disabled = true;
+        boton.textContent = 'Trabajando…';
+        var body = Object.assign({ accion: accion, clave: CLAVE, texto: texto.value, evitar: evitar ? evitar.value : '' }, extra || {});
+        return fetch(AJAX, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+            body: JSON.stringify(body)
+        }).then(function (r) { return r.json(); })
+          .catch(function () { return { ok: false, error: 'No se pudo conectar con el servidor.' }; })
+          .then(function (d) {
+              boton.disabled = false;
+              boton.innerHTML = etiqueta;
+              if (window.lucide) lucide.createIcons();
+              return d;
+          });
+    }
+
+    // Diff línea a línea (LCS)
+    function diffLineas(a, b) {
+        var A = a.split('\n'), B = b.split('\n'), n = A.length, m = B.length, i, j;
+        var L = [];
+        for (i = 0; i <= n; i++) { L.push(new Array(m + 1).fill(0)); }
+        for (i = n - 1; i >= 0; i--) for (j = m - 1; j >= 0; j--)
+            L[i][j] = A[i] === B[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+        var out = []; i = 0; j = 0;
+        while (i < n && j < m) {
+            if (A[i] === B[j]) { out.push(['=', A[i]]); i++; j++; }
+            else if (L[i + 1][j] >= L[i][j + 1]) { out.push(['-', A[i++]]); }
+            else { out.push(['+', B[j++]]); }
+        }
+        while (i < n) out.push(['-', A[i++]]);
+        while (j < m) out.push(['+', B[j++]]);
+        return out;
+    }
+
+    function pintarDiff(antes, despues) {
+        var cont = $('prompt-ia-diff');
+        cont.textContent = '';
+        diffLineas(antes, despues).forEach(function (p) {
+            var d = document.createElement('div');
+            d.className = 'prompt-ia__diff-linea' + (p[0] === '+' ? ' prompt-ia__diff-linea--add' : p[0] === '-' ? ' prompt-ia__diff-linea--del' : '');
+            d.textContent = (p[0] === '=' ? '  ' : p[0] + ' ') + p[1];
+            cont.appendChild(d);
+        });
+    }
+
+    var btnMejorar = $('prompt-ia-mejorar');
+    var btnGo = $('prompt-ia-mejorar-go');
+    btnMejorar.addEventListener('click', function () {
+        var p = $('prompt-ia-panel-mejorar');
+        p.hidden = !p.hidden;
+        if (!p.hidden) $('prompt-ia-instruccion').focus();
+    });
+
+    function pedir() {
+        if (texto.readOnly) return;
+        var res = $('prompt-ia-mejorar-res');
+        res.hidden = true;
+        llamar('mejorar', { instruccion: $('prompt-ia-instruccion').value }, btnGo).then(function (d) {
+            if (!d.ok) { alert(d.error || 'No se pudo mejorar el prompt.'); return; }
+            propuesta = d.texto;
+            var resumen = d.resumen || '';
+            if (d.perdidas && d.perdidas.length) resumen += ' Atención: la propuesta quitó ' + d.perdidas.join(', ') + ' (opcional/es).';
+            $('prompt-ia-mejorar-resumen').textContent = (resumen + ' [modelo: ' + d.modelo + ']').trim();
+            pintarDiff(texto.value.trim().replace(/\r\n/g, '\n'), propuesta);
+            res.hidden = false;
+        });
+    }
+    btnGo.addEventListener('click', pedir);
+    $('prompt-ia-otra').addEventListener('click', pedir);
+    $('prompt-ia-descartar').addEventListener('click', function () {
+        propuesta = '';
+        $('prompt-ia-mejorar-res').hidden = true;
+        $('prompt-ia-panel-mejorar').hidden = true;
+    });
+    $('prompt-ia-usar').addEventListener('click', function () {
+        if (!propuesta) return;
+        texto.value = propuesta;
+        texto.focus();
+        $('prompt-ia-mejorar-res').hidden = true;
+        $('prompt-ia-panel-mejorar').hidden = true;
+        alert('Propuesta pasada al editor. Revísala y pulsa Guardar para aplicarla.');
+    });
+
+    var btnProbar = $('prompt-ia-probar');
+    if (btnProbar) btnProbar.addEventListener('click', function () {
+        llamar('probar', {}, btnProbar).then(function (d) {
+            if (!d.ok) { alert(d.error || 'No se pudo probar el prompt.'); return; }
+            $('prompt-ia-probar-meta').textContent = 'Datos de ejemplo del catálogo · modelo ' + d.modelo + ' · ' + d.segundos + ' s';
+            $('prompt-ia-probar-resp').textContent = d.respuesta;
+            $('prompt-ia-probar-json').textContent = d.json || 'El código NO pudo leer esta respuesta como JSON: con este prompt la tarea real fallaría.';
+            $('prompt-ia-probar-prompt').textContent = d.prompt;
+            $('prompt-ia-panel-probar').hidden = false;
+            $('prompt-ia-panel-probar').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+    });
+})();
 </script>
 
 <?php include 'footer.php'; ?>

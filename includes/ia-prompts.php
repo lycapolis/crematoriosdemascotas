@@ -317,3 +317,61 @@ function iaPromptVersiones(PDO $pdo, string $clave, int $limite = 15): array
         return [];
     }
 }
+
+/**
+ * Prompt final con un texto y una lista de «evitar» DADOS (sin guardar), para el probador.
+ * Misma construcción que iaPromptRender(), pero sin leer la BD.
+ */
+function iaPromptRenderTexto(string $clave, string $texto, string $evitar, array $vars = []): string
+{
+    $cat = iaPromptsCatalogo()[$clave] ?? null;
+    if (!$cat) return '';
+    if (isset($cat['variables']['evitar'])) $vars['evitar'] = iaPromptEvitarFormateado($evitar);
+    $texto = rtrim(iaPromptSustituir($texto, $cat['variables'], $vars));
+    return $cat['contrato'] !== '' ? $texto . ($cat['union'] ?? "\n\n") . $cat['contrato'] : $texto;
+}
+
+/**
+ * ¿Se puede probar este prompt desde el panel? Solo tareas de texto con datos de ejemplo
+ * (las de visión necesitan una imagen y los estilos solo se usan al generar una imagen).
+ */
+function iaPromptProbable(PDO $pdo, string $clave): bool
+{
+    $cat = iaPromptsCatalogo()[$clave] ?? null;
+    if (!$cat || !$cat['ejemplo']) return false;
+    try {
+        $st = $pdo->prepare('SELECT tipo FROM ia_config_secciones WHERE seccion = :s LIMIT 1');
+        $st->execute([':s' => $cat['tarea']]);
+        return $st->fetchColumn() === 'texto';
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+/**
+ * Meta-prompt de «Mejorar con IA»: pide una versión mejorada de la parte editable.
+ * Solo se le envía la parte creativa: el contrato técnico y el formato JSON no entran.
+ */
+function iaPromptMejorarMeta(string $clave, string $texto, string $instruccion): string
+{
+    $cat = iaPromptsCatalogo()[$clave];
+    $vars = [];
+    foreach ($cat['variables'] as $nombre => $def) {
+        $vars[] = '- {' . $nombre . '}: ' . $def['desc'] . (!empty($def['obligatoria']) ? ' (OBLIGATORIA)' : '');
+    }
+    $instruccion = trim($instruccion);
+    return "Eres un experto en ingeniería de prompts. Mejora el siguiente prompt, que se usa en un directorio web de crematorios de mascotas.\n\n"
+        . 'QUÉ HACE ESTE PROMPT: ' . $cat['que_hace'] . "\n\n"
+        . "VARIABLES (se sustituyen por datos reales al usarlo; consérvalas EXACTAMENTE con sus llaves, sin renombrarlas):\n"
+        . ($vars ? implode("\n", $vars) : '(ninguna)') . "\n\n"
+        . "REGLAS:\n"
+        . "- Mantén el idioma (español de España), el propósito y el tono de duelo respetuoso.\n"
+        . "- Conserva todas las variables obligatorias; no inventes variables nuevas.\n"
+        . "- No añadas el formato de respuesta ni instrucciones de JSON: ya se añaden aparte.\n"
+        . "- Hazlo más claro, concreto y robusto; no lo alargues sin necesidad.\n"
+        . "- No inventes datos ni ejemplos que sesguen las respuestas.\n"
+        . ($instruccion !== '' ? "\nINSTRUCCIÓN DEL EDITOR (prioritaria): " . mb_substr($instruccion, 0, 500) . "\n" : '')
+        . "\nPROMPT ACTUAL:\n<<<\n" . $texto . "\n>>>\n\n"
+        . "Responde SOLO con un JSON válido, sin texto antes ni después:\n"
+        . '{"texto": "el prompt mejorado completo", "resumen": "2-4 frases en español que explican qué cambiaste y por qué"}';
+}
