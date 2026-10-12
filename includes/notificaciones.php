@@ -131,7 +131,7 @@ if (!function_exists('notificarNegocioLead')) {
         );
 
         // 8. Reply-To al email del lead (para que el negocio responda directo si tier alto)
-        $replyTo = $datosCompletos ? (string)$row['email'] : null;
+        $replyTo = $datosCompletos ? (string)$row['email'] : (in_array($tier, ['00', '01'], true) ? 'info@crematoriosdemascotas.com' : null);
 
         // 9. Enviar
         $envio = enviarMailHtml(
@@ -363,5 +363,120 @@ if (!function_exists('notificarNegocioLead')) {
         $stats['leads_mockup'] = $mockup;
 
         return $stats;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // PREVIEWS (herramienta admin/notif-leads-test.php)
+    // Renderizan el email SIN enviar nada y SIN modificar ningún estado.
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Email de un lead real tal como lo recibiría su negocio.
+     * @return array{ok:bool, motivo?:string, tpl?:array, avisos?:string[]}
+     */
+    function previewEmailLeadNegocio(\PDO $pdo, int $leadId): array
+    {
+        $stmt = $pdo->prepare("
+            SELECT l.id, l.crematorio_id, l.channel_type, l.servicio, l.mascota_tamano,
+                   l.nombre, l.email, l.phone_code, l.whatsapp_number, l.ciudad_lead AS ciudad,
+                   l.mensaje, l.created_at,
+                   c.nombre AS crem_nombre, c.slug AS crem_slug, c.tier AS crem_tier
+            FROM leads_b2c l
+            LEFT JOIN crematorios c ON c.id = l.crematorio_id
+            WHERE l.id = ? LIMIT 1
+        ");
+        $stmt->execute([$leadId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$row) return ['ok' => false, 'motivo' => 'lead_no_existe'];
+
+        $avisos = [];
+        if (!$row['crematorio_id']) {
+            $avisos[] = 'Este lead no tiene negocio asociado (burbuja genérica): no se enviaría ningún email.';
+        }
+        $tier           = (string)($row['crem_tier'] ?? '');
+        $tiersReciben   = json_decode(defined('TIERS_RECIBEN_LEAD') ? TIERS_RECIBEN_LEAD : '[]', true) ?: [];
+        $tiersCompletos = json_decode(defined('TIERS_LEAD_COMPLETO') ? TIERS_LEAD_COMPLETO : '[]', true) ?: [];
+        if ($row['crematorio_id'] && !in_array($tier, $tiersReciben, true)) {
+            $avisos[] = "El plan del negocio ({$tier}) no recibe leads por email: en la práctica no se enviaría.";
+        }
+        $datosCompletos = in_array($tier, $tiersCompletos, true);
+
+        $tpl = renderEmailLeadNuevo(
+            [
+                'id' => $row['id'], 'nombre' => $row['nombre'], 'email' => $row['email'],
+                'phone_code' => $row['phone_code'], 'whatsapp_number' => $row['whatsapp_number'],
+                'ciudad' => $row['ciudad'], 'servicio' => $row['servicio'],
+                'mascota_tamano' => $row['mascota_tamano'], 'mensaje' => $row['mensaje'],
+                'channel_type' => $row['channel_type'], 'created_at' => $row['created_at'],
+            ],
+            ['id' => $row['crematorio_id'], 'nombre' => $row['crem_nombre'], 'slug' => $row['crem_slug'], 'tier' => $tier],
+            $datosCompletos
+        );
+        if ($row['crematorio_id']) {
+            $avisos[] = $datosCompletos
+                ? 'Contacto completo (el plan del negocio muestra email y teléfono).'
+                : 'Contacto enmascarado (el plan del negocio no muestra email ni teléfono completos).';
+        }
+
+        return ['ok' => true, 'tpl' => $tpl, 'avisos' => $avisos];
+    }
+
+    /**
+     * Teaser de un negocio SIEMPRE visible: si no cumple las condiciones reales de envío
+     * o no hay leads en su área, usa estadísticas de muestra y lo explica en 'avisos'.
+     * @return array{ok:bool, motivo?:string, tpl?:array, avisos?:string[]}
+     */
+    function previewEmailTeaser(\PDO $pdo, int $crematorioId): array
+    {
+        $stmt = $pdo->prepare("
+            SELECT c.id, c.nombre, c.tier, c.ciudad, c.provincia_id, c.email, c.email_notif_leads,
+                   c.recibe_notif_leads, c.emails_json, p.nombre AS provincia_nombre
+            FROM crematorios c
+            LEFT JOIN provincias p ON c.provincia_id = p.id
+            WHERE c.id = ? LIMIT 1
+        ");
+        $stmt->execute([$crematorioId]);
+        $crem = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$crem) return ['ok' => false, 'motivo' => 'sin_negocio'];
+
+        $avisos = [];
+        $tiersObjetivo = json_decode(defined('TEASER_TIERS_OBJETIVO') ? TEASER_TIERS_OBJETIVO : '[]', true) ?: [];
+        if (!in_array((string)$crem['tier'], $tiersObjetivo, true)) {
+            $avisos[] = "Plan {$crem['tier']}: el teaser real solo se envía a los planes " . implode(' y ', $tiersObjetivo) . '.';
+        }
+        if ((int)($crem['recibe_notif_leads'] ?? 1) !== 1) {
+            $avisos[] = 'Este negocio pidió no recibir notificaciones: no se enviaría.';
+        }
+        if (!resolverEmailDestinoNegocio([
+            'crem_email_notif' => $crem['email_notif_leads'],
+            'crem_emails_json' => $crem['emails_json'],
+            'crem_email_publico' => $crem['email'],
+        ])) {
+            $avisos[] = 'El negocio no tiene ningún email válido: no se enviaría.';
+        }
+
+        $stats  = calcularStatsLeadsArea($pdo, $crem);
+        $minimo = defined('TEASER_MIN_LEADS_AREA') ? (int)TEASER_MIN_LEADS_AREA : 1;
+        if ($stats['total_leads'] < $minimo) {
+            $avisos[] = 'No hay leads reales en su provincia en los últimos ' . $stats['periodo_dias']
+                      . ' días: las cifras del email son de MUESTRA.';
+            $stats = [
+                'total_leads'  => 12,
+                'periodo_dias' => $stats['periodo_dias'],
+                'por_ciudad'   => [['ciudad' => $crem['ciudad'] ?: 'Madrid', 'count' => 7], ['ciudad' => 'Alcalá de Henares', 'count' => 5]],
+                'por_servicio' => ['Perro' => 8, 'Gato' => 4],
+                'leads_mockup' => [
+                    ['ciudad' => $crem['ciudad'] ?: 'Madrid', 'servicio' => 'Perro', 'tamano' => '15 - 30 kg'],
+                    ['ciudad' => $crem['ciudad'] ?: 'Madrid', 'servicio' => 'Gato',  'tamano' => '2 - 5 kg'],
+                    ['ciudad' => 'Alcalá de Henares',         'servicio' => 'Perro', 'tamano' => '5 - 15 kg'],
+                ],
+            ];
+        }
+
+        $tpl = renderEmailTeaserLeadsArea(
+            ['id' => $crem['id'], 'nombre' => $crem['nombre'], 'ciudad' => $crem['ciudad'], 'provincia_nombre' => $crem['provincia_nombre']],
+            $stats
+        );
+        return ['ok' => true, 'tpl' => $tpl, 'avisos' => $avisos];
     }
 }

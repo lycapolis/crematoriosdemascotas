@@ -61,6 +61,18 @@ if ($payload) {
         'form_name' => $payload['form_name'],
         'imagenes_guardadas' => $payload['imagenes_guardadas'] ?? 0,
     ]);
+
+    // Emails al USUARIO (capa de notificaciones por evento). Va DESPUÉS de responder
+    // al navegador para que el SMTP no retrase el formulario; nunca rompe el flujo.
+    if (($payload['form_id'] ?? '') === 'form_resena' && !empty($payload['data']['resena_id'])) {
+        try {
+            require_once __DIR__ . '/includes/notificaciones/despachador.php';
+            notifCerrarRespuesta();
+            notificarEvento(obtenerConexion(), 'resena.recibida', ['resena_id' => (int)$payload['data']['resena_id']]);
+        } catch (\Throwable $e) {
+            error_log('[procesar-formulario] notificación reseña: ' . $e->getMessage());
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════

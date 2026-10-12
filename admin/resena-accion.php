@@ -177,6 +177,18 @@ try {
             $msj .= ' · ' . $imagenesEliminadas . ' imagen' . ($imagenesEliminadas === 1 ? '' : 'es') . ' eliminada' . ($imagenesEliminadas === 1 ? '' : 's');
         }
         echo json_encode(['ok' => true, 'mensaje' => $msj, 'imagenes_eliminadas' => $imagenesEliminadas, 'nuevo_estado' => $nuevo_estado, 'es_spam' => $esSpam ? 1 : 0]);
+
+        // Aviso al autor de que su reseña ya es pública (una sola vez por reseña:
+        // la clave de idempotencia evita reenvíos al pausar → aprobar). Rechazar/spam: silencio.
+        if ($accion === 'aprobar') {
+            try {
+                require_once dirname(__DIR__) . '/includes/notificaciones/despachador.php';
+                notifCerrarRespuesta();
+                notificarEvento($pdo, 'resena.aprobada', ['resena_id' => $id]);
+            } catch (\Throwable $e) {
+                error_log('[resena-accion] notificación aprobada: ' . $e->getMessage());
+            }
+        }
     } else {
         echo json_encode(['ok' => false, 'mensaje' => 'Reseña no encontrada']);
     }

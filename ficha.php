@@ -130,7 +130,7 @@ $tier            = $crematorio['tier'] ?? '01';
 $lat_mapa        = !empty($crematorio['latitud'])  ? (float) $crematorio['latitud']  : null;
 $lng_mapa        = !empty($crematorio['longitud']) ? (float) $crematorio['longitud'] : null;
 $google_place_id = $crematorio['google_place_id'] ?? '';
-$usar_leaflet    = ($lat_mapa !== null && $lng_mapa !== null && $tier === '01');
+$usar_leaflet    = ($lat_mapa !== null && $lng_mapa !== null && in_array($tier, ['00', '01'], true));
 
 // Servicios y extras desde booleanos DB
 $servicios_lista = [];
@@ -1225,24 +1225,24 @@ include 'includes/header.php';
                 <!-- Ubicación / Mapa — solo si hay mapa REAL disponible.
                      Si no hay mapa, la sección se omite (la dirección ya vive en el sticky). -->
                 <?php
-                $hayMapaReal = ($tier >= '03' && $google_place_id)
-                            || ($tier >= '02' && $lat_mapa)
+                $hayMapaReal = ($tier >= '01' && $google_place_id)
+                            || ($tier >= '01' && $lat_mapa)
                             || $usar_leaflet;
                 ?>
                 <?php if ($hayMapaReal): ?>
                 <section class="tarjeta simple" style="padding: var(--espacio-cuatro); margin-bottom: var(--espacio-cuatro); overflow: visible;">
                     <h2 class="ficha-h2"><i data-lucide="map-pin" class="icono"></i> Ubicación</h2>
                     <div>
-                        <?php if ($tier >= '03' && $google_place_id): ?>
-                        <!-- Tier 03+: Google Maps con place_id (ficha real del negocio) -->
+                        <?php if ($tier >= '01' && $google_place_id): ?>
+                        <!-- Planes de pago (01+): Google Maps con place_id (ficha real del negocio) -->
                         <iframe
                             src="https://www.google.com/maps/embed/v1/place?key=<?php echo GOOGLE_MAPS_API_KEY; ?>&q=place_id:<?php echo urlencode($google_place_id); ?>"
                             width="100%" height="360"
                             style="border:0; border-radius:var(--radio-dos); margin-bottom:var(--espacio-tres);"
                             allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade">
                         </iframe>
-                        <?php elseif ($tier >= '02' && $lat_mapa): ?>
-                        <!-- Tier 02+: Google Maps embed con coordenadas -->
+                        <?php elseif ($tier >= '01' && $lat_mapa): ?>
+                        <!-- Planes de pago (01+) sin place_id: Google Maps embed con coordenadas -->
                         <iframe
                             src="https://maps.google.com/maps?q=<?php echo $lat_mapa; ?>,<?php echo $lng_mapa; ?>&z=15&output=embed"
                             width="100%" height="360"
@@ -1250,7 +1250,7 @@ include 'includes/header.php';
                             allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade">
                         </iframe>
                         <?php elseif ($usar_leaflet): ?>
-                        <!-- Tier 01: Leaflet + OpenStreetMap -->
+                        <!-- Planes 00 (Gratis) y 01 (Básico): Leaflet + OpenStreetMap -->
                         <div id="mapa-crematorio" style="width:100%; height:360px; border-radius:var(--radio-dos); margin-bottom:var(--espacio-tres); position:relative;"></div>
                         <script>
                         (function() {

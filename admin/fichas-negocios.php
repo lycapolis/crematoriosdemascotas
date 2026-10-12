@@ -234,7 +234,7 @@ include 'header.php';
                     <option value="">Todos</option>
                     <?php foreach ($tiers as $t): ?>
                     <option value="<?php echo htmlspecialchars($t); ?>" <?php echo $filTier === $t ? 'selected' : ''; ?>>
-                        P<?php echo ltrim($t, '0'); ?>
+                        <?php echo $t === '00' ? 'Gratis' : 'P' . ltrim($t, '0'); ?>
                     </option>
                     <?php endforeach; ?>
                 </select>
@@ -355,7 +355,7 @@ include 'header.php';
 
             <td>
                 <span class="admin-pill" style="font-variant-numeric: tabular-nums;">
-                    P<?php echo ltrim($c['tier'] ?? '?', '0'); ?>
+                    <?php echo ($c['tier'] ?? '') === '00' ? 'Gratis' : 'P' . ltrim($c['tier'] ?? '?', '0'); ?>
                 </span>
             </td>
 

@@ -23,6 +23,8 @@
  * ═══════════════════════════════════════════════════════════
  */
 
+require_once __DIR__ . '/_cabecera.php';
+
 if (!function_exists('renderEmailTeaserLeadsArea')) {
 
     function renderEmailTeaserLeadsArea(array $negocio, array $stats): array
@@ -54,13 +56,8 @@ if (!function_exists('renderEmailTeaserLeadsArea')) {
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(90,62,47,.08);">
 
       <!-- HEADER -->
-      <tr><td style="background:#5A3E2F;padding:24px 28px;text-align:left;">
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-          <tr>
-            <td style="font-size:28px;color:#B8704F;line-height:1;padding-right:10px;">🐾</td>
-            <td style="font-size:18px;font-weight:700;color:#FFFBF7;letter-spacing:-.01em;"><?= htmlspecialchars($sitio) ?></td>
-          </tr>
-        </table>
+      <tr><td style="background:#5A3E2F;padding:12px 18px;text-align:left;">
+        <?= emailCabeceraLogo() ?>
       </td></tr>
 
       <!-- TÍTULO + número grande -->

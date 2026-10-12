@@ -29,6 +29,8 @@
  * ═══════════════════════════════════════════════════════════
  */
 
+require_once __DIR__ . '/_cabecera.php';
+
 if (!function_exists('renderEmailLeadNuevo')) {
 
     function renderEmailLeadNuevo(array $lead, array $negocio, bool $datosCompletos = true): array
@@ -59,7 +61,12 @@ if (!function_exists('renderEmailLeadNuevo')) {
         ];
         $canalLabel = $canalLabels[$canal] ?? 'Formulario web';
 
-        $asunto = "Nuevo lead — {$nombre}" . ($ciudad ? " ({$ciudad})" : '');
+        $tierPortal = in_array((string)($negocio['tier'] ?? ''), ['00', '01'], true);
+        $urlSolicitar = 'mailto:info@crematoriosdemascotas.com?subject=' . rawurlencode("Datos del contacto #" . ($lead['id'] ?? '') . " — " . ($negocio['nombre'] ?? ''));
+
+        $asunto = $tierPortal
+            ? "Un cliente ha dejado sus datos en tu ficha — {$nombre}" . ($ciudad ? " ({$ciudad})" : '')
+            : "Nuevo lead — {$nombre}" . ($ciudad ? " ({$ciudad})" : '');
 
         // ─── HTML ────────────────────────────────────────────────
         ob_start(); ?><!doctype html>
@@ -74,20 +81,15 @@ if (!function_exists('renderEmailLeadNuevo')) {
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(90,62,47,.08);">
 
       <!-- HEADER -->
-      <tr><td style="background:#5A3E2F;padding:24px 28px;text-align:left;">
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-          <tr>
-            <td style="font-size:28px;color:#B8704F;line-height:1;padding-right:10px;">🐾</td>
-            <td style="font-size:18px;font-weight:700;color:#FFFBF7;letter-spacing:-.01em;"><?= htmlspecialchars($sitio) ?></td>
-          </tr>
-        </table>
+      <tr><td style="background:#5A3E2F;padding:12px 18px;text-align:left;">
+        <?= emailCabeceraLogo() ?>
       </td></tr>
 
       <!-- TÍTULO -->
       <tr><td style="padding:32px 28px 8px 28px;">
-        <p style="margin:0 0 4px 0;font-size:13px;color:#8B7765;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">Nuevo lead recibido</p>
+        <p style="margin:0 0 4px 0;font-size:13px;color:#8B7765;text-transform:uppercase;letter-spacing:.06em;font-weight:600;"><?= $tierPortal ? 'Nueva consulta en tu ficha' : 'Nuevo lead recibido' ?></p>
         <h1 style="margin:0;font-size:24px;line-height:1.25;color:#2C2C2C;font-weight:700;">
-          <?= htmlspecialchars($nombre) ?> te ha contactado
+          <?= htmlspecialchars($nombre) ?> <?= $tierPortal ? 'ha dejado sus datos en tu ficha' : 'te ha contactado' ?>
         </h1>
         <p style="margin:8px 0 0 0;font-size:14px;color:#5A3E2F;opacity:.7;">
           Desde <strong><?= htmlspecialchars($negocio['nombre'] ?? '') ?></strong> · <?= $canalLabel ?> · <?= date('d/m/Y H:i', strtotime($fechaIso)) ?>
@@ -145,6 +147,19 @@ if (!function_exists('renderEmailLeadNuevo')) {
           </tr>
         </table>
       </td></tr>
+      <?php elseif ($tierPortal): ?>
+      <!-- Planes Gratis/Básico: el portal tiene los datos y se los puede enviar -->
+      <tr><td style="padding:8px 28px 28px 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#F5EDE5;border-radius:8px;padding:18px 20px;">
+          <tr><td>
+            <p style="margin:0 0 6px 0;font-size:14px;font-weight:700;color:#5A3E2F;">Podemos enviarte sus datos de contacto</p>
+            <p style="margin:0 0 14px 0;font-size:13px;line-height:1.5;color:#5A3E2F;">
+              Este cliente ha dejado su teléfono y su email en tu ficha. Los guardamos nosotros: respóndenos y te los hacemos llegar.
+            </p>
+            <a href="<?= htmlspecialchars($urlSolicitar) ?>" style="display:inline-block;background:#B8704F;color:#fff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:600;font-size:15px;">Quiero recibir sus datos</a>
+          </td></tr>
+        </table>
+      </td></tr>
       <?php else: ?>
       <!-- Banner de upgrade -->
       <tr><td style="padding:8px 28px 28px 28px;">
@@ -190,7 +205,11 @@ if (!function_exists('renderEmailLeadNuevo')) {
             $texto .= "\nMensaje:\n";
             $texto .= "  " . str_replace("\n", "\n  ", trim($mensaje)) . "\n";
         }
-        if (!$datosCompletos) {
+        if (!$datosCompletos && $tierPortal) {
+            $texto .= "\nEste cliente ha dejado su teléfono y su email en tu ficha.\n";
+            $texto .= "Los guardamos nosotros: respóndenos y te los hacemos llegar.\n";
+            $texto .= "Escríbenos a: info@crematoriosdemascotas.com (indica el contacto #" . ($lead['id'] ?? '') . ")\n";
+        } elseif (!$datosCompletos) {
             $texto .= "\n[Tu plan actual recibe contacto enmascarado.\n";
             $texto .= " Mejora a Destacado para ver email y teléfono completos.]\n";
         }

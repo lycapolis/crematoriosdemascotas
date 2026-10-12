@@ -548,6 +548,15 @@ try {
             'slug' => $slug
         ]);
 
+        // Aviso al solicitante: su ficha ya está publicada (una sola vez por solicitud).
+        try {
+            require_once dirname(__DIR__) . '/includes/notificaciones/despachador.php';
+            notifCerrarRespuesta();
+            notificarEvento($pdo, 'solicitud.aprobada', ['solicitud_id' => $id]);
+        } catch (\Throwable $e) {
+            error_log('[solicitud-accion] notificación aprobada: ' . $e->getMessage());
+        }
+
     } elseif ($accion === 'rechazar') {
         // ═══════════════════════════════════════════════════════════════════
         // RECHAZAR SOLICITUD (pendiente → rechazada)
@@ -573,6 +582,15 @@ try {
             'ok' => true,
             'mensaje' => 'Solicitud rechazada'
         ]);
+
+        // Aviso al solicitante, con el motivo si el admin lo escribió.
+        try {
+            require_once dirname(__DIR__) . '/includes/notificaciones/despachador.php';
+            notifCerrarRespuesta();
+            notificarEvento($pdo, 'solicitud.rechazada', ['solicitud_id' => $id, 'motivo' => $motivo]);
+        } catch (\Throwable $e) {
+            error_log('[solicitud-accion] notificación rechazada: ' . $e->getMessage());
+        }
 
     } elseif ($accion === 'reevaluar') {
         // ═══════════════════════════════════════════════════════════════════

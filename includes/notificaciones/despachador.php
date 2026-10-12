@@ -1,0 +1,210 @@
+<?php
+/**
+ * ═══════════════════════════════════════════════════════════
+ * DESPACHADOR DE NOTIFICACIONES POR EVENTO
+ * ═══════════════════════════════════════════════════════════
+ *
+ *   notificarEvento(\PDO $pdo, string $evento, array $datos): array
+ *
+ * Busca el evento en el catálogo (eventos.php), y por cada canal:
+ *   1. reserva una fila en notificaciones_log (idempotencia: UNIQUE clave+canal+destinatario)
+ *   2. comprueba bajas (notificaciones_supresiones)
+ *   3. envía y deja constancia (enviada / fallida / omitida)
+ *
+ * Nunca lanza excepciones: un fallo de notificación no debe romper el flujo principal.
+ *
+ * Utilidades públicas:
+ *   notifCerrarRespuesta()            → cierra la respuesta HTTP al navegador antes de enviar
+ *   notifUrlPublica(string $path)     → URL absoluta del sitio (también desde cron)
+ *   notifUrlBaja(string $email)       → enlace firmado para dejar de recibir avisos
+ *   notifTokenBaja(string $email)     → firma HMAC del email
+ *   notifEstaSuprimido / notifSuprimir / notifReactivar
+ * ═══════════════════════════════════════════════════════════
+ */
+
+require_once __DIR__ . '/../mailer.php';
+require_once __DIR__ . '/url.php';
+require_once __DIR__ . '/eventos.php';
+require_once __DIR__ . '/canales/email-usuario.php';
+require_once __DIR__ . '/canales/email-negocio.php';
+require_once __DIR__ . '/canales/email-solicitante.php';
+
+if (!function_exists('notificarEvento')) {
+
+    /**
+     * @return array<string, array{estado:string, motivo?:string}> resultado por canal
+     */
+    function notificarEvento(\PDO $pdo, string $evento, array $datos): array
+    {
+        $resultado = [];
+        try {
+            $catalogo = notifCatalogoEventos();
+            if (!isset($catalogo[$evento])) {
+                error_log("[notif] evento desconocido: {$evento}");
+                return ['_error' => ['estado' => 'fallida', 'motivo' => 'evento_desconocido']];
+            }
+            $def   = $catalogo[$evento];
+            $clave = ($def['clave'])($datos);
+
+            foreach ($def['canales'] as $canal) {
+                $fn = 'notifCanal_' . $canal;
+                if (!function_exists($fn)) {
+                    $resultado[$canal] = ['estado' => 'fallida', 'motivo' => 'canal_inexistente'];
+                    continue;
+                }
+                $resultado[$canal] = notifDespacharCanal($pdo, $evento, $def, $clave, $canal, $fn, $datos);
+            }
+        } catch (\Throwable $e) {
+            error_log("[notif {$evento}] excepción: " . $e->getMessage());
+            $resultado['_error'] = ['estado' => 'fallida', 'motivo' => 'excepcion'];
+        }
+        return $resultado;
+    }
+
+    /**
+     * Cada canal expone notifCanal_<nombre>($pdo, $evento, $datos) que devuelve:
+     *   ['destinatario'=>string, 'email_baja'=>?string, 'omitir'=>?string,
+     *    'enviar'=>callable():array{ok:bool,error?:string}]
+     * (preparar → el despachador decide → enviar)
+     */
+    function notifDespacharCanal(\PDO $pdo, string $evento, array $def, string $clave, string $canal, string $fn, array $datos): array
+    {
+        $prep = $fn($pdo, $evento, $datos);
+        if (!is_array($prep) || empty($prep['destinatario'])) {
+            return ['estado' => 'omitida', 'motivo' => $prep['omitir'] ?? 'sin_destinatario'];
+        }
+        $dest = (string)$prep['destinatario'];
+
+        // Si recibir este evento es "el usuario volvió a escribirnos", reactivar avisos
+        if (!empty($def['reactiva_supresion']) && !empty($prep['email_baja'])) {
+            notifReactivar($pdo, $prep['email_baja']);
+        }
+
+        // 1. Reservar la fila (idempotencia)
+        $ins = $pdo->prepare("INSERT IGNORE INTO notificaciones_log (evento, clave, canal, destinatario, estado, intentos)
+                              VALUES (?, ?, ?, ?, 'pendiente', 0)");
+        $ins->execute([$evento, $clave, $canal, $dest]);
+        $reservada = $ins->rowCount() === 1;
+
+        if (!$reservada) {
+            // Ya existe: solo reintentamos si falló antes y quedan intentos
+            $sel = $pdo->prepare("SELECT id, estado, intentos FROM notificaciones_log
+                                  WHERE clave = ? AND canal = ? AND destinatario = ? LIMIT 1");
+            $sel->execute([$clave, $canal, $dest]);
+            $fila = $sel->fetch(\PDO::FETCH_ASSOC);
+            if (!$fila || $fila['estado'] !== 'fallida' || (int)$fila['intentos'] >= 3) {
+                return ['estado' => 'omitida', 'motivo' => 'duplicado'];
+            }
+        }
+        $upd = $pdo->prepare("UPDATE notificaciones_log SET intentos = intentos + 1
+                              WHERE clave = ? AND canal = ? AND destinatario = ?");
+        $upd->execute([$clave, $canal, $dest]);
+
+        $cerrar = function (string $estado, ?string $motivo = null, ?string $error = null) use ($pdo, $clave, $canal, $dest): array {
+            $pdo->prepare("UPDATE notificaciones_log
+                           SET estado = ?, motivo = ?, error = ?, enviado_en = IF(? = 'enviada', NOW(), enviado_en)
+                           WHERE clave = ? AND canal = ? AND destinatario = ?")
+                ->execute([$estado, $motivo, $error ? mb_substr($error, 0, 500) : null, $estado, $clave, $canal, $dest]);
+            return ['estado' => $estado] + ($motivo ? ['motivo' => $motivo] : []);
+        };
+
+        // 2. Condiciones de omisión propias del canal (fuente no propia, estado cambiado…)
+        if (!empty($prep['omitir'])) {
+            return $cerrar('omitida', $prep['omitir']);
+        }
+
+        // 3. Baja
+        if (!empty($prep['email_baja']) && notifEstaSuprimido($pdo, $prep['email_baja'])) {
+            return $cerrar('omitida', 'baja');
+        }
+
+        // 4. Envío
+        $envio = ($prep['enviar'])();
+        if (!empty($envio['ok'])) {
+            return $cerrar('enviada');
+        }
+        error_log("[notif {$evento}] {$canal} → {$dest} falló: " . ($envio['error'] ?? '?'));
+        return $cerrar('fallida', null, $envio['error'] ?? 'error desconocido');
+    }
+
+    // ─── Bajas ───────────────────────────────────────────────
+
+    function notifHashEmail(string $email): string
+    {
+        return hash('sha256', mb_strtolower(trim($email)));
+    }
+
+    function notifEstaSuprimido(\PDO $pdo, string $email): bool
+    {
+        $st = $pdo->prepare("SELECT suprimido FROM notificaciones_supresiones WHERE email_hash = ? LIMIT 1");
+        $st->execute([notifHashEmail($email)]);
+        return (int)$st->fetchColumn() === 1;
+    }
+
+    function notifSuprimir(\PDO $pdo, string $email): void
+    {
+        $pdo->prepare("INSERT INTO notificaciones_supresiones (email_hash, suprimido, baja_en)
+                       VALUES (?, 1, NOW())
+                       ON DUPLICATE KEY UPDATE suprimido = 1, baja_en = NOW()")
+            ->execute([notifHashEmail($email)]);
+    }
+
+    /** El mismo email vuelve a escribirnos → reactiva SOLO las notificaciones. */
+    function notifReactivar(\PDO $pdo, string $email): void
+    {
+        $pdo->prepare("UPDATE notificaciones_supresiones
+                       SET suprimido = 0, reactivado_en = NOW()
+                       WHERE email_hash = ? AND suprimido = 1")
+            ->execute([notifHashEmail($email)]);
+    }
+
+    // ─── Enlaces ─────────────────────────────────────────────
+
+    /** Clave de firma: NOTIF_SECRET del .env; si falta, deriva una de las credenciales de BD. */
+    function notifSecreto(): string
+    {
+        if (defined('NOTIF_SECRET') && NOTIF_SECRET !== '') return (string)NOTIF_SECRET;
+        return hash('sha256', 'notif|' . (defined('DB_NAME') ? DB_NAME : '') . '|' . (defined('DB_USER') ? DB_USER : '') . '|' . (defined('DB_PASS') ? DB_PASS : ''));
+    }
+
+    function notifTokenBaja(string $email): string
+    {
+        return substr(hash_hmac('sha256', 'baja|' . mb_strtolower(trim($email)), notifSecreto()), 0, 32);
+    }
+
+    function notifTokenValido(string $email, string $token): bool
+    {
+        return $token !== '' && hash_equals(notifTokenBaja($email), $token);
+    }
+
+    function notifB64UrlEncode(string $s): string { return rtrim(strtr(base64_encode($s), '+/', '-_'), '='); }
+    function notifB64UrlDecode(string $s): string { return (string)base64_decode(strtr($s, '-_', '+/')); }
+
+    function notifUrlBaja(string $email): string
+    {
+        return notifUrlPublica('desuscribir-notificaciones.php')
+            . '?e=' . notifB64UrlEncode(mb_strtolower(trim($email)))
+            . '&t=' . notifTokenBaja($email);
+    }
+
+    // ─── Respuesta HTTP ──────────────────────────────────────
+
+    /**
+     * Cierra la respuesta al navegador para que el envío de emails (SMTP puede tardar
+     * 1-3 s) no retrase al usuario. Donde no existe finish_request (XAMPP/Apache),
+     * simplemente envía sincrónicamente.
+     */
+    function notifCerrarRespuesta(): void
+    {
+        ignore_user_abort(true);
+        @set_time_limit(60);
+        // Si el script abrió buffers de salida (ob_start), hay que vaciarlos para que la respuesta salga ya
+        while (ob_get_level() > 0) { @ob_end_flush(); }
+        flush();
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+        } elseif (function_exists('litespeed_finish_request')) {
+            litespeed_finish_request();
+        }
+    }
+}

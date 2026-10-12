@@ -572,3 +572,13 @@ echo json_encode([
     'form_id'   => $payload['form_id'],
     'form_name' => $payload['form_name']
 ]);
+
+// Email de confirmación al SOLICITANTE (capa de notificaciones por evento). Va DESPUÉS de
+// responder al navegador para que el SMTP no retrase el formulario; nunca rompe el flujo.
+try {
+    require_once __DIR__ . '/includes/notificaciones/despachador.php';
+    notifCerrarRespuesta();
+    notificarEvento($pdo, 'solicitud.recibida', ['solicitud_id' => (int)$solicitud_id]);
+} catch (\Throwable $e) {
+    error_log('[procesar-registro] notificación solicitud recibida: ' . $e->getMessage());
+}

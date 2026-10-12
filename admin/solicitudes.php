@@ -313,7 +313,7 @@ function accionSolicitud(id, accion, yaVista) {
         if (accion === 'rechazar') {
             // NOTA: prompt() nativo se mantiene por ahora — reemplazarlo requiere
             // un modal con input (mejora futura, fuera de scope 6b/6c).
-            const motivo = prompt('Motivo del rechazo (opcional):');
+            const motivo = prompt('Motivo del rechazo (opcional).\n\nOJO: este texto se enviará por email al solicitante tal cual lo escribas. Redáctalo con respeto y sin términos internos (spam, dummy…).');
             if (motivo === null) return;
             if (motivo) body.append('motivo', motivo);
             enviar();
