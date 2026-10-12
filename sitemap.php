@@ -38,6 +38,7 @@ $paginasEstaticas = [
     ['url' => '/directorio.php',      'priority' => '0.9',  'changefreq' => 'daily'],
     ['url' => '/espana',              'priority' => '0.9',  'changefreq' => 'weekly'],
     ['url' => '/nosotros.php',        'priority' => '0.6',  'changefreq' => 'monthly'],
+    ['url' => '/insignias.php',       'priority' => '0.5',  'changefreq' => 'monthly'],
     ['url' => '/contacto.php',        'priority' => '0.6',  'changefreq' => 'monthly'],
     
     ['url' => '/privacidad.php',      'priority' => '0.3',  'changefreq' => 'yearly'],

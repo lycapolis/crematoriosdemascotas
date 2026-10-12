@@ -580,7 +580,9 @@ function obtenerCrematorios($filtros = [], $pagina = 1, $porPagina = ITEMS_POR_P
     $whereSQL = implode(' AND ', $where);
 
     // Orden — soporta los valores expuestos en el dropdown público
-    $ordenSql = "c.destacado DESC, c.rating DESC, c.nombre ASC"; // default "Mejor valorados"
+    // Default: puntaje de ranking (insignias + calidad, ver includes/insignias.php). `destacado`
+    // y `puntaje_ranking` ya van alineados: el motor de insignias escribe ambos.
+    $ordenSql = "c.puntaje_ranking DESC, c.rating DESC, c.nombre ASC"; // default "Mejor valorados"
     switch ($filtros['orden'] ?? '') {
         case 'nombre':       $ordenSql = "c.nombre ASC"; break;
         case 'calificacion': $ordenSql = "c.rating DESC, c.reviews_total DESC"; break;
@@ -729,8 +731,8 @@ function obtenerDestacados($limite = DESTACADOS_HOME) {
                    p.slug AS provincia_slug
             FROM crematorios c
             LEFT JOIN provincias p ON c.provincia_id = p.id
-            WHERE c.destacado = 1
-            ORDER BY c.rating DESC
+            WHERE c.destacado = 1 AND c.estado = 'activa'
+            ORDER BY c.puntaje_ranking DESC, c.rating DESC
             LIMIT :limite";
 
     $stmt = $pdo->prepare($sql);
@@ -753,7 +755,7 @@ function obtenerDestacados($limite = DESTACADOS_HOME) {
                            p.slug AS provincia_slug
                     FROM crematorios c
                     LEFT JOIN provincias p ON c.provincia_id = p.id
-                    WHERE c.destacado = 0
+                    WHERE c.destacado = 0 AND c.estado = 'activa'
                       AND c.rating IS NOT NULL
                       AND c.rating > 0";
 
@@ -770,7 +772,7 @@ function obtenerDestacados($limite = DESTACADOS_HOME) {
         $sqlFallback .= " AND c.provincia_id NOT IN (" . implode(',', $placeholders) . ")";
     }
 
-    $sqlFallback .= " ORDER BY c.provincia_id, c.rating DESC";
+    $sqlFallback .= " ORDER BY c.provincia_id, c.puntaje_ranking DESC, c.rating DESC";
 
     $stmt = $pdo->prepare($sqlFallback);
     foreach ($params as $key => $value) {
@@ -825,7 +827,7 @@ function obtenerCrematoriosCiudad($ciudadSlug, $provinciaSlug) {
             WHERE p.slug = :provincia_slug
               AND c.estado = 'activa'
               AND c.ciudad IS NOT NULL AND c.ciudad != ''
-            ORDER BY c.rating DESC";
+            ORDER BY c.puntaje_ranking DESC, c.rating DESC";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([':provincia_slug' => $provinciaSlug]);

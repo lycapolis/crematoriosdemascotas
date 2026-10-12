@@ -451,6 +451,51 @@ h6 { font-size: var(--fs-dos); margin-bottom: var(--espacio-dos); }      /* 14px
     visibility: visible;
 }
 
+/* ─────────────────────────────────────────────────────────
+   INSIGNIAS — solo icono con color propio (--insignia-color) + tooltip.
+   Partial: includes/componentes/insignias-fila.php
+   ───────────────────────────────────────────────────────── */
+.insignias {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+.insignia {
+    --insignia-color: #64748b;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 26px;
+    padding: 0 4px;
+    border-radius: 50%;
+    color: var(--insignia-color);
+    background: color-mix(in srgb, var(--insignia-color) 14%, white);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--insignia-color) 28%, white);
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1;
+}
+.insignia .icono { width: 15px; height: 15px; }
+.insignia--mas {
+    --insignia-color: #475569;
+    border-radius: 999px;
+}
+a.insignia { text-decoration: none; cursor: pointer; }
+a.insignia:hover, .insignia[data-href]:hover { box-shadow: inset 0 0 0 1.5px var(--insignia-color); }
+.insignias--grande { gap: 8px; }
+.insignias--grande .insignia { min-width: 34px; height: 34px; }
+.insignias--grande .insignia .icono { width: 19px; height: 19px; }
+/* En la ficha el header fijo tapa lo que se abre hacia arriba → tooltip hacia abajo */
+.insignias--grande .insignia.tiene-tooltip::before { bottom: auto; top: calc(100% + 8px); }
+.insignias--grande .insignia.tiene-tooltip::after  { bottom: auto; top: calc(100% + 2px); border-top-color: transparent; border-bottom-color: var(--color-dos); }
+/* Tooltip de las insignias: el 1.º se ancla a la izquierda y el último a la derecha
+   para no salirse de la tarjeta; ancho contenido para que no tape media tarjeta. */
+.insignias .insignia.tiene-tooltip::before { max-width: 220px; }
+.insignias .insignia.tiene-tooltip:first-child::before { left: 0; transform: none; }
+.insignias .insignia.tiene-tooltip:last-child:not(:first-child)::before { left: auto; right: 0; transform: none; }
+
 /* Contenido: flex column que ocupa todo el alto restante del card,
    así rating + botón quedan SIEMPRE al fondo alineados entre cards. */
 .tarjeta__contenido {

@@ -529,6 +529,10 @@ try {
 
         $pdo->commit();
 
+        // Insignias automáticas (p. ej. «Registrado») y puntaje de la ficha recién creada
+        require_once dirname(__DIR__) . '/includes/insignias.php';
+        recalcularInsignias($pdo, (int) $crematorioId);
+
         // Notificar al admin si quedan imágenes pendientes de análisis LLM
         $totalPendiente = (int) $pdo->query(
             "SELECT COUNT(*) FROM crematorio_imagenes WHERE estado_llm = 'pendiente'"

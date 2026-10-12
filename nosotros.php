@@ -229,7 +229,7 @@ include 'includes/header.php';
                 <span class="nos-valor__icono"><i data-lucide="eye" class="icono"></i></span>
                 <div>
                     <h3>Transparencia</h3>
-                    <p>Mostramos información clara y honesta sobre cada crematorio, incluyendo precios, servicios y reseñas reales.</p>
+                    <p>Mostramos información clara y honesta sobre cada crematorio, incluyendo precios, servicios y reseñas reales. Descubre <a href="<?php echo BASE_URL; ?>/insignias.php">qué significan las insignias</a> que verás en cada ficha.</p>
                 </div>
             </article>
             <article class="nos-valor">

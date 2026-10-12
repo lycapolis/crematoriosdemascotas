@@ -455,27 +455,7 @@ include 'includes/header.php';
        FICHA — refresh visual Fase 8
        ═════════════════════════════════════════════════════════ */
 
-    /* ── Encabezado de ficha: badges + meta inline ── */
-    .ficha-encabezado__badges {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--espacio-dos);
-    }
-    .ficha-encabezado__badge {
-        display: inline-flex;
-        align-items: center;
-        gap: var(--espacio-uno);
-        padding: var(--espacio-uno) var(--espacio-tres);
-        border-radius: var(--radio-full);
-        font-size: var(--fs-dos);
-        font-weight: var(--peso-medio);
-        color: #fff;
-    }
-    .ficha-encabezado__badge .icono { width: 14px; height: 14px; }
-    .ficha-encabezado__badge--destacado  { background: var(--color-uno); color: var(--color-ocho); }
-    .ficha-encabezado__badge--registrado { background: var(--color-tres); }
-    .ficha-encabezado__badge--verificado { background: var(--color-diez); }
-
+    /* ── Encabezado de ficha: meta inline (las insignias usan .insignias, ver componentes.css) ── */
     .ficha-encabezado__meta {
         display: flex;
         flex-wrap: wrap;
@@ -936,28 +916,14 @@ include 'includes/header.php';
         <?php endif; ?>
         <div class="directorio-encabezado__fila">
             <h1 class="directorio-encabezado__titulo"><?php echo limpiar($crematorio_nombre); ?></h1>
-            <?php if ($destacado || (!empty($crematorio['origen']) && $crematorio['origen'] === 'registro') || !empty($crematorio['verificado'])): ?>
-            <div class="ficha-encabezado__badges">
-                <?php if ($destacado): ?>
-                <span class="ficha-encabezado__badge ficha-encabezado__badge--destacado">
-                    <i data-lucide="award" class="icono"></i>
-                    Destacado
-                </span>
-                <?php endif; ?>
-                <?php if (!empty($crematorio['origen']) && $crematorio['origen'] === 'registro'): ?>
-                <span class="ficha-encabezado__badge ficha-encabezado__badge--registrado">
-                    <i data-lucide="user-check" class="icono"></i>
-                    Registrado
-                </span>
-                <?php endif; ?>
-                <?php if (!empty($crematorio['verificado'])): ?>
-                <span class="ficha-encabezado__badge ficha-encabezado__badge--verificado">
-                    <i data-lucide="badge-check" class="icono"></i>
-                    Verificado
-                </span>
-                <?php endif; ?>
-            </div>
-            <?php endif; ?>
+            <?php
+            // Insignias desde el catálogo en BD (mismo partial que tarjeta y admin)
+            require_once ROOT_PATH . '/includes/insignias.php';
+            $insigniasFila = insigniasDeFicha(obtenerConexion(), (int) $crematorio['id'], 'ficha');
+            $insigniasMax  = 0;
+            $insigniasTam  = 'grande';
+            include ROOT_PATH . '/includes/componentes/insignias-fila.php';
+            ?>
         </div>
         <p class="directorio-encabezado__descripcion ficha-encabezado__meta">
             <span class="ficha-encabezado__metaitem">

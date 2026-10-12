@@ -72,6 +72,12 @@ $mapaEstados = [
 try {
     $imagenesEliminadas = 0;
 
+    // Ficha afectada: una reseña aprobada/quitada cambia las insignias (Popular ahora, valoración…)
+    require_once dirname(__DIR__) . '/includes/insignias.php';
+    $stmtCrem = $pdo->prepare("SELECT crematorio_id FROM resenas WHERE id = :id");
+    $stmtCrem->execute([':id' => $id]);
+    $cremIdResena = (int) $stmtCrem->fetchColumn();
+
     // Borrado en cascada de imágenes:
     //  - 'eliminar' siempre (delete final, individual desde rechazada)
     //  - 'rechazar' → solo si el admin lo pidió explícitamente
@@ -102,6 +108,7 @@ try {
         $stmt->execute([':id' => $id]);
 
         if ($stmt->rowCount() > 0) {
+            if ($cremIdResena) recalcularInsignias($pdo, $cremIdResena);
             $msj = 'Reseña eliminada';
             if ($imagenesEliminadas > 0) {
                 $msj .= ' · ' . $imagenesEliminadas . ' imagen' . ($imagenesEliminadas === 1 ? '' : 'es') . ' eliminada' . ($imagenesEliminadas === 1 ? '' : 's');
@@ -158,6 +165,7 @@ try {
     }
 
     if ($stmt->rowCount() > 0) {
+        if ($cremIdResena) recalcularInsignias($pdo, $cremIdResena);
         if ($accion === 'pausar') {
             $msj = 'Reseña devuelta a pendiente';
         } elseif ($accion === 'rechazar' && $esSpam) {

@@ -30,6 +30,7 @@ const ETIQUETAS_DISPONIBLES = [
     'imagenes'         => 'Subir/categorizar imágenes (incluye cola LLM)',
     'gestionar_admins' => 'Crear/editar otros admins (limitado — solo super_admin puede tocar a otros super_admin)',
     'blog'             => 'Escribir y publicar artículos del blog (categorías, módulos, autores)',
+    'insignias'        => 'Configurar insignias (iconos, reglas, puntos de ranking) y otorgar las manuales',
 ];
 
 // ─── Defaults por rol al crearse ─────────────────────────────────────────────

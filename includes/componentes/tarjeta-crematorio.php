@@ -11,7 +11,7 @@
  *     - foto_local | foto_principal
  *     - descripcion_corta | descripcion
  *     - rating, reviews_total
- *     - destacado, verificado, origen ('registro' = registrado)
+ *     - id, destacado (las insignias se leen de la BD con insigniasDeFicha)
  *     - distancia_km (opcional; si está, muestra badge de km — solo cerca.php)
  *
  * Robusto: campos opcionales degradan limpio.
@@ -27,8 +27,6 @@ $descCorta    = $crem['descripcion_corta'] ?? null;
 $descLarga    = $crem['descripcion'] ?? null;
 $rating       = (float) ($crem['rating'] ?? 0);
 $nReviews     = (int)   ($crem['reviews_total'] ?? 0);
-$esRegistrado = !empty($crem['origen']) && $crem['origen'] === 'registro';
-$esVerificado = !empty($crem['verificado']);
 $esDestacado  = !empty($crem['destacado']);
 $distanciaKm  = $crem['distancia_km'] ?? null;
 
@@ -48,6 +46,20 @@ if ($descCorta !== null && $descCorta !== '') {
 } else {
     $descMostrar = 'Servicios de cremación de mascotas profesional y respetuoso.';
 }
+
+// Insignias (catálogo en BD). «Destacado» y «Promocionado» van en la cinta sobre la foto;
+// el resto, como fila de iconos bajo el título.
+require_once ROOT_PATH . '/includes/insignias.php';
+// `_insignias` lo usa el laboratorio de insignias (admin) para pintar la tarjeta real con datos simulados
+$insTodas   = isset($crem['_insignias']) ? $crem['_insignias']
+            : (!empty($crem['id']) ? insigniasDeFicha(obtenerConexion(), (int) $crem['id'], 'tarjeta') : []);
+$slugsCinta = ['promocionado', 'destacado'];
+$textoCinta = '';
+foreach ($insTodas as $in) {
+    if ($in['slug'] === 'promocionado') { $textoCinta = $in['nombre']; break; }
+    if ($in['slug'] === 'destacado')    { $textoCinta = $in['nombre']; }
+}
+$insFila = array_values(array_filter($insTodas, fn($i) => !in_array($i['slug'], $slugsCinta, true)));
 ?>
 <article class="tarjeta<?php echo $esDestacado ? ' destacada' : ''; ?>">
     <a href="<?php echo $urlFicha; ?>" class="tarjeta__imagen" aria-label="Ver ficha de <?php echo limpiar($nombre); ?>" style="display:block;text-decoration:none;">
@@ -56,17 +68,17 @@ if ($descCorta !== null && $descCorta !== '') {
             src="<?php echo limpiar($foto); ?>"
             alt="<?php echo limpiar($nombre); ?>"
             loading="lazy"
-            onerror="this.parentElement.innerHTML='<div class=\'tarjeta__imagen--placeholder\'><i data-lucide=\'heart\' class=\'icono\'></i></div><?php if ($esDestacado): ?><span class=\'tarjeta__destacado\'><i data-lucide=\'bookmark\' class=\'icono\'></i>Destacado</span><?php endif; ?>'; lucide.createIcons();"
+            onerror="this.parentElement.innerHTML='<div class=\'tarjeta__imagen--placeholder\'><i data-lucide=\'heart\' class=\'icono\'></i></div><?php if ($textoCinta !== ''): ?><span class=\'tarjeta__destacado\'><i data-lucide=\'bookmark\' class=\'icono\'></i><?php echo limpiar($textoCinta); ?></span><?php endif; ?>'; lucide.createIcons();"
         >
         <?php else: ?>
         <div class="tarjeta__imagen--placeholder">
             <i data-lucide="heart" class="icono"></i>
         </div>
         <?php endif; ?>
-        <?php if ($esDestacado): ?>
+        <?php if ($textoCinta !== ''): ?>
         <span class="tarjeta__destacado">
             <i data-lucide="bookmark" class="icono"></i>
-            Destacado
+            <?php echo limpiar($textoCinta); ?>
         </span>
         <?php endif; ?>
         <?php if ($distanciaKm !== null): ?>
@@ -75,30 +87,11 @@ if ($descCorta !== null && $descCorta !== '') {
     </a>
 
     <div class="tarjeta__contenido">
-        <?php if ($esRegistrado || $esVerificado): ?>
-        <div class="tarjeta__badges">
-            <?php if ($esRegistrado): ?>
-            <span class="tarjeta__badge tarjeta__badge--registrado tiene-tooltip"
-                  tabindex="0"
-                  data-tooltip="Este crematorio fue dado de alta directamente por sus propietarios o representantes y mantiene su información actualizada.">
-                <i data-lucide="user-check" class="icono" style="width:12px;height:12px;"></i>
-                Registrado
-            </span>
-            <?php endif; ?>
-            <?php if ($esVerificado): ?>
-            <span class="tarjeta__badge tarjeta__badge--verificado tiene-tooltip"
-                  tabindex="0"
-                  data-tooltip="Un miembro del equipo se contactó con este crematorio para verificar la información publicada (contactos, servicios y dirección).">
-                <i data-lucide="badge-check" class="icono" style="width:12px;height:12px;"></i>
-                Verificado
-            </span>
-            <?php endif; ?>
-        </div>
-        <?php endif; ?>
-
         <h3 class="tarjeta__titulo">
             <a href="<?php echo $urlFicha; ?>"><?php echo limpiar($nombre); ?></a>
         </h3>
+
+        <?php $insigniasFila = $insFila; $insigniasMax = 4; $insigniasTam = ''; include ROOT_PATH . '/includes/componentes/insignias-fila.php'; ?>
 
         <div class="tarjeta__ubicacion">
             <i data-lucide="map-pin" class="icono"></i>

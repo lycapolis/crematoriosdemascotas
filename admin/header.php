@@ -166,6 +166,8 @@ $fechaHoy = $dias_es[(int)date('w')] . ', ' . (int)date('j') . ' de ' . $meses_e
 
             <?php if (tienePermiso($admin, 'tiers')) echo navLink("$base_url/admin/tiers.php", 'Planes', $currentPage); ?>
 
+            <?php if (tienePermiso($admin, 'insignias')) echo navLink("$base_url/admin/insignias.php", 'Insignias', $currentPage); ?>
+
             <?php if (tienePermiso($admin, 'moderacion')) echo navLink("$base_url/admin/resenas.php", 'Reseñas', $currentPage); ?>
 
             <?php if (tienePermiso($admin, 'blog')): ?>

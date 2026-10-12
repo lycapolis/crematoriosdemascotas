@@ -8,6 +8,7 @@
 require_once 'auth.php';
 require_once dirname(__DIR__) . '/includes/funciones.php';
 require_once dirname(__DIR__) . '/includes/completitud.php';
+require_once dirname(__DIR__) . '/includes/insignias.php';
 
 requerirAutenticacion();
 
@@ -26,6 +27,7 @@ $busqueda  = trim($_GET['q']      ?? '');
 $filCiudad = trim($_GET['ciudad'] ?? '');
 $filTier   = trim($_GET['tier']   ?? '');
 $filEstado = trim($_GET['estado'] ?? '');
+$filInsignia = trim($_GET['insignia'] ?? '');
 $orden     = $_GET['orden']       ?? 'nombre_asc';
 $pagina    = max(1, intval($_GET['pagina'] ?? 1));
 $porPagina = 25;
@@ -38,6 +40,7 @@ $ordenesValidos = [
     'resenas_desc', 'resenas_asc',
     'completitud_desc', 'completitud_asc',
     'imagenes_desc', 'imagenes_asc',
+    'puntaje_desc', 'puntaje_asc',
 ];
 if (!in_array($orden, $ordenesValidos)) $orden = 'nombre_asc';
 
@@ -47,6 +50,7 @@ $estadosValidos = ['activa', 'pausada', 'cerrada', 'archivada'];
 
 $ciudades = $pdo->query("SELECT DISTINCT ciudad FROM crematorios WHERE ciudad IS NOT NULL AND ciudad != '' ORDER BY ciudad")->fetchAll(PDO::FETCH_COLUMN);
 $tiers    = $pdo->query("SELECT DISTINCT tier    FROM crematorios WHERE tier    IS NOT NULL ORDER BY tier")->fetchAll(PDO::FETCH_COLUMN);
+$catalogoInsignias = insigniasCatalogo($pdo, true);
 
 // ─── WHERE ───────────────────────────────────────────────────────────────────
 
@@ -71,6 +75,14 @@ if ($filEstado !== '' && in_array($filEstado, $estadosValidos, true)) {
     $where[]          = 'c.estado = :estado';
     $params[':estado'] = $filEstado;
 }
+if ($filInsignia !== '') {
+    // «sin:<slug>» = fichas que NO la tienen (p. ej. pendientes de verificar por humano)
+    $negar = str_starts_with($filInsignia, 'sin:');
+    $slugF = $negar ? substr($filInsignia, 4) : $filInsignia;
+    $where[] = ($negar ? 'NOT ' : '') . 'EXISTS (SELECT 1 FROM insignias_ficha fi JOIN insignias ii ON ii.id = fi.insignia_id
+                WHERE fi.crematorio_id = c.id AND ii.slug = :ins_slug)';
+    $params[':ins_slug'] = $slugF;
+}
 
 $whereSQL = implode(' AND ', $where);
 
@@ -88,7 +100,9 @@ $orderSQL = match($orden) {
     'completitud_asc'  => 'completitud_score ASC,  c.nombre ASC',
     'imagenes_desc'    => 'img_count DESC, c.nombre ASC',
     'imagenes_asc'     => 'img_count ASC,  c.nombre ASC',
-    default            => 'c.nombre ASC',
+    'puntaje_desc'     => 'c.puntaje_ranking DESC, c.nombre ASC',
+    'puntaje_asc'      => 'c.puntaje_ranking ASC,  c.nombre ASC',
+    default           => 'c.nombre ASC',
 };
 
 // ─── Score SQL: espeja includes/completitud.php (permite ORDER BY en DB) ─────
@@ -138,6 +152,7 @@ $stmt->bindValue(':lim', $porPagina, PDO::PARAM_INT);
 $stmt->bindValue(':off', $offset,    PDO::PARAM_INT);
 $stmt->execute();
 $crematorios = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$insigniasPorFicha = insigniasDeFichas($pdo, array_column($crematorios, 'id'), 'todas');
 
 // ─── Helpers UI ──────────────────────────────────────────────────────────────
 
@@ -155,7 +170,7 @@ function thSort(string $label, string $campoDesc, string $campoAsc, string $orde
 }
 
 // Params que persisten en paginación y ordenamiento
-$fp = array_filter(['q' => $busqueda, 'ciudad' => $filCiudad, 'tier' => $filTier, 'estado' => $filEstado, 'orden' => $orden]);
+$fp = array_filter(['q' => $busqueda, 'ciudad' => $filCiudad, 'tier' => $filTier, 'estado' => $filEstado, 'insignia' => $filInsignia, 'orden' => $orden]);
 
 $esSuper = esSuperAdmin();
 
@@ -172,7 +187,7 @@ include 'header.php';
             <?php
             $totalFmt = number_format($total, 0, ',', '.');
             $sub = $totalFmt . ' registro' . ($total === 1 ? '' : 's');
-            $filtrosActivos = array_filter([$busqueda, $filCiudad, $filTier, $filEstado]);
+            $filtrosActivos = array_filter([$busqueda, $filCiudad, $filTier, $filEstado, $filInsignia]);
             if ($filtrosActivos) $sub .= ' — filtros activos';
             echo htmlspecialchars($sub);
             ?>
@@ -236,6 +251,25 @@ include 'header.php';
                     <?php endforeach; ?>
                 </select>
             </div>
+
+            <div class="field">
+                <label class="field__label">Insignia</label>
+                <select name="insignia" class="field__select field__select--enhanced"
+                        data-placeholder="Todas"
+                        data-ts-search="off">
+                    <option value="">Todas</option>
+                    <optgroup label="Tienen">
+                        <?php foreach ($catalogoInsignias as $ci): ?>
+                        <option value="<?php echo htmlspecialchars($ci['slug']); ?>" <?php echo $filInsignia === $ci['slug'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($ci['nombre']); ?></option>
+                        <?php endforeach; ?>
+                    </optgroup>
+                    <optgroup label="No tienen">
+                        <?php foreach ($catalogoInsignias as $ci): ?>
+                        <option value="sin:<?php echo htmlspecialchars($ci['slug']); ?>" <?php echo $filInsignia === 'sin:' . $ci['slug'] ? 'selected' : ''; ?>>Sin «<?php echo htmlspecialchars($ci['nombre']); ?>»</option>
+                        <?php endforeach; ?>
+                    </optgroup>
+                </select>
+            </div>
         </div>
 
         <div class="admin-filtros__acciones">
@@ -243,7 +277,7 @@ include 'header.php';
                 <i data-lucide="search" class="icono" style="width:14px; height:14px;"></i>
                 Filtrar
             </button>
-            <?php if ($busqueda || $filCiudad || $filTier || $filEstado): ?>
+            <?php if ($busqueda || $filCiudad || $filTier || $filEstado || $filInsignia): ?>
             <a href="fichas-negocios.php" class="boton dos pequeno" style="display:inline-flex; align-items:center; gap:.35rem;">
                 <i data-lucide="x" class="icono" style="width:14px; height:14px;"></i>
                 Limpiar
@@ -256,13 +290,13 @@ include 'header.php';
     <?php if (empty($crematorios)): ?>
     <div class="admin-empty">
         <div class="admin-empty__icon">
-            <i data-lucide="<?php echo ($busqueda || $filCiudad || $filTier || $filEstado) ? 'search-x' : 'building-2'; ?>" style="width: 28px; height: 28px;"></i>
+            <i data-lucide="<?php echo ($busqueda || $filCiudad || $filTier || $filEstado || $filInsignia) ? 'search-x' : 'building-2'; ?>" style="width: 28px; height: 28px;"></i>
         </div>
         <div class="admin-empty__titulo">
-            <?php echo ($busqueda || $filCiudad || $filTier || $filEstado) ? 'Sin resultados con estos filtros' : 'No hay fichas cargadas'; ?>
+            <?php echo ($busqueda || $filCiudad || $filTier || $filEstado || $filInsignia) ? 'Sin resultados con estos filtros' : 'No hay fichas cargadas'; ?>
         </div>
         <div class="admin-empty__texto">
-            <?php if ($busqueda || $filCiudad || $filTier || $filEstado): ?>
+            <?php if ($busqueda || $filCiudad || $filTier || $filEstado || $filInsignia): ?>
                 Probá ajustar o limpiar los filtros para ver más fichas.
             <?php else: ?>
                 Cuando se agreguen negocios al sistema aparecerán acá.
@@ -280,6 +314,7 @@ include 'header.php';
             <th><?php echo thSort('Nombre', 'nombre_desc', 'nombre_asc', $orden, $fp); ?></th>
             <th><?php echo thSort('Plan', 'tier_desc', 'tier_asc', $orden, $fp); ?></th>
             <th style="min-width: 160px;">Estado</th>
+            <th><?php echo thSort('Insignias · puntaje', 'puntaje_desc', 'puntaje_asc', $orden, $fp); ?></th>
             <th style="text-align: center;"><?php echo thSort('Reseñas', 'resenas_desc', 'resenas_asc', $orden, $fp); ?></th>
             <th class="admin-table__acciones"></th>
         </tr>
@@ -334,6 +369,18 @@ include 'header.php';
                 </select>
             </td>
 
+            <td style="min-width: 150px;">
+                <?php
+                $insigniasFila = $insigniasPorFicha[(int) $c['id']] ?? [];
+                $insigniasMax = 0; $insigniasTam = ''; $insigniasTitulo = true;
+                include dirname(__DIR__) . '/includes/componentes/insignias-fila.php';
+                unset($insigniasTitulo);
+                ?>
+                <div class="admin-table__secundario" style="margin-top:.3rem; font-variant-numeric: tabular-nums;">
+                    <?php echo number_format((float) $c['puntaje_ranking'], 1); ?> pts
+                </div>
+            </td>
+
             <td style="text-align: center;">
                 <?php if ($resenas > 0): ?>
                 <a href="resenas.php?crematorio_id=<?php echo $c['id']; ?>"
@@ -378,7 +425,7 @@ include 'header.php';
     <?php if ($totalPaginas > 1): ?>
     <div style="display: flex; justify-content: center; gap: .4rem; margin-top: var(--espacio-cuatro); flex-wrap: wrap;">
         <?php
-        $fpPag = array_filter(['q' => $busqueda, 'ciudad' => $filCiudad, 'tier' => $filTier, 'estado' => $filEstado, 'orden' => $orden]);
+        $fpPag = array_filter(['q' => $busqueda, 'ciudad' => $filCiudad, 'tier' => $filTier, 'estado' => $filEstado, 'insignia' => $filInsignia, 'orden' => $orden]);
         for ($i = 1; $i <= $totalPaginas; $i++):
             $qs = http_build_query(array_merge($fpPag, ['pagina' => $i]));
         ?>

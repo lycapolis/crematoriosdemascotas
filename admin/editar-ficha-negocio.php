@@ -8,6 +8,7 @@
 require_once 'auth.php';
 require_once dirname(__DIR__) . '/includes/funciones.php';
 require_once dirname(__DIR__) . '/includes/completitud.php';
+require_once dirname(__DIR__) . '/includes/insignias.php';
 
 requerirAutenticacion();
 
@@ -101,8 +102,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ':estado'               => in_array(($_POST['estado'] ?? 'activa'), ['activa','pausada','cerrada','archivada'], true)
                                        ? $_POST['estado'] : 'activa',
         ':activo'               => (($_POST['estado'] ?? 'activa') === 'activa') ? 1 : 0,
-        ':verificado'           => isset($_POST['verificado']) ? 1 : 0,
-        ':destacado'            => isset($_POST['destacado'])  ? 1 : 0,
         ':website'              => trim($_POST['website'] ?? ''),
         ':whatsapp'             => trim($_POST['whatsapp'] ?? ''),
         ':telefonos_json'       => trim($_POST['telefonos_json'] ?? '') ?: null,
@@ -147,8 +146,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     tier                 = :tier,
                     estado               = :estado,
                     activo               = :activo,
-                    verificado           = :verificado,
-                    destacado            = :destacado,
                     website              = :website,
                     whatsapp             = :whatsapp,
                     telefonos_json       = :telefonos_json,
@@ -195,6 +192,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // los datos recién guardados (teléfono, precio, rating, etc. pueden
         // haber cambiado en este mismo submit). No toca versiones manuales/IA.
         regenerarMensajeWhatsappAutoSiCorresponde($pdo, $id);
+
+        // Insignias: las manuales se guardan al instante por AJAX (admin/insignias-ficha-ajax.php),
+        // no viajan en este formulario. Aquí solo se recalculan las automáticas con los datos nuevos.
+        // `verificado` y `destacado` (cache) y el puntaje los escribe el motor al recalcular.
+        recalcularInsignias($pdo, $id);
 
         $pdo->commit();
 
@@ -762,15 +764,41 @@ function selectBool(string $name, $valor): string {
                         <?php endforeach; ?>
                     </select>
                 </div>
+                <?php
+                $insFichaAdmin   = insigniasDeFicha($pdo, (int) $cr['id'], 'todas');
+                $slugsFichaAdmin = array_column($insFichaAdmin, 'slug');
+                $puedeInsignias  = tienePermiso(obtenerAdminActual(), 'insignias');
+                $slugsActivos    = array_column(insigniasCatalogo($pdo, true), 'slug'); // Promocionado puede estar desactivado
+                ?>
                 <div class="field" style="margin-bottom:0; gap:.6rem; justify-content:flex-end;">
-                    <label class="field__opcion">
-                        <input type="checkbox" class="field__switch" name="verificado" value="1" <?php echo $cr['verificado'] ? 'checked' : ''; ?>>
-                        Verificado
+                    <?php if ($puedeInsignias): ?>
+                    
+                    <label class="field__opcion tiene-tooltip" data-tooltip="Una persona del equipo habló por teléfono con el negocio y validó los datos. Suma puntos de ranking.">
+                        <input type="checkbox" class="field__switch js-ins-manual" data-ins-slug="verificado_humano" <?php echo in_array('verificado_humano', $slugsFichaAdmin, true) ? 'checked' : ''; ?>>
+                        Verificado por humano
                     </label>
-                    <label class="field__opcion">
-                        <input type="checkbox" class="field__switch" name="destacado" value="1" <?php echo $cr['destacado'] ? 'checked' : ''; ?>>
-                        Destacado
+                    <label class="field__opcion tiene-tooltip" data-tooltip="Al llamar, comprobamos que atienden y responden rápido.">
+                        <input type="checkbox" class="field__switch js-ins-manual" data-ins-slug="rapida_atencion" <?php echo in_array('rapida_atencion', $slugsFichaAdmin, true) ? 'checked' : ''; ?>>
+                        Rápida atención
                     </label>
+                    <?php if (in_array('promocionado', $slugsActivos, true)): ?>
+                    <label class="field__opcion tiene-tooltip" data-tooltip="El negocio paga por más visibilidad en su zona (pauta). Se muestra siempre como «Promocionado».">
+                        <input type="checkbox" class="field__switch js-ins-manual" data-ins-slug="promocionado" <?php echo in_array('promocionado', $slugsFichaAdmin, true) ? 'checked' : ''; ?>>
+                        Promocionado (pauta)
+                    </label>
+                    <?php endif; ?>
+                    <?php endif; ?>
+                    <div id="ins-fila-admin" data-crematorio-id="<?php echo (int) $cr['id']; ?>" data-csrf="<?php echo generarTokenCSRF(); ?>" style="min-height:26px;">
+                    <?php
+                    // Insignias que ve el visitante (idéntico a la ficha pública)
+                    $insigniasFila = $insFichaAdmin; $insigniasMax = 0; $insigniasTam = ''; $insigniasAnidada = false;
+                    include dirname(__DIR__) . '/includes/componentes/insignias-fila.php';
+                    ?>
+                    </div>
+                    <small class="admin-text-muted">
+                        Puntaje de ranking: <strong id="ins-puntaje"><?php echo number_format((float) ($cr['puntaje_ranking'] ?? 0), 1); ?></strong>.
+                        <?php if ($puedeInsignias): ?>Las insignias manuales se guardan al instante; las automáticas se recalculan al guardar la ficha.<?php endif; ?>
+                    </small>
                 </div>
             </div>
         </section>
@@ -3552,6 +3580,41 @@ $flashOk   = !$error && !$imgError;
 
     <!-- Botones Guardar/Cancelar viven en el <aside class="ficha-layout__aside"> (sticky).
          El grid/marco ya se cerró tras la sección de Reseñas de clientes. -->
+
+<script>
+// Insignias manuales: guardado inmediato (como Google Docs). El interruptor se aplica al mover,
+// la fila de iconos se refresca con lo que devuelve el servidor y, si falla, se revierte.
+(function () {
+    const fila = document.getElementById('ins-fila-admin');
+    if (!fila) return;
+    document.querySelectorAll('.js-ins-manual').forEach(function (chk) {
+        chk.addEventListener('change', function () {
+            const quiere = chk.checked;
+            chk.disabled = true;
+            fila.style.opacity = '.5';
+            fetch('insignias-ficha-ajax.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': fila.dataset.csrf },
+                body: JSON.stringify({ crematorio_id: parseInt(fila.dataset.crematorioId, 10), slug: chk.dataset.insSlug, activa: quiere })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (!d.ok) throw new Error(d.error || 'No se pudo guardar.');
+                fila.innerHTML = d.html;
+                const p = document.getElementById('ins-puntaje');
+                if (p) p.textContent = d.puntaje;
+                if (window.lucide) lucide.createIcons();
+                if (window.toast) toast.ok(d.mensaje);
+            })
+            .catch(function (e) {
+                chk.checked = !quiere; // revertir: no se guardó
+                if (window.toast) toast.error(e.message || 'Error de conexión.');
+            })
+            .finally(function () { chk.disabled = false; fila.style.opacity = ''; });
+        });
+    });
+})();
+</script>
 
 <script>
 // Scroll + dirty + flash — después del DOM completo

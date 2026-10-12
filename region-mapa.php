@@ -369,12 +369,7 @@ body.region-mapa-pagina .footer { display: none !important; }
 .rmcard__ciudad { font-size: .8rem; color: var(--color-seis); margin-bottom: .35rem; }
 .rmcard__meta { display: flex; gap: .55rem; font-size: .78rem; color: var(--color-seis); align-items: center; flex-wrap: wrap; }
 .rmcard__meta strong { color: var(--color-dos); }
-.rmcard__badge {
-    display: inline-block; font-size: .65rem; padding: .15rem .45rem;
-    border-radius: 999px; font-weight: var(--peso-negrita); letter-spacing: .02em;
-}
-.rmcard__badge--destacado { background: var(--color-uno); color: #fff; }
-.rmcard__badge--verificado { background: rgba(184, 112, 79, .12); color: var(--color-uno); }
+.rmcard__cuerpo .insignias { margin-top: .4rem; }
 
 /* Sidebar oculto en mobile (estética básica); en futuro: drawer */
 @media (max-width: 1099px) {
@@ -475,7 +470,10 @@ body.region-mapa-pagina .footer { display: none !important; }
                 <a href="<?php echo htmlspecialchars($urlSinFiltros); ?>" class="boton uno pequeno">Ver todos los crematorios</a>
             </div>
         <?php else: ?>
-            <?php foreach ($crematorios as $c):
+            <?php
+            require_once ROOT_PATH . '/includes/insignias.php';
+            $insigniasPorFicha = insigniasDeFichas(obtenerConexion(), array_column($crematorios, 'id'), 'tarjeta');
+            foreach ($crematorios as $c):
                 $foto = $c['foto_local'] ?? $c['foto_principal'] ?? '';
                 $url  = BASE_URL . '/' . $c['slug'];
                 $ubic = trim(($c['ciudad'] ?? '') . (!empty($c['provincia_nombre']) ? ', ' . $c['provincia_nombre'] : ''), ', ');
@@ -493,9 +491,14 @@ body.region-mapa-pagina .footer { display: none !important; }
                     <div class="rmcard__meta">
                         <?php if ($rating): ?><span><strong>★ <?php echo $rating; ?></strong></span><?php endif; ?>
                         <?php if (!empty($c['reviews_total'])): ?><span><?php echo (int)$c['reviews_total']; ?> reseñas</span><?php endif; ?>
-                        <?php if (!empty($c['destacado'])): ?><span class="rmcard__badge rmcard__badge--destacado">Destacado</span><?php endif; ?>
-                        <?php if (!empty($c['verificado'])): ?><span class="rmcard__badge rmcard__badge--verificado">Verificado</span><?php endif; ?>
                     </div>
+                    <?php
+                    $insigniasFila = $insigniasPorFicha[(int) $c['id']] ?? [];
+                    $insigniasMax  = 4;
+                    $insigniasTam  = '';
+                    $insigniasAnidada = true; // la tarjeta entera es un <a>
+                    include ROOT_PATH . '/includes/componentes/insignias-fila.php';
+                    ?>
                 </div>
             </a>
             <?php endforeach; ?>

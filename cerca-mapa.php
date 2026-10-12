@@ -316,26 +316,7 @@ include 'includes/header.php';
         overflow: hidden;
     }
 
-    .card-horiz__badges {
-        display: flex;
-        gap: var(--espacio-uno);
-        margin-top: var(--espacio-dos);
-        flex-wrap: wrap;
-    }
-    .card-horiz__badge {
-        font-size: 0.7rem;
-        padding: 2px var(--espacio-dos);
-        border-radius: var(--radio-uno);
-        font-weight: var(--peso-medio);
-    }
-    .card-horiz__badge--verificado {
-        background: var(--color-diez);
-        color: white;
-    }
-    .card-horiz__badge--registrado {
-        background: var(--color-tres);
-        color: white;
-    }
+    .card-horiz__cuerpo .insignias { margin-top: var(--espacio-dos); }
 
     /* Mapa */
     .cerca-mapa__mapa-wrap {
@@ -516,7 +497,10 @@ include 'includes/header.php';
                 <a href="<?php echo BASE_URL; ?>/cerca-mapa.php?lat=<?php echo $lat; ?>&lng=<?php echo $lng; ?>&radio=200" class="boton uno">Ampliar a 200 km</a>
             </div>
             <?php else: ?>
-                <?php foreach ($crematorios as $crem):
+                <?php
+                require_once ROOT_PATH . '/includes/insignias.php';
+                $insigniasPorFicha = insigniasDeFichas(obtenerConexion(), array_column($crematorios, 'id'), 'tarjeta');
+                foreach ($crematorios as $crem):
                     $urlFicha   = generarUrl('crematorio', $crem['slug']);
                     // Mismo fallback que el partial tarjeta-crematorio.php (foto_local primero)
                     $foto       = $crem['foto_local'] ?? $crem['foto_principal'] ?? null;
@@ -524,8 +508,6 @@ include 'includes/header.php';
                     $ubicacion  = trim(($crem['ciudad'] ?? '') . ', ' . ($crem['provincia_nombre'] ?? ''), ', ');
                     $rating     = $crem['rating'] ? number_format((float)$crem['rating'], 1) : null;
                     $reviews    = (int)($crem['reviews_total'] ?? 0);
-                    $esRegistrado = ($crem['origen'] ?? '') === 'registro';
-                    $esVerificado = !empty($crem['verificado']);
                 ?>
                 <a href="<?php echo $urlFicha; ?>" class="card-horiz"
                    data-crem-id="<?php echo (int)$crem['id']; ?>"
@@ -562,16 +544,13 @@ include 'includes/header.php';
                             <?php echo limpiar(mb_substr(strip_tags($crem['descripcion_corta'] ?? $crem['descripcion']), 0, 140)); ?>
                         </p>
                         <?php endif; ?>
-                        <?php if ($esRegistrado || $esVerificado): ?>
-                        <div class="card-horiz__badges">
-                            <?php if ($esRegistrado): ?>
-                            <span class="card-horiz__badge card-horiz__badge--registrado">Registrado</span>
-                            <?php endif; ?>
-                            <?php if ($esVerificado): ?>
-                            <span class="card-horiz__badge card-horiz__badge--verificado">Verificado</span>
-                            <?php endif; ?>
-                        </div>
-                        <?php endif; ?>
+                        <?php
+                        $insigniasFila = $insigniasPorFicha[(int) $crem['id']] ?? [];
+                        $insigniasMax  = 4;
+                        $insigniasTam  = '';
+                        $insigniasAnidada = true; // la tarjeta entera es un <a>
+                        include ROOT_PATH . '/includes/componentes/insignias-fila.php';
+                        ?>
                     </div>
                 </a>
                 <?php endforeach; ?>
