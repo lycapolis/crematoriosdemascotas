@@ -448,116 +448,6 @@ $payload = [
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ENVIAR EMAIL
-// ═══════════════════════════════════════════════════════════════════════════
-
-function enviarEmailRegistro($payload, $reply_to) {
-    $to = EMAIL_CONTACTO;
-    $subject = '🏢 Nueva Solicitud de Registro: ' . $payload['data']['negocio']['nombre'];
-
-    $body = "═══════════════════════════════════════════════════════════\n";
-    $body .= "NUEVA SOLICITUD DE REGISTRO DE CREMATORIO\n";
-    $body .= "═══════════════════════════════════════════════════════════\n\n";
-
-    $body .= "📋 ID SOLICITUD: #{$payload['solicitud_id']}\n";
-    $body .= "📅 Fecha: " . date('d/m/Y H:i:s') . "\n\n";
-
-    $body .= "───────────────────────────────────────────────────────────\n";
-    $body .= "👤 CONTACTO COMERCIAL (PRIVADO)\n";
-    $body .= "───────────────────────────────────────────────────────────\n";
-    $body .= "Nombre: {$payload['data']['contacto']['nombre']}\n";
-    $body .= "Email: {$payload['data']['contacto']['email']}\n";
-    $body .= "Teléfono: {$payload['data']['contacto']['telefono']}\n\n";
-
-    $body .= "───────────────────────────────────────────────────────────\n";
-    $body .= "🏢 DATOS DEL NEGOCIO\n";
-    $body .= "───────────────────────────────────────────────────────────\n";
-    $body .= "Nombre: {$payload['data']['negocio']['nombre']}\n";
-    $body .= "Email clientes: {$payload['data']['negocio']['email_clientes']}\n";
-    $body .= "Teléfono clientes: {$payload['data']['negocio']['telefono_clientes']}\n\n";
-
-    $body .= "───────────────────────────────────────────────────────────\n";
-    $body .= "📍 UBICACIÓN\n";
-    $body .= "───────────────────────────────────────────────────────────\n";
-    $body .= "País: {$payload['data']['ubicacion']['pais']}\n";
-    $body .= "Comunidad: {$payload['data']['ubicacion']['comunidad']}\n";
-    $body .= "Provincia: {$payload['data']['ubicacion']['provincia']}\n";
-    $body .= "Ciudad: {$payload['data']['ubicacion']['ciudad']}\n";
-    $body .= "Dirección: {$payload['data']['ubicacion']['direccion']}\n";
-    $body .= "C.P.: {$payload['data']['ubicacion']['codigo_postal']}\n\n";
-
-    $body .= "───────────────────────────────────────────────────────────\n";
-    $body .= "📝 CONTENIDO\n";
-    $body .= "───────────────────────────────────────────────────────────\n";
-    $body .= "Descripción:\n{$payload['data']['contenido']['descripcion']}\n\n";
-    $body .= "Servicios:\n{$payload['data']['contenido']['servicios']}\n\n";
-    $body .= "Horarios:\n{$payload['data']['contenido']['horarios']}\n\n";
-    if (!empty($payload['data']['contenido']['precios'])) {
-        $body .= "Precios:\n{$payload['data']['contenido']['precios']}\n\n";
-    }
-
-    if (!empty($payload['data']['contenido']['comentarios_admin'])) {
-        $body .= "Comentarios adicionales:\n{$payload['data']['contenido']['comentarios_admin']}\n\n";
-    }
-
-    $body .= "───────────────────────────────────────────────────────────\n";
-    $body .= "🌐 PRESENCIA EN LÍNEA\n";
-    $body .= "───────────────────────────────────────────────────────────\n";
-    $body .= "Sitio web: {$payload['data']['urls']['sitio_web']}\n";
-    $body .= "Google Maps: {$payload['data']['urls']['google_maps_url']}\n";
-    $body .= "WhatsApp: {$payload['data']['urls']['whatsapp']}\n";
-    $body .= "Facebook: {$payload['data']['urls']['facebook']}\n";
-    $body .= "Instagram: {$payload['data']['urls']['instagram']}\n\n";
-
-    $body .= "───────────────────────────────────────────────────────────\n";
-    $body .= "🔗 ACCIONES\n";
-    $body .= "───────────────────────────────────────────────────────────\n";
-    $body .= "Ver en admin: " . BASE_URL . "/admin/solicitud-ver.php?id={$payload['solicitud_id']}\n\n";
-
-    $body .= "───────────────────────────────────────────────────────────\n";
-    $body .= "Enviado desde: {$payload['page_url']}\n";
-
-    $headers = "From: " . SITIO_NOMBRE . " <noreply@crematoriosdemascotas.com>\r\n";
-    $headers .= "Reply-To: {$reply_to}\r\n";
-    $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
-
-    return @mail($to, $subject, $body, $headers);
-}
-
-enviarEmailRegistro($payload, $contacto_email);
-
-// ═══════════════════════════════════════════════════════════════════════════
-// DISPARAR WEBHOOKS
-// ═══════════════════════════════════════════════════════════════════════════
-
-function dispararWebhooks($payload) {
-    $webhook_urls = json_decode(WEBHOOK_URLS, true);
-
-    if (empty($webhook_urls) || !is_array($webhook_urls)) {
-        return;
-    }
-
-    $json_payload = json_encode($payload);
-
-    foreach ($webhook_urls as $url) {
-        if (empty($url)) continue;
-
-        $context = stream_context_create([
-            'http' => [
-                'method'  => 'POST',
-                'header'  => "Content-Type: application/json\r\n",
-                'content' => $json_payload,
-                'timeout' => 5
-            ]
-        ]);
-
-        @file_get_contents($url, false, $context);
-    }
-}
-
-dispararWebhooks($payload);
-
-// ═══════════════════════════════════════════════════════════════════════════
 // RESPUESTA EXITOSA
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -573,12 +463,13 @@ echo json_encode([
     'form_name' => $payload['form_name']
 ]);
 
-// Email de confirmación al SOLICITANTE (capa de notificaciones por evento). Va DESPUÉS de
-// responder al navegador para que el SMTP no retrase el formulario; nunca rompe el flujo.
+// Avisos por la capa de notificaciones por evento: equipo (email diseñado por SMTP), webhooks
+// (JSON de Make intacto + variables extra) y confirmación al SOLICITANTE. Van DESPUÉS de
+// responder al navegador para que SMTP y webhooks no retrasen el formulario; nunca rompen el flujo.
 try {
     require_once __DIR__ . '/includes/notificaciones/despachador.php';
     notifCerrarRespuesta();
-    notificarEvento($pdo, 'solicitud.recibida', ['solicitud_id' => (int)$solicitud_id]);
+    notificarEvento($pdo, 'solicitud.recibida', ['solicitud_id' => (int)$solicitud_id, 'payload' => $payload]);
 } catch (\Throwable $e) {
-    error_log('[procesar-registro] notificación solicitud recibida: ' . $e->getMessage());
+    error_log('[procesar-registro] notificaciones de solicitud recibida: ' . $e->getMessage());
 }

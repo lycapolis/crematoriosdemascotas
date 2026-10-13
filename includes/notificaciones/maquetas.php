@@ -34,7 +34,132 @@ if (!function_exists('notifMaqueta')) {
             'solicitud_aprobada'            => 'Solicitud de alta: «Tu negocio ya está en el directorio»',
             'solicitud_rechazada'           => 'Solicitud de alta: rechazo con motivo',
             'solicitud_rechazada_sin_motivo' => 'Solicitud de alta: rechazo sin motivo',
-        ];
+            // Avisos internos al equipo
+            'equipo_resena'        => 'Equipo: nueva reseña',
+            'equipo_contacto'      => 'Equipo: mensaje de contacto',
+            'equipo_promociona'    => 'Equipo: lead comercial «Promociona tu crematorio»',
+            'equipo_registro'      => 'Equipo: solicitud de alta de negocio',
+            'equipo_lead_ficha'    => 'Equipo: lead desde la ficha de un negocio',
+            'equipo_lead_burbuja'  => 'Equipo: lead desde la burbuja (sin ficha)',
+        ] + notifMaquetaTiposWebhook();
+    }
+
+    /** Un tipo de maqueta por evento del catálogo con canal webhook: «webhook:<evento>». */
+    function notifMaquetaTiposWebhook(): array
+    {
+        $t = [];
+        foreach (notifCatalogoEventos() as $clave => $def) {
+            if (in_array('webhook', $def['canales'], true)) $t['webhook:' . $clave] = 'Webhook: ' . $def['titulo'];
+        }
+        return $t;
+    }
+
+    /** Payloads de EJEMPLO con la misma forma que los de producción (procesar-formulario / procesar-registro). */
+    function notifMaquetaPayload(string $evento, array $neg): array
+    {
+        $ahora = date('c');
+        $url   = notifUrlPublica(($neg['slug'] ?? 'ejemplo') . '?utm_source=google&utm_medium=organic');
+        switch ($evento) {
+            case 'resena.recibida':
+                return ['form_id' => 'form_resena', 'form_name' => 'Reseña de Crematorio', 'formulario' => 'Formulario de Reseña',
+                    'telefono' => '', 'timestamp' => $ahora, 'imagenes_guardadas' => 2,
+                    'data' => ['nombre' => 'María G.', 'email' => 'maria@example.com',
+                        'comentario' => "Nos atendieron con mucho cariño en un momento muy difícil.\nTodo fue claro y puntual.",
+                        'calificacion' => 5, 'crematorio' => $neg['nombre'], 'crematorio_id' => (int)$neg['id'],
+                        'resena_id' => 123, 'imagenes_adjuntas' => 2, 'estado' => 'pendiente'],
+                    'page_url' => $url];
+            case 'contacto.recibido':
+                return ['form_id' => 'form_contacto', 'form_name' => 'Contacto General', 'formulario' => 'Formulario de Contacto General',
+                    'telefono' => '600123456', 'timestamp' => $ahora,
+                    'data' => ['nombre' => 'Carlos Pérez', 'email' => 'carlos@example.com', 'telefono' => '600123456',
+                        'asunto' => 'Duda sobre un servicio', 'mensaje' => "Hola, quería preguntar si trabajáis en domingo.\nGracias."],
+                    'page_url' => notifUrlPublica('contacto.php')];
+            case 'lead_comercial.recibido':
+                return ['form_id' => 'form_lead_comercial', 'form_name' => 'Lead comercial (Promocionar crematorio)',
+                    'formulario' => 'Formulario de Promoción de Crematorio', 'telefono' => '655987654', 'timestamp' => $ahora,
+                    'data' => ['nombre' => 'Lucía Martín', 'nombre_negocio' => 'Crematorio Ejemplo', 'email' => 'lucia@example.com',
+                        'telefono' => '655987654', 'ciudad' => 'Valencia', 'mensaje' => 'Nos interesa aparecer como destacados en la provincia.', 'origen' => 'landing'],
+                    'page_url' => notifUrlPublica('promociona-tu-crematorio.php')];
+            case 'solicitud.recibida':
+                return ['form_id' => 'form_registro_negocio', 'form_name' => 'Registro de Crematorio', 'timestamp' => $ahora, 'solicitud_id' => 123,
+                    'data' => [
+                        'contacto'  => ['nombre' => 'Carlos', 'email' => 'carlos@example.com', 'telefono' => '600123456'],
+                        'negocio'   => ['nombre' => 'Crematorio Ejemplo', 'email_clientes' => 'info@ejemplo.com', 'telefono_clientes' => '910000000'],
+                        'ubicacion' => ['pais' => 'España', 'comunidad' => 'Comunidad de Madrid', 'provincia' => 'Madrid', 'ciudad' => 'Madrid', 'direccion' => 'Calle Mayor 1', 'codigo_postal' => '28001'],
+                        'contenido' => ['descripcion' => 'Crematorio familiar con más de 20 años de experiencia.', 'servicios' => "Cremación individual\nRecogida a domicilio", 'horarios' => 'L-V 9:00-18:00', 'precios' => '', 'comentarios_admin' => ''],
+                        'urls'      => ['sitio_web' => 'https://ejemplo.com', 'google_maps_url' => '', 'whatsapp' => '600123456', 'facebook' => '', 'instagram' => ''],
+                        'email'     => 'carlos@example.com'],
+                    'page_url' => notifUrlPublica('registrar-negocio.php')];
+            case 'lead_b2c.recibido':
+                return notifMaquetaLeadPayload($neg, true);
+        }
+        return [];
+    }
+
+    /** Fila de leads_b2c de ejemplo (con o sin ficha). */
+    function notifMaquetaLeadFila(array $neg, bool $conFicha): array
+    {
+        return ['id' => 456, 'channel_type' => 'wa', 'crematorio_id' => $conFicha ? (int)$neg['id'] : null,
+            'crematorio_nombre' => $conFicha ? $neg['nombre'] : null, 'pagina_origen' => notifUrlPublica($conFicha ? ($neg['slug'] ?? 'ejemplo') : ''),
+            'servicio' => 'Perro', 'mascota_tamano' => '5 - 15 kg', 'nombre' => 'María García', 'email' => 'maria@example.com',
+            'phone_code' => '34', 'whatsapp_number' => '600123456', 'ciudad_lead' => $neg['ciudad'] ?: 'Madrid',
+            'mensaje' => "Mi perro Toby falleció esta mañana y necesitamos coordinar el servicio para hoy mismo.\nGracias.",
+            'utm_source' => 'google', 'utm_medium' => 'organic', 'utm_campaign' => ''];
+    }
+
+    /** JSON de Make del lead B2C (misma forma que procesar-lead-b2c.php). */
+    function notifMaquetaLeadPayload(array $neg, bool $conFicha): array
+    {
+        $l = notifMaquetaLeadFila($neg, $conFicha);
+        return ['id_formulario' => 'cmas-lead-capture-interno', 'formulario' => 'Formulario de Contacto - Ficha de Crematorio',
+            'telefono' => '+' . $l['phone_code'] . $l['whatsapp_number'], 'idAgent' => $conFicha ? 'crematorio-' . $l['crematorio_id'] : 'generico',
+            'channelType' => 'whatsapp', 'phoneAgent' => '', 'idStat' => (string)$l['id'], 'referrer' => '', 'referrerArrival' => $l['pagina_origen'],
+            'sentDateUTC' => gmdate('c'), 'utmParams' => 'utm_source=google&utm_medium=organic', 'utmParams2' => '', 'priceCurrency' => 'EUR',
+            'idService' => $conFicha ? (string)$l['crematorio_id'] : 'NA', 'Servicio' => '', 'Mascota' => $l['servicio'],
+            'Tamaño de la Mascota' => $l['mascota_tamano'], 'Nombre' => $l['nombre'], 'Email' => $l['email'], 'countryCode' => 'ES',
+            'phoneCode' => $l['phone_code'], 'WhatsApp Number' => $l['whatsapp_number'], 'Ciudad' => $l['ciudad_lead'], 'Mensaje' => $l['mensaje'],
+            'ip' => '203.0.113.7', 'crematorio_id' => $l['crematorio_id'], 'crematorio_nombre' => $l['crematorio_nombre'] ?? '',
+            'pagina_origen' => $l['pagina_origen'], 'destino_url' => 'https://wa.me/34600000000', 'lead_source' => 'cmas_interno_wa'];
+    }
+
+    /** `data` de ejemplo de los eventos con sobre normalizado (misma forma que notifWebhookData()). */
+    function notifMaquetaDataSobre(string $evento, array $neg): array
+    {
+        $negocio = ['id' => (int)$neg['id'], 'nombre' => $neg['nombre'], 'slug' => $neg['slug'], 'plan' => $neg['tier']];
+        switch ($evento) {
+            case 'resena.aprobada':
+                return ['resena_id' => 123, 'autor' => 'María G.', 'calificacion' => 5, 'comentario' => 'Nos atendieron con mucho cariño.', 'fuente' => 'propio',
+                    'negocio' => $negocio + ['url' => notifUrlPublica($neg['slug'])]];
+            case 'solicitud.aprobada':
+                return ['solicitud_id' => 123, 'nombre_negocio' => $neg['nombre'],
+                    'contacto' => ['nombre' => 'Carlos', 'email' => 'carlos@example.com', 'telefono' => '600123456'],
+                    'ficha' => ['id' => (int)$neg['id'], 'slug' => $neg['slug'], 'url' => notifUrlPublica($neg['slug'])]];
+            case 'solicitud.rechazada':
+                return ['solicitud_id' => 123, 'nombre_negocio' => $neg['nombre'],
+                    'contacto' => ['nombre' => 'Carlos', 'email' => 'carlos@example.com', 'telefono' => '600123456'],
+                    'motivo' => 'No hemos podido comprobar que el negocio exista en la dirección indicada.'];
+            case 'lead.entregado':
+                return ['lead_id' => 456, 'canal_lead' => 'wa', 'entregado_en' => date('Y-m-d H:i:s'),
+                    'variante' => in_array($neg['tier'], ['00', '01'], true) ? 'portal' : 'completa', 'negocio' => $negocio];
+        }
+        return [];
+    }
+
+    /** Vista previa del webhook de un evento: el JSON que recibirían los destinos. */
+    function notifMaquetaWebhook(\PDO $pdo, string $evento, array $neg): ?array
+    {
+        $def = notifCatalogoEventos()[$evento] ?? null;
+        if (!$def) return null;
+        $cfg   = notifWebhookConfigEvento($pdo, $evento);
+        $clave = ($def['clave'])(['resena_id' => 123, 'solicitud_id' => 123, 'lead_id' => 456, 'uid' => 'ejemplo0123456789', 'motivo' => '']);
+        if (($def['webhook']['modo'] ?? 'sobre') === 'heredado') {
+            $cuerpo = notifWebhookCuerpo($pdo, $evento, $def, $clave, ['payload' => notifMaquetaPayload($evento, $neg)], $cfg['extras']);
+        } else {
+            $cuerpo = ['evento' => $evento, 'version' => 1, 'id' => $clave, 'fecha' => date('c'),
+                'origen' => parse_url(notifUrlPublica(), PHP_URL_HOST) ?: 'portal', 'data' => notifMaquetaDataSobre($evento, $neg)];
+        }
+        return ['json' => json_encode($cuerpo, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'activo' => $cfg['activo'], 'modo' => $def['webhook']['modo'] ?? 'sobre', 'titulo' => $def['titulo']];
     }
 
     /** Negocio real (solo nombre/slug/ciudad/plan) o uno ficticio si no se elige ninguno. */
@@ -56,6 +181,29 @@ if (!function_exists('notifMaqueta')) {
         $avisos = [];
         if ($neg['ficticio']) {
             $avisos[] = 'Negocio de ejemplo (ficticio). Elige uno real o pulsa «Al azar» para ver su nombre en el email.';
+        }
+
+        // Avisos internos al equipo
+        if (strpos($tipo, 'equipo_') === 0) {
+            $mapa = ['equipo_resena' => 'resena.recibida', 'equipo_contacto' => 'contacto.recibido',
+                     'equipo_promociona' => 'lead_comercial.recibido', 'equipo_registro' => 'solicitud.recibida'];
+            $p2  = isset($mapa[$tipo])
+                ? notifEquipoDesdePayload($mapa[$tipo], notifMaquetaPayload($mapa[$tipo], $neg))
+                : notifEquipoDesdeLead(notifMaquetaLeadFila($neg, $tipo === 'equipo_lead_ficha'));
+            $tpl = renderEmailEquipoConversion($p2);
+            $avisos[] = 'Aviso interno: llega a ' . (defined('EMAIL_CONTACTO') ? EMAIL_CONTACTO : 'info@') . ' con Reply-To = email de quien convierte. No lleva enlace de baja.';
+            return ['ok' => true, 'tpl' => $tpl, 'avisos' => $avisos];
+        }
+
+        // Webhooks: el «email» es el JSON que recibirían los destinos
+        if (strpos($tipo, 'webhook:') === 0) {
+            $w = notifMaquetaWebhook($pdo, substr($tipo, 8), $neg);
+            if (!$w) return ['ok' => false, 'tpl' => ['asunto' => '', 'html' => '', 'texto' => ''], 'avisos' => ['Evento desconocido.']];
+            $avisos[] = $w['modo'] === 'heredado'
+                ? 'JSON heredado: es el que Make ya recibía, intacto, con las variables extra activas añadidas al final.'
+                : 'Sobre normalizado {evento, version, id, fecha, origen, data}.';
+            if (!$w['activo']) $avisos[] = 'Este evento está DESACTIVADO en admin/webhooks.php: no se envía a ningún destino.';
+            return ['ok' => true, 'tpl' => ['asunto' => 'Webhook · ' . $w['titulo'], 'html' => '', 'texto' => $w['json']], 'avisos' => $avisos, 'json' => true];
         }
 
         switch ($tipo) {

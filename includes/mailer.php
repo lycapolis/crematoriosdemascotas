@@ -31,6 +31,7 @@ if (!function_exists('enviarMailHtml')) {
      * @param string      $bodyText  Cuerpo plain-text (fallback para clientes que no rendericen HTML)
      * @param string|null $replyTo   Reply-To opcional (ej: email del lead para que el negocio pueda responder directo)
      * @param string|null $destinoNombre Nombre del destinatario (mejora deliverabilidad)
+     * @param string      $formato   'html' (diseñado + texto alternativo) o 'texto' (solo texto plano, sin HTML)
      * @return array{ok:bool, error?:string, transporte:string}
      */
     function enviarMailHtml(
@@ -39,7 +40,8 @@ if (!function_exists('enviarMailHtml')) {
         string $bodyHtml,
         string $bodyText,
         ?string $replyTo = null,
-        ?string $destinoNombre = null
+        ?string $destinoNombre = null,
+        string $formato = 'html'
     ): array {
         $destino = trim($destino);
         if ($destino === '' || !filter_var($destino, FILTER_VALIDATE_EMAIL)) {
@@ -51,11 +53,11 @@ if (!function_exists('enviarMailHtml')) {
                        && defined('SMTP_PASS') && SMTP_PASS !== '';
 
         if ($smtpDisponible && file_exists(__DIR__ . '/../assets/librerias/phpmailer/PHPMailer.php')) {
-            return enviarMailHtmlSmtp($destino, $asunto, $bodyHtml, $bodyText, $replyTo, $destinoNombre);
+            return enviarMailHtmlSmtp($destino, $asunto, $bodyHtml, $bodyText, $replyTo, $destinoNombre, $formato);
         }
 
         // Fallback: mail() nativo
-        return enviarMailHtmlNativo($destino, $asunto, $bodyHtml, $bodyText, $replyTo);
+        return enviarMailHtmlNativo($destino, $asunto, $bodyHtml, $bodyText, $replyTo, $formato);
     }
 
     /**
@@ -67,7 +69,8 @@ if (!function_exists('enviarMailHtml')) {
         string $bodyHtml,
         string $bodyText,
         ?string $replyTo,
-        ?string $destinoNombre
+        ?string $destinoNombre,
+        string $formato = 'html'
     ): array {
         $libDir = __DIR__ . '/../assets/librerias/phpmailer';
         require_once $libDir . '/Exception.php';
@@ -100,10 +103,15 @@ if (!function_exists('enviarMailHtml')) {
                 $mail->addReplyTo($replyTo);
             }
 
-            $mail->isHTML(true);
             $mail->Subject = $asunto;
-            $mail->Body    = $bodyHtml;
-            $mail->AltBody = $bodyText;
+            if ($formato === 'texto') {
+                $mail->isHTML(false);
+                $mail->Body = $bodyText;
+            } else {
+                $mail->isHTML(true);
+                $mail->Body    = $bodyHtml;
+                $mail->AltBody = $bodyText;
+            }
 
             $mail->send();
             return ['ok' => true, 'transporte' => 'smtp'];
@@ -125,8 +133,23 @@ if (!function_exists('enviarMailHtml')) {
         string $asunto,
         string $bodyHtml,
         string $bodyText,
-        ?string $replyTo
+        ?string $replyTo,
+        string $formato = 'html'
     ): array {
+        if ($formato === 'texto') {
+            $fromE = defined('SMTP_FROM_EMAIL') ? SMTP_FROM_EMAIL : ('noreply@' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
+            $fromN = defined('SMTP_FROM_NAME')  ? SMTP_FROM_NAME  : (defined('SITIO_NOMBRE') ? SITIO_NOMBRE : 'Sitio');
+            $h  = "From: " . encodeHeaderUtf8($fromN) . " <{$fromE}>
+";
+            if ($replyTo && filter_var($replyTo, FILTER_VALIDATE_EMAIL)) $h .= "Reply-To: {$replyTo}
+";
+            $h .= "MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: base64
+";
+            $ok = @mail($destino, encodeHeaderUtf8($asunto), chunk_split(base64_encode($bodyText)), $h);
+            return $ok ? ['ok' => true, 'transporte' => 'mail()'] : ['ok' => false, 'error' => 'mail() returned false', 'transporte' => 'mail()'];
+        }
         $boundary = 'b_' . md5((string)mt_rand());
         $fromEmail = defined('SMTP_FROM_EMAIL') ? SMTP_FROM_EMAIL : ('noreply@' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
         $fromName  = defined('SMTP_FROM_NAME')  ? SMTP_FROM_NAME  : (defined('SITIO_NOMBRE') ? SITIO_NOMBRE : 'Sitio');

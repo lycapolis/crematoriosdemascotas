@@ -11,12 +11,11 @@
  * 1. Valida datos.
  * 2. Inserta en `leads_b2c`.
  * 3. Inserta evento en `outbound_clicks` con modal_action='sent' y lead_b2c_id.
- * 4. Envía webhook a WEBHOOK_URLS (Make) con MISMA estructura del widget
- *    Lycapolis previo + campos nuevos contextuales (backward compat).
- * 5. Devuelve { ok:true, destino: 'URL FINAL' } así el JS redirige al usuario.
+ * 4. Devuelve { ok:true, destino: 'URL FINAL' } así el JS redirige al usuario.
  *
- * Notificación al negocio: solo si el crematorio tiene tier premium
- * (Verificado/Destacado/Promocionado). [Implementación pendiente fase posterior.]
+ * Después de responder (webhook con la MISMA estructura del widget Lycapolis previo +
+ * campos nuevos contextuales, backward compat): evento lead_b2c.recibido (webhooks + email al equipo) y, si hay
+ * ficha, entrega del lead al negocio según su plan (ver includes/notificaciones.php).
  *
  * Autor: Facundo M. Campos | Lycapolis LLC
  * ═══════════════════════════════════════════════════════════
@@ -184,47 +183,9 @@ $payload = [
     'lead_source'           => 'cmas_interno_' . ($channelType ?: 'desconocido'),
 ];
 
-// ─── 7. Enviar a webhooks configurados ─────────────────────────────
-$webhookOk    = false;
-$webhookError = null;
-$webhookUrls  = json_decode(WEBHOOK_URLS, true) ?: [];
-
-foreach ($webhookUrls as $url) {
-    if (!$url) continue;
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-        CURLOPT_POSTFIELDS     => json_encode([$payload], JSON_UNESCAPED_UNICODE),
-        CURLOPT_TIMEOUT        => 10,
-        CURLOPT_CONNECTTIMEOUT => 5,
-    ]);
-    $resp     = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err      = curl_error($ch);
-    curl_close($ch);
-
-    if ($httpCode >= 200 && $httpCode < 300) {
-        $webhookOk = true;
-    } else {
-        $webhookError = "HTTP $httpCode" . ($err ? " — $err" : '');
-    }
-}
-
-// ─── 8. Actualizar lead con resultado del webhook ───────────────────
-$pdo->prepare("UPDATE leads_b2c SET webhook_enviado = ?, webhook_error = ? WHERE id = ?")
-    ->execute([$webhookOk ? 1 : 0, $webhookError, $leadId]);
-
-// ─── 9. Notificación al negocio (solo si tier elegible + opt-in) ────
-// No bloqueante: cualquier error se loguea pero no afecta la respuesta.
-if ($crematorioId) {
-    try {
-        notificarNegocioLead($pdo, $leadId);
-    } catch (\Throwable $e) {
-        error_log("[procesar-lead-b2c] notif negocio falló: " . $e->getMessage());
-    }
-}
+// ─── 7-9. Webhooks, aviso al equipo y entrega al negocio ────────────
+// Ya NO van aquí: se lanzan DESPUÉS de responder (al final del archivo) para que el modal
+// redirija al instante. El JSON de Make ($payload, arriba) no cambia.
 
 // ─── 10. Si el canal era WhatsApp, reconstruir wa.me con mensaje rico ──
 // El mensaje original era genérico ("Hola, me gustaría obtener información").
@@ -276,6 +237,31 @@ echo json_encode([
     'destino' => $destinoFinal,
     'lead_id' => $leadId,
 ], JSON_UNESCAPED_UNICODE);
+
+// ─── 11. Avisos tras responder (capa de notificaciones por evento) ──
+// a) evento lead_b2c.recibido → webhooks (mismo JSON de siempre en lista + variables extra)
+//    y email diseñado al equipo; b) entrega del lead al negocio (email + evento lead.entregado).
+// Un fallo aquí se registra pero nunca afecta al usuario, que ya tiene su respuesta.
+try {
+    require_once __DIR__ . '/includes/notificaciones/despachador.php';
+    notifCerrarRespuesta();
+
+    $resNotif = notificarEvento($pdo, 'lead_b2c.recibido', ['lead_id' => $leadId, 'payload' => $payload]);
+
+    // Estado del webhook en la propia fila del lead (lo que ve admin/leads-b2c.php)
+    $wh = $resNotif['webhook'] ?? null;
+    if ($wh && in_array($wh['estado'], ['enviada', 'fallida'], true)) {
+        $pdo->prepare("UPDATE leads_b2c SET webhook_enviado = ?, webhook_error = ? WHERE id = ?")
+            ->execute([$wh['estado'] === 'enviada' ? 1 : 0, $wh['estado'] === 'fallida' ? ($wh['error'] ?? 'fallido') : null, $leadId]);
+    }
+
+    // Entrega al negocio (solo si el lead viene de una ficha; el resto de reglas están dentro)
+    if ($crematorioId) {
+        notificarNegocioLead($pdo, $leadId);
+    }
+} catch (\Throwable $e) {
+    error_log('[procesar-lead-b2c] avisos tras responder: ' . $e->getMessage());
+}
 
 
 // ═══════════════════════════════════════════════════════════════════

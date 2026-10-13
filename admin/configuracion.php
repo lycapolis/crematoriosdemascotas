@@ -42,6 +42,20 @@ $tarjetas = [
         'visible'      => esSuperAdmin(),
     ],
     [
+        'href'         => BASE_URL . '/admin/notif-leads-test.php',
+        'icono'        => 'mail',
+        'titulo'       => 'Maquetas de emails',
+        'descripcion'  => 'Cómo se ven todas las notificaciones por email y sus variantes. Envíate una prueba.',
+        'visible'      => esSuperAdmin(),
+    ],
+    [
+        'href'         => BASE_URL . '/admin/webhooks.php',
+        'icono'        => 'webhook',
+        'titulo'       => 'Webhooks',
+        'descripcion'  => 'Destinos (Make, n8n, CRM…), eventos que se envían y variables extra del JSON.',
+        'visible'      => esSuperAdmin(),
+    ],
+    [
         'href'         => BASE_URL . '/admin/configuracion-formularios.php',
         'icono'        => 'sliders',
         'titulo'       => 'Configuración de formularios',

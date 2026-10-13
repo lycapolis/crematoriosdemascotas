@@ -18,6 +18,7 @@ require_once '../includes/config.php';
 require_once '../includes/conexion_db.php';
 require_once '../includes/funciones.php';
 require_once 'auth.php';
+require_once '../includes/notificaciones/maquetas.php';
 
 requierePermiso('solicitudes');
 
@@ -41,6 +42,50 @@ function filaEnvio(string $emailPorDefecto): void
       <div class="field notif-bloque__botones" style="margin-bottom:0;"><label class="field__label">&nbsp;</label><button type="button" class="boton uno" data-enviar><i data-lucide="send" class="icono"></i> Enviar</button></div>
     </div>
     <div class="notif-bloque__msg" aria-live="polite"></div>
+    <?php
+}
+
+/** Abre un bloque colapsable. Se cierra con cerrarBloque(). */
+function abrirBloque(string $id, string $tipo, string $titulo, string $resumen = ''): void
+{
+    ?>
+      <section class="notif-card notif-bloque is-colapsado" data-bloque="<?= htmlspecialchars($id) ?>" data-tipo="<?= htmlspecialchars($tipo) ?>">
+        <button type="button" class="notif-bloque__cabecera" aria-expanded="false">
+          <i data-lucide="chevron-right" class="icono notif-bloque__flecha"></i>
+          <span class="notif-bloque__titulo"><?= htmlspecialchars($titulo) ?></span>
+          <?php if ($resumen !== ''): ?><span class="notif-bloque__resumen"><?= htmlspecialchars($resumen) ?></span><?php endif; ?>
+        </button>
+        <div class="notif-bloque__cuerpo">
+    <?php
+}
+
+function cerrarBloque(): void
+{
+    ?>
+        </div>
+      </section>
+    <?php
+}
+
+/** Selector de negocio de ejemplo + botones Al azar / Ver preview. */
+function filaNegocio(string $selectId): void
+{
+    ?>
+          <div class="field">
+            <label class="field__label" for="<?= $selectId ?>">Negocio de ejemplo</label>
+            <select id="<?= $selectId ?>" data-campo="crem_id" data-negocios="todos" class="field__select"></select>
+          </div>
+          <div class="field notif-bloque__botones"><label class="field__label">&nbsp;</label><div class="notif-bloque__botonera"><button type="button" class="boton dos" data-azar="todos"><i data-lucide="shuffle" class="icono"></i> Al azar</button><button type="button" class="boton dos" data-ver><i data-lucide="eye" class="icono"></i> Ver preview</button></div></div>
+    <?php
+}
+
+function grupo(string $titulo, string $nota = ''): void
+{
+    ?>
+    <div class="notif-grupo">
+      <h2 class="notif-grupo__titulo"><?= htmlspecialchars($titulo) ?></h2>
+      <?php if ($nota !== ''): ?><p class="notif-grupo__nota"><?= htmlspecialchars($nota) ?></p><?php endif; ?>
+    </div>
     <?php
 }
 
@@ -82,6 +127,23 @@ include 'header.php';
     .notif-test__iframe { position: absolute; top: 0; left: 0; display: block; border: 0; background: #FFFBF7; transform-origin: 0 0; }
     .notif-bloque__avisos { margin-bottom: var(--espacio-tres); }
     .notif-bloque__avisos .admin-banner { overflow-wrap: anywhere; }
+    /* Bloques colapsables y grupos */
+    .notif-grupo { margin: var(--espacio-cuatro) 0 var(--espacio-dos) 0; }
+    .notif-grupo__titulo { margin: 0; font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--admin-tinta-tenue); }
+    .notif-grupo__nota { margin: .25rem 0 0 0; font-size: .85rem; color: var(--admin-tinta-tenue); }
+    .notif-bloque { padding: 0; }
+    .notif-bloque__cabecera { display: flex; align-items: center; gap: .6rem; width: 100%; padding: var(--espacio-tres) var(--espacio-cuatro); background: none; border: 0; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+    .notif-bloque__flecha { width: 18px; height: 18px; flex: 0 0 auto; transition: transform .15s; color: var(--admin-tinta-tenue); }
+    .notif-bloque:not(.is-colapsado) .notif-bloque__flecha { transform: rotate(90deg); }
+    .notif-bloque__titulo { font-size: 1.05rem; font-weight: 700; color: var(--admin-tinta-fuerte); }
+    .notif-bloque__resumen { margin-left: auto; font-size: .8rem; color: var(--admin-tinta-tenue); text-align: right; }
+    .notif-bloque__cuerpo { padding: 0 var(--espacio-cuatro) var(--espacio-cuatro) var(--espacio-cuatro); }
+    .notif-bloque.is-colapsado .notif-bloque__cuerpo { display: none; }
+    .notif-herramientas { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-bottom: var(--espacio-dos); }
+    .notif-formato { display: inline-flex; border: 1px solid var(--admin-linea); border-radius: var(--admin-r-md); overflow: hidden; margin: 0 0 .5rem 0; }
+    .notif-formato button { padding: .35rem .8rem; background: var(--admin-superficie); border: 0; font: inherit; font-size: .82rem; cursor: pointer; color: var(--admin-tinta-tenue); }
+    .notif-formato button + button { border-left: 1px solid var(--admin-linea); }
+    .notif-formato button.is-activo { background: #B8704F; color: #fff; }
     @media (max-width: 1100px) { .notif-test__grid { grid-template-columns: 1fr; } .notif-test__preview { position: static; } }
   </style>
 
@@ -95,9 +157,14 @@ include 'header.php';
       Esta página nunca envía nada a negocios: solo al email que escribas en cada bloque.
       </p>
 
-      <!-- 1) LEAD AL NEGOCIO -->
-      <section class="notif-card notif-bloque" data-bloque="lead" data-tipo="lead_negocio">
-        <h2 class="notif-card__titulo">1) Lead nuevo al negocio</h2>
+      <div class="notif-herramientas">
+        <button type="button" class="boton dos" id="notif-expandir"><i data-lucide="chevrons-down" class="icono"></i> Expandir todo</button>
+        <button type="button" class="boton dos" id="notif-colapsar"><i data-lucide="chevrons-up" class="icono"></i> Colapsar todo</button>
+      </div>
+
+      <?php grupo('Al negocio', 'Emails que reciben los negocios de los directorios.'); ?>
+
+      <?php abrirBloque('lead', 'lead_negocio', 'Lead nuevo al negocio', 'según el plan'); ?>
         <div class="notif-bloque__fila">
           <div class="field">
             <label class="field__label" for="lead_plan">Plan del negocio</label>
@@ -108,23 +175,13 @@ include 'header.php';
             </select>
             <span class="field__hint">Cambia la variante del email (Gratis/Básico, Estándar, Premium).</span>
           </div>
-          <div class="field">
-            <label class="field__label" for="lead_neg">Negocio de ejemplo</label>
-            <select id="lead_neg" data-campo="crem_id" data-negocios="todos" class="field__select"></select>
-          </div>
-          <div class="field notif-bloque__botones"><label class="field__label">&nbsp;</label><div class="notif-bloque__botonera"><button type="button" class="boton dos" data-azar="todos"><i data-lucide="shuffle" class="icono"></i> Al azar</button><button type="button" class="boton dos" data-ver><i data-lucide="eye" class="icono"></i> Ver preview</button></div></div>
+          <?php filaNegocio('lead_neg'); ?>
         </div>
-        <div class="notif-bloque__envio">
-          <?php filaEnvio($admin['email'] ?? ''); ?>
-        </div>
-      </section>
+        <div class="notif-bloque__envio"><?php filaEnvio($admin['email'] ?? ''); ?></div>
+      <?php cerrarBloque(); ?>
 
-      <!-- 2) TEASER REGIONAL -->
-      <section class="notif-card notif-bloque" data-bloque="teaser" data-tipo="teaser">
-        <h2 class="notif-card__titulo">2) Teaser regional (métricas de la provincia)</h2>
-        <p class="notif-card__nota">
-          Igual para todos los negocios de una provincia. Sin elegir negocio, se ve con cifras de muestra.
-        </p>
+      <?php abrirBloque('teaser', 'teaser', 'Teaser regional (métricas de la provincia)', 'igual para toda la provincia'); ?>
+        <p class="notif-card__nota">Igual para todos los negocios de una provincia. Sin elegir negocio, se ve con cifras de muestra.</p>
         <div class="notif-bloque__fila">
           <div class="field">
             <label class="field__label" for="teaser_plan">Plan</label>
@@ -142,14 +199,21 @@ include 'header.php';
           </div>
           <div class="field notif-bloque__botones"><label class="field__label">&nbsp;</label><div class="notif-bloque__botonera"><button type="button" class="boton dos" data-azar="plan" data-plan-select="teaser_plan"><i data-lucide="shuffle" class="icono"></i> Al azar</button><button type="button" class="boton dos" data-ver><i data-lucide="eye" class="icono"></i> Ver preview</button></div></div>
         </div>
-        <div class="notif-bloque__envio">
-          <?php filaEnvio($admin['email'] ?? ''); ?>
-        </div>
-      </section>
+        <div class="notif-bloque__envio"><?php filaEnvio($admin['email'] ?? ''); ?></div>
+      <?php cerrarBloque(); ?>
 
-      <!-- 3) RESEÑA AL AUTOR -->
-      <section class="notif-card notif-bloque" data-bloque="resena" data-tipo="resena_recibida">
-        <h2 class="notif-card__titulo">3) Emails al autor de una reseña</h2>
+      <?php abrirBloque('resena_negocio', 'resena_negocio', 'Reseña positiva: aviso al negocio', '1 email'); ?>
+        <p class="notif-card__nota">
+          Se envía al aprobar una reseña positiva. Es solo una notificación (no pide nada), con un botón para ver la reseña
+          y otro por si el negocio quiere responderla.
+        </p>
+        <div class="notif-bloque__fila"><?php filaNegocio('resneg_neg'); ?></div>
+        <div class="notif-bloque__envio"><?php filaEnvio($admin['email'] ?? ''); ?></div>
+      <?php cerrarBloque(); ?>
+
+      <?php grupo('Al usuario', 'Emails transaccionales a quien deja una reseña o solicita el alta.'); ?>
+
+      <?php abrirBloque('resena', 'resena_recibida', 'Emails al autor de una reseña', '2 emails'); ?>
         <p class="notif-card__nota">
           El enlace «Dejar de recibir estas notificaciones» es real para el email al que lo envíes: si lo pulsas y confirmas,
           ese email queda dado de baja (se reactiva al enviar una reseña con él).
@@ -162,39 +226,12 @@ include 'header.php';
               <option value="resena_aprobada">2) Tu reseña ya es pública</option>
             </select>
           </div>
-          <div class="field">
-            <label class="field__label" for="resena_neg">Negocio de ejemplo</label>
-            <select id="resena_neg" data-campo="crem_id" data-negocios="todos" class="field__select"></select>
-          </div>
-          <div class="field notif-bloque__botones"><label class="field__label">&nbsp;</label><div class="notif-bloque__botonera"><button type="button" class="boton dos" data-azar="todos"><i data-lucide="shuffle" class="icono"></i> Al azar</button><button type="button" class="boton dos" data-ver><i data-lucide="eye" class="icono"></i> Ver preview</button></div></div>
+          <?php filaNegocio('resena_neg'); ?>
         </div>
-        <div class="notif-bloque__envio">
-          <?php filaEnvio($admin['email'] ?? ''); ?>
-        </div>
-      </section>
+        <div class="notif-bloque__envio"><?php filaEnvio($admin['email'] ?? ''); ?></div>
+      <?php cerrarBloque(); ?>
 
-      <!-- 4) RESEÑA POSITIVA → NEGOCIO -->
-      <section class="notif-card notif-bloque" data-bloque="resena_negocio" data-tipo="resena_negocio">
-        <h2 class="notif-card__titulo">4) Reseña positiva: aviso al negocio</h2>
-        <p class="notif-card__nota">
-          Se envía al aprobar una reseña positiva. Es solo una notificación (no pide nada), con un botón para ver la reseña
-          y otro por si el negocio quiere responderla.
-        </p>
-        <div class="notif-bloque__fila">
-          <div class="field">
-            <label class="field__label" for="resneg_neg">Negocio de ejemplo</label>
-            <select id="resneg_neg" data-campo="crem_id" data-negocios="todos" class="field__select"></select>
-          </div>
-          <div class="field notif-bloque__botones"><label class="field__label">&nbsp;</label><div class="notif-bloque__botonera"><button type="button" class="boton dos" data-azar="todos"><i data-lucide="shuffle" class="icono"></i> Al azar</button><button type="button" class="boton dos" data-ver><i data-lucide="eye" class="icono"></i> Ver preview</button></div></div>
-        </div>
-        <div class="notif-bloque__envio">
-          <?php filaEnvio($admin['email'] ?? ''); ?>
-        </div>
-      </section>
-
-      <!-- 5) SOLICITUD DE ALTA → SOLICITANTE -->
-      <section class="notif-card notif-bloque" data-bloque="solicitud" data-tipo="solicitud_recibida">
-        <h2 class="notif-card__titulo">5) Solicitud de alta de negocio (al solicitante)</h2>
+      <?php abrirBloque('solicitud', 'solicitud_recibida', 'Solicitud de alta de negocio (al solicitante)', '4 variantes'); ?>
         <p class="notif-card__nota">
           Los tres momentos del alta: recibida (al enviar el formulario), aprobada y rechazada (al moderar en Solicitudes).
           El motivo del rechazo lo escribe el admin y viaja en el email.
@@ -209,16 +246,59 @@ include 'header.php';
               <option value="solicitud_rechazada_sin_motivo">4) Rechazo, sin motivo</option>
             </select>
           </div>
+          <?php filaNegocio('sol_neg'); ?>
+        </div>
+        <div class="notif-bloque__envio"><?php filaEnvio($admin['email'] ?? ''); ?></div>
+      <?php cerrarBloque(); ?>
+
+      <?php grupo('Al equipo', 'Avisos internos a ' . (defined('EMAIL_CONTACTO') ? EMAIL_CONTACTO : 'info@') . ' por cada conversión del sitio.'); ?>
+
+      <?php abrirBloque('equipo', 'equipo_resena', 'Avisos al equipo por conversión', '6 avisos'); ?>
+        <p class="notif-card__nota">
+          Uno por cada conversión: reseña, contacto, «Promociona tu crematorio», alta de negocio y lead (de una ficha o de la burbuja).
+          Llevan el email de quien convierte en Reply-To, así que se le responde directamente desde la bandeja.
+        </p>
+        <div class="notif-bloque__fila">
           <div class="field">
-            <label class="field__label" for="sol_neg">Negocio de ejemplo</label>
-            <select id="sol_neg" data-campo="crem_id" data-negocios="todos" class="field__select"></select>
+            <label class="field__label" for="equipo_tipo">Conversión</label>
+            <select id="equipo_tipo" data-campo="tipo" class="field__select">
+              <option value="equipo_resena">Nueva reseña</option>
+              <option value="equipo_contacto">Mensaje de contacto</option>
+              <option value="equipo_promociona">Lead comercial «Promociona tu crematorio»</option>
+              <option value="equipo_registro">Solicitud de alta de negocio</option>
+              <option value="equipo_lead_ficha">Lead desde la ficha de un negocio</option>
+              <option value="equipo_lead_burbuja">Lead desde la burbuja (sin ficha)</option>
+            </select>
           </div>
-          <div class="field notif-bloque__botones"><label class="field__label">&nbsp;</label><div class="notif-bloque__botonera"><button type="button" class="boton dos" data-azar="todos"><i data-lucide="shuffle" class="icono"></i> Al azar</button><button type="button" class="boton dos" data-ver><i data-lucide="eye" class="icono"></i> Ver preview</button></div></div>
+          <?php filaNegocio('equipo_neg'); ?>
+        </div>
+        <div class="notif-bloque__envio"><?php filaEnvio($admin['email'] ?? ''); ?></div>
+      <?php cerrarBloque(); ?>
+
+      <?php grupo('Webhooks', 'Lo que reciben Make, n8n u otros destinos. No es un email: el preview es el JSON.'); ?>
+
+      <?php abrirBloque('webhook', 'webhook:resena.recibida', 'Payload de los webhooks', count(notifMaquetaTiposWebhook()) . ' eventos'); ?>
+        <p class="notif-card__nota">
+          El JSON que recibe cada destino. Los eventos «heredados» mantienen el formato que Make ya conoce y suman las variables extra
+          activas; los demás usan el sobre normalizado. Destinos, interruptores y variables se configuran en
+          <a href="webhooks.php">Webhooks</a>.
+        </p>
+        <div class="notif-bloque__fila">
+          <div class="field">
+            <label class="field__label" for="webhook_tipo">Evento</label>
+            <select id="webhook_tipo" data-campo="tipo" class="field__select">
+              <?php foreach (notifMaquetaTiposWebhook() as $k => $etq): ?>
+              <option value="<?= htmlspecialchars($k) ?>"><?= htmlspecialchars(preg_replace('/^Webhook: /', '', $etq)) ?> — <?= htmlspecialchars(substr($k, 8)) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <?php filaNegocio('webhook_neg'); ?>
         </div>
         <div class="notif-bloque__envio">
-          <?php filaEnvio($admin['email'] ?? ''); ?>
+          <div class="notif-bloque__msg"></div>
+          <a href="webhooks.php" class="boton dos"><i data-lucide="webhook" class="icono"></i> Configurar webhooks y enviar una prueba</a>
         </div>
-      </section>
+      <?php cerrarBloque(); ?>
 
       <section class="notif-card" style="font-size:.9rem; color:var(--admin-tinta-suave);">
         <strong>Estado del envío SMTP:</strong>
@@ -233,6 +313,10 @@ include 'header.php';
     </div><!-- /.notif-test__col -->
 
     <aside class="notif-test__preview">
+      <div class="notif-formato" role="group" aria-label="Formato del email">
+        <button type="button" class="is-activo" data-formato="html">Diseñado</button>
+        <button type="button" data-formato="texto">Texto plano</button>
+      </div>
       <p class="notif-preview__asunto" id="preview-titulo">Preview</p>
       <div class="notif-test__marco" id="preview-marco">
         <div class="notif-test__cuerpo" id="preview-cuerpo">
@@ -253,6 +337,7 @@ include 'header.php';
   var activo   = null;      // bloque cuyo email se ve a la derecha
   var secuencia = 0;        // descarta respuestas viejas si el usuario cambia rápido
   var temporizador = null;
+  var formato = 'html';     // 'html' (diseñado) | 'texto' (texto plano): afecta al preview y al envío
 
   function llamar(datos) {
     datos.csrf_token = CSRF;
@@ -264,7 +349,7 @@ include 'header.php';
   }
 
   function estado(bloque) {
-    var e = { tipo: bloque.getAttribute('data-tipo'), plan: '', crem_id: 0,
+    var e = { tipo: bloque.getAttribute('data-tipo'), plan: '', crem_id: 0, formato: formato,
               email: (bloque.querySelector('[data-campo="email"]') || {}).value || '' };
     bloque.querySelectorAll('[data-campo]').forEach(function (c) {
       var k = c.getAttribute('data-campo');
@@ -400,6 +485,48 @@ include 'header.php';
       : n + ' negocios en total.';
   });
 
+  // ── Bloques colapsables (el estado se recuerda en este navegador) ─────
+  var CLAVE_ABIERTOS = 'notifMaquetaAbiertos';
+  function leerAbiertos() { try { return JSON.parse(localStorage.getItem(CLAVE_ABIERTOS) || 'null'); } catch (e) { return null; } }
+  function guardarAbiertos() {
+    try {
+      var ids = [];
+      document.querySelectorAll('.notif-bloque:not(.is-colapsado)').forEach(function (b) { ids.push(b.getAttribute('data-bloque')); });
+      localStorage.setItem(CLAVE_ABIERTOS, JSON.stringify(ids));
+    } catch (e) { /* sin almacenamiento: no pasa nada */ }
+  }
+  function fijarColapsado(bloque, colapsado) {
+    bloque.classList.toggle('is-colapsado', colapsado);
+    bloque.querySelector('.notif-bloque__cabecera').setAttribute('aria-expanded', colapsado ? 'false' : 'true');
+  }
+  document.querySelectorAll('.notif-bloque__cabecera').forEach(function (cab) {
+    cab.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var bloque = cab.closest('.notif-bloque');
+      var abrir = bloque.classList.contains('is-colapsado');
+      fijarColapsado(bloque, !abrir);
+      guardarAbiertos();
+      if (abrir) previsualizar(bloque);
+    });
+  });
+  document.getElementById('notif-expandir').addEventListener('click', function () {
+    document.querySelectorAll('.notif-bloque').forEach(function (b) { fijarColapsado(b, false); });
+    guardarAbiertos();
+  });
+  document.getElementById('notif-colapsar').addEventListener('click', function () {
+    document.querySelectorAll('.notif-bloque').forEach(function (b) { fijarColapsado(b, true); });
+    guardarAbiertos();
+  });
+
+  // ── Formato: diseñado / texto plano ───────────────────────
+  document.querySelectorAll('[data-formato]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      formato = btn.getAttribute('data-formato');
+      document.querySelectorAll('[data-formato]').forEach(function (b) { b.classList.toggle('is-activo', b === btn); });
+      if (activo) previsualizar(activo);
+    });
+  });
+
   // ── Eventos por bloque ────────────────────────────────────
   document.querySelectorAll('.notif-bloque').forEach(function (bloque) {
     bloque.addEventListener('click', function () { if (activo !== bloque) previsualizar(bloque); });
@@ -444,8 +571,15 @@ include 'header.php';
     m.className = 'notif-bloque__msg ' + (ok ? 'is-ok' : 'is-error');
   }
 
-  // Siempre hay un ejemplo a la vista al abrir la página
-  previsualizar(document.querySelector('.notif-bloque'));
+  // Al abrir la página: se despliegan los bloques recordados (o el primero) y se ve un ejemplo
+  var recordados = leerAbiertos();
+  var bloques = document.querySelectorAll('.notif-bloque');
+  bloques.forEach(function (b) {
+    if (recordados && recordados.indexOf(b.getAttribute('data-bloque')) !== -1) fijarColapsado(b, false);
+  });
+  var primero = document.querySelector('.notif-bloque:not(.is-colapsado)');
+  if (!primero) { primero = bloques[0]; fijarColapsado(primero, false); }
+  previsualizar(primero);
 })();
 </script>
 <?php include 'footer.php'; ?>

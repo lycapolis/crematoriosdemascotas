@@ -5,9 +5,10 @@
  * ═══════════════════════════════════════════════════════════
  *
  * Recibe datos de formularios vía POST (AJAX).
- * - Envía email con datos legibles + JSON estructurado
- * - Dispara webhooks con payload JSON
  * - Devuelve form_id y form_name para eventos GTM
+ * - Tras responder, lanza el evento de la capa includes/notificaciones/ que corresponda:
+ *   aviso por email al equipo (SMTP, plantilla diseñada) + webhooks (JSON de Make intacto).
+ *   El registro de negocio NO pasa por aquí: lo gestiona procesar-registro.php.
  * ═══════════════════════════════════════════════════════════
  */
 
@@ -28,9 +29,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $tipo = isset($_POST['tipo']) ? trim($_POST['tipo']) : '';
 
 switch ($tipo) {
-    case 'registro':
-        $payload = procesarRegistro();
-        break;
     case 'resena':
         $payload = procesarResena();
         break;
@@ -45,14 +43,10 @@ switch ($tipo) {
         exit;
 }
 
-// Si hay payload, agregar page_url y enviar email + webhooks
+// Si hay payload, agregar page_url, responder y avisar al equipo
 if ($payload) {
     // Agregar URL de origen con UTMs
     $payload['page_url'] = filtrar($_POST['page_url'] ?? '');
-
-    $reply_to = $payload['data']['email'] ?? '';
-    enviarEmail($payload, $reply_to);
-    dispararWebhooks($payload);
 
     echo json_encode([
         'ok'        => true,
@@ -62,81 +56,28 @@ if ($payload) {
         'imagenes_guardadas' => $payload['imagenes_guardadas'] ?? 0,
     ]);
 
-    // Emails al USUARIO (capa de notificaciones por evento). Va DESPUÉS de responder
-    // al navegador para que el SMTP no retrase el formulario; nunca rompe el flujo.
-    if (($payload['form_id'] ?? '') === 'form_resena' && !empty($payload['data']['resena_id'])) {
-        try {
-            require_once __DIR__ . '/includes/notificaciones/despachador.php';
-            notifCerrarRespuesta();
-            notificarEvento(obtenerConexion(), 'resena.recibida', ['resena_id' => (int)$payload['data']['resena_id']]);
-        } catch (\Throwable $e) {
-            error_log('[procesar-formulario] notificación reseña: ' . $e->getMessage());
+    // Avisos (equipo + webhooks + usuario) por la capa de notificaciones por evento. Van DESPUÉS
+    // de responder al navegador para que SMTP y webhooks no retrasen el formulario; nunca rompen el flujo.
+    try {
+        require_once __DIR__ . '/includes/notificaciones/despachador.php';
+        notifCerrarRespuesta();
+        $pdoNotif = obtenerConexion();
+        switch ($payload['form_id'] ?? '') {
+            case 'form_resena':
+                if (!empty($payload['data']['resena_id'])) {
+                    notificarEvento($pdoNotif, 'resena.recibida', ['resena_id' => (int)$payload['data']['resena_id'], 'payload' => $payload]);
+                }
+                break;
+            case 'form_contacto':
+                notificarEvento($pdoNotif, 'contacto.recibido', ['uid' => bin2hex(random_bytes(8)), 'payload' => $payload]);
+                break;
+            case 'form_lead_comercial':
+                notificarEvento($pdoNotif, 'lead_comercial.recibido', ['uid' => bin2hex(random_bytes(8)), 'payload' => $payload]);
+                break;
         }
+    } catch (\Throwable $e) {
+        error_log('[procesar-formulario] notificación: ' . $e->getMessage());
     }
-}
-
-// ═══════════════════════════════════════════════════════════
-// PROCESAR REGISTRO DE NEGOCIO
-// ═══════════════════════════════════════════════════════════
-function procesarRegistro() {
-    $nombre         = filtrar($_POST['nombre'] ?? '');
-    $email          = filtrar($_POST['email'] ?? '');
-    $telefono       = filtrar($_POST['telefono'] ?? '');
-    $nombre_negocio = filtrar($_POST['nombre_negocio'] ?? '');
-    $direccion      = filtrar($_POST['direccion'] ?? '');
-    $ciudad         = filtrar($_POST['ciudad'] ?? '');
-    $estado         = filtrar($_POST['estado'] ?? '');
-    $codigo_postal  = filtrar($_POST['codigo_postal'] ?? '');
-    $descripcion    = filtrar($_POST['descripcion'] ?? '');
-    $servicios      = filtrar($_POST['servicios'] ?? '');
-    $horarios       = filtrar($_POST['horarios'] ?? '');
-    $sitio_web      = filtrar($_POST['sitio_web'] ?? '');
-    $whatsapp       = filtrar($_POST['whatsapp'] ?? '');
-    $facebook       = filtrar($_POST['facebook'] ?? '');
-    $instagram      = filtrar($_POST['instagram'] ?? '');
-
-    if (!$nombre || !$email || !$telefono || !$nombre_negocio || !$direccion || !$ciudad || !$estado || !$descripcion) {
-        echo json_encode(['ok' => false, 'mensaje' => 'Faltan campos obligatorios']);
-        return null;
-    }
-
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        echo json_encode(['ok' => false, 'mensaje' => 'Email no válido']);
-        return null;
-    }
-
-    return [
-        'form_id'   => 'form_registro',
-        'form_name' => 'Registro de Crematorio',
-        'formulario' => 'Formulario de Registro de Crematorio',
-        'telefono'  => $telefono,
-        'timestamp' => date('c'),
-        'data' => [
-            'contacto' => [
-                'nombre'   => $nombre,
-                'email'    => $email,
-                'telefono' => $telefono,
-            ],
-            'crematorio' => [
-                'nombre_negocio' => $nombre_negocio,
-                'direccion'      => $direccion,
-                'ciudad'         => $ciudad,
-                'provincia'      => $estado,
-                'codigo_postal'  => $codigo_postal,
-                'descripcion'    => $descripcion,
-                'servicios'      => $servicios,
-                'horarios'       => $horarios,
-            ],
-            'online' => [
-                'sitio_web' => $sitio_web,
-                'whatsapp'  => $whatsapp,
-                'facebook'  => $facebook,
-                'instagram' => $instagram,
-            ],
-            // Campo plano para acceso rápido en webhooks
-            'email' => $email,
-        ]
-    ];
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -539,83 +480,5 @@ function antiSpamRateLimitResenas() {
     } catch (PDOException $e) {
         error_log('rate-limit error BD: ' . $e->getMessage());
         return ['ok' => true]; // falla abierta para no bloquear usuarios legítimos
-    }
-}
-
-/**
- * Enviar email con datos legibles + bloque JSON estructurado
- */
-function enviarEmail($payload, $reply_to) {
-    $destino = EMAIL_CONTACTO;
-    $asunto  = '[' . $payload['form_name'] . '] ' . $payload['form_id'] . ' - ' . date('d/m/Y H:i');
-
-    // Cuerpo legible
-    $cuerpo  = strtoupper($payload['form_name']) . "\n";
-    $cuerpo .= str_repeat('=', 50) . "\n";
-    $cuerpo .= "ID: " . $payload['form_id'] . "\n";
-    $cuerpo .= "Fecha: " . $payload['timestamp'] . "\n";
-    if (!empty($payload['page_url'])) {
-        $cuerpo .= "URL origen: " . $payload['page_url'] . "\n";
-    }
-    $cuerpo .= "\n";
-
-    $cuerpo .= formatearDatosEmail($payload['data']) . "\n";
-
-    // Bloque JSON para copiar/pegar
-    $cuerpo .= str_repeat('-', 50) . "\n";
-    $cuerpo .= "DATOS ESTRUCTURADOS (JSON):\n\n";
-    $cuerpo .= json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
-
-    $headers  = "From: " . SITIO_NOMBRE . " <noreply@" . ($_SERVER['HTTP_HOST'] ?? 'localhost') . ">\r\n";
-    $headers .= "Reply-To: {$reply_to}\r\n";
-    $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
-
-    @mail($destino, $asunto, $cuerpo, $headers);
-}
-
-/**
- * Formatear datos del payload como texto legible para el email
- */
-function formatearDatosEmail($data, $nivel = 0) {
-    $texto = '';
-    $indent = str_repeat('  ', $nivel);
-
-    foreach ($data as $clave => $valor) {
-        if (is_array($valor)) {
-            $texto .= $indent . strtoupper(str_replace('_', ' ', $clave)) . ":\n";
-            $texto .= formatearDatosEmail($valor, $nivel + 1);
-        } else {
-            $label = ucfirst(str_replace('_', ' ', $clave));
-            $texto .= $indent . "{$label}: {$valor}\n";
-        }
-    }
-
-    return $texto;
-}
-
-/**
- * Disparar webhooks con el payload JSON
- */
-function dispararWebhooks($payload) {
-    $urls = json_decode(WEBHOOK_URLS, true);
-
-    if (empty($urls) || !is_array($urls)) {
-        return;
-    }
-
-    $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
-    foreach ($urls as $url) {
-        $contexto = stream_context_create([
-            'http' => [
-                'method'  => 'POST',
-                'header'  => "Content-Type: application/json\r\n",
-                'content' => $json,
-                'timeout' => 5,
-                'ignore_errors' => true,
-            ]
-        ]);
-
-        @file_get_contents($url, false, $contexto);
     }
 }

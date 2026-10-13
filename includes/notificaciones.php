@@ -152,6 +152,14 @@ if (!function_exists('notificarNegocioLead')) {
         $pdo->prepare("UPDATE leads_b2c SET negocio_notificado = 1, negocio_notificado_at = NOW() WHERE id = ?")
             ->execute([$leadId]);
 
+        // 11. Aviso a los webhooks: el lead ha sido entregado al negocio (nunca rompe el flujo)
+        try {
+            require_once __DIR__ . '/notificaciones/despachador.php';
+            notificarEvento($pdo, 'lead.entregado', ['lead_id' => $leadId]);
+        } catch (\Throwable $e) {
+            error_log("[notif lead {$leadId}] evento lead.entregado: " . $e->getMessage());
+        }
+
         return ['ok' => true, 'transporte' => $envio['transporte']];
     }
 

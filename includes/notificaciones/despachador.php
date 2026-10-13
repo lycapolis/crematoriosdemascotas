@@ -28,6 +28,8 @@ require_once __DIR__ . '/eventos.php';
 require_once __DIR__ . '/canales/email-usuario.php';
 require_once __DIR__ . '/canales/email-negocio.php';
 require_once __DIR__ . '/canales/email-solicitante.php';
+require_once __DIR__ . '/canales/email-equipo.php';
+require_once __DIR__ . '/canales/webhook.php';
 
 if (!function_exists('notificarEvento')) {
 
@@ -70,7 +72,28 @@ if (!function_exists('notificarEvento')) {
     function notifDespacharCanal(\PDO $pdo, string $evento, array $def, string $clave, string $canal, string $fn, array $datos): array
     {
         $prep = $fn($pdo, $evento, $datos);
-        if (!is_array($prep) || empty($prep['destinatario'])) {
+
+        // Canal con varios destinos (webhook): cada uno se reserva, envía y registra por separado,
+        // así un destino caído no bloquea a los demás ni se reenvía a los que ya lo recibieron.
+        if (is_array($prep) && !empty($prep['multiples'])) {
+            $estados = []; $errores = [];
+            foreach ($prep['multiples'] as $p) {
+                $r = notifEjecutarPrep($pdo, $evento, $def, $clave, $canal, $p);
+                $estados[] = $r['estado'];
+                if (!empty($r['error'])) $errores[] = $r['error'];
+            }
+            $estado = in_array('fallida', $estados, true) ? 'fallida'
+                    : (in_array('enviada', $estados, true) ? 'enviada' : 'omitida');
+            return ['estado' => $estado, 'destinos' => count($estados)] + ($errores ? ['error' => implode(' | ', $errores)] : []);
+        }
+
+        return notifEjecutarPrep($pdo, $evento, $def, $clave, $canal, is_array($prep) ? $prep : []);
+    }
+
+    /** Reserva la fila, comprueba condiciones y envía UN destinatario de un canal. */
+    function notifEjecutarPrep(\PDO $pdo, string $evento, array $def, string $clave, string $canal, array $prep): array
+    {
+        if (empty($prep['destinatario'])) {
             return ['estado' => 'omitida', 'motivo' => $prep['omitir'] ?? 'sin_destinatario'];
         }
         $dest = (string)$prep['destinatario'];
@@ -105,7 +128,7 @@ if (!function_exists('notificarEvento')) {
                            SET estado = ?, motivo = ?, error = ?, enviado_en = IF(? = 'enviada', NOW(), enviado_en)
                            WHERE clave = ? AND canal = ? AND destinatario = ?")
                 ->execute([$estado, $motivo, $error ? mb_substr($error, 0, 500) : null, $estado, $clave, $canal, $dest]);
-            return ['estado' => $estado] + ($motivo ? ['motivo' => $motivo] : []);
+            return ['estado' => $estado] + ($motivo ? ['motivo' => $motivo] : []) + ($error ? ['error' => mb_substr($error, 0, 500)] : []);
         };
 
         // 2. Condiciones de omisión propias del canal (fuente no propia, estado cambiado…)

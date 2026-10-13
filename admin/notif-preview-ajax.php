@@ -3,8 +3,10 @@
  * Maqueta de notificaciones (AJAX) — usado por admin/notif-leads-test.php
  *
  * POST JSON + cabecera X-CSRF-Token:
- *   { accion:'preview', tipo, plan, crem_id, email }  → { ok, asunto, html, avisos }
- *   { accion:'enviar',  tipo, plan, crem_id, email }  → { ok, mensaje }   (envía la maqueta a `email`)
+ *   { accion:'preview', tipo, plan, crem_id, email, formato } → { ok, asunto, html, avisos }
+ *   { accion:'enviar',  tipo, plan, crem_id, email, formato } → { ok, mensaje }   (envía la maqueta a `email`)
+ *   formato: 'html' (diseñado, por defecto) | 'texto' (solo texto plano, sin HTML)
+ *   Los tipos «webhook:<evento>» no son emails: el preview es el JSON que recibirían los destinos.
  *   { accion:'azar',    plan? }                       → { ok, negocio:{id,nombre,tier} }
  *
  * Nunca envía nada a negocios reales: el único destinatario posible es el email que se escriba.
@@ -41,6 +43,16 @@ $tipo   = (string)($in['tipo'] ?? '');
 $plan   = (string)($in['plan'] ?? '');
 $cremId = (int)($in['crem_id'] ?? 0);
 $email  = trim((string)($in['email'] ?? ''));
+$formato = ((string)($in['formato'] ?? 'html')) === 'texto' ? 'texto' : 'html';
+
+/** Documento HTML mínimo que muestra un texto tal cual (texto plano o JSON) dentro del iframe del preview. */
+function documentoTextoPlano(string $texto): string
+{
+    return '<!doctype html><html><head><meta charset="UTF-8"><style>'
+         . 'body{margin:0;padding:24px 28px;background:#fff;color:#2C2C2C;font:14px/1.55 ui-monospace,Menlo,Consolas,monospace;}'
+         . 'pre{margin:0;white-space:pre-wrap;word-break:break-word;}</style></head><body><pre>'
+         . htmlspecialchars($texto, ENT_QUOTES, 'UTF-8') . '</pre></body></html>';
+}
 
 if ($accion === 'azar') {
     $sql    = "SELECT id, nombre, tier FROM crematorios WHERE activo = 1" . ($plan !== '' ? " AND tier = :t" : '') . " ORDER BY RAND() LIMIT 1";
@@ -57,17 +69,27 @@ if (!array_key_exists($tipo, notifMaquetaTipos())) {
 $m = notifMaqueta($pdo, $tipo, ['plan' => $plan, 'crem_id' => $cremId], $email);
 if (!$m['ok']) respuestaMaqueta(['ok' => false, 'error' => $m['avisos'][0] ?? 'Error'], 400);
 
+$esWebhook = !empty($m['json']);
+
 if ($accion === 'preview') {
-    respuestaMaqueta(['ok' => true, 'asunto' => $m['tpl']['asunto'], 'html' => $m['tpl']['html'], 'avisos' => $m['avisos']]);
+    $html = ($esWebhook || $formato === 'texto') ? documentoTextoPlano($m['tpl']['texto']) : $m['tpl']['html'];
+    $avisosP = $m['avisos'];
+    if (!$esWebhook && $formato === 'texto') {
+        array_unshift($avisosP, 'Versión en TEXTO PLANO: así llega si se envía sin diseño (sin imágenes ni botones; los enlaces van en claro).');
+    }
+    respuestaMaqueta(['ok' => true, 'asunto' => $m['tpl']['asunto'], 'html' => $html, 'avisos' => $avisosP]);
 }
 
 if ($accion === 'enviar') {
+    if ($esWebhook) {
+        respuestaMaqueta(['ok' => false, 'error' => 'Los webhooks no se envían desde aquí: usa «Enviar prueba» en la página de Webhooks.']);
+    }
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         respuestaMaqueta(['ok' => false, 'error' => 'Escribe un email válido para recibir la maqueta.']);
     }
-    $envio = enviarMailHtml($email, '[MAQUETA] ' . $m['tpl']['asunto'], $m['tpl']['html'], $m['tpl']['texto'], 'info@crematoriosdemascotas.com');
+    $envio = enviarMailHtml($email, '[MAQUETA] ' . $m['tpl']['asunto'], $m['tpl']['html'], $m['tpl']['texto'], 'info@crematoriosdemascotas.com', null, $formato);
     respuestaMaqueta($envio['ok']
-        ? ['ok' => true, 'mensaje' => 'Enviada a ' . $email . ' (transporte: ' . ($envio['transporte'] ?? '?') . ').']
+        ? ['ok' => true, 'mensaje' => 'Enviada a ' . $email . ' en ' . ($formato === 'texto' ? 'texto plano' : 'formato diseñado') . ' (transporte: ' . ($envio['transporte'] ?? '?') . ').']
         : ['ok' => false, 'error' => 'No se pudo enviar (' . ($envio['transporte'] ?? '?') . '): ' . ($envio['error'] ?? 'error desconocido')]);
 }
 
