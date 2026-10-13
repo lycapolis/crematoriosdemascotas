@@ -909,10 +909,10 @@ function selectBool(string $name, $valor): string {
             $pid = trim((string)($cr['google_place_id'] ?? ''));
             if ($pid !== ''):
                 $enlacesGoogle = [
-                    ['titulo' => 'Ficha en Google Maps', 'icono' => 'map-pin',       'url' => 'https://www.google.com/maps/place/?q=place_id:' . $pid],
+                    ['titulo' => 'Ficha en Google Maps', 'icono' => 'map-pin',       'url' => 'https://www.google.com/maps/search/?api=1&query=Google&query_place_id=' . urlencode($pid)],
                     ['titulo' => 'Ver reseñas',          'icono' => 'message-square','url' => 'https://search.google.com/local/reviews?placeid=' . $pid],
                     ['titulo' => 'Escribir reseña',      'icono' => 'edit-3',        'url' => 'https://search.google.com/local/writereview?placeid=' . $pid],
-                    ['titulo' => 'Cómo llegar',          'icono' => 'navigation',    'url' => 'https://www.google.com/maps/dir/?api=1&destination=&destination_place_id=' . $pid],
+                    ['titulo' => 'Cómo llegar',          'icono' => 'navigation',    'url' => 'https://www.google.com/maps/dir/?api=1&destination=Google&destination_place_id=' . urlencode($pid)],
                 ];
             ?>
             <div style="margin-top:var(--espacio-tres); padding-top:var(--espacio-tres); border-top:1px solid var(--admin-linea);">

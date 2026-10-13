@@ -1225,32 +1225,30 @@ include 'includes/header.php';
                 <!-- Ubicación / Mapa — solo si hay mapa REAL disponible.
                      Si no hay mapa, la sección se omite (la dirección ya vive en el sticky). -->
                 <?php
-                $hayMapaReal = ($tier >= '01' && $google_place_id)
-                            || ($tier >= '01' && $lat_mapa)
-                            || $usar_leaflet;
+                $hayMapaReal = $google_place_id || $lat_mapa || $usar_leaflet;
                 ?>
                 <?php if ($hayMapaReal): ?>
                 <section class="tarjeta simple" style="padding: var(--espacio-cuatro); margin-bottom: var(--espacio-cuatro); overflow: visible;">
                     <h2 class="ficha-h2"><i data-lucide="map-pin" class="icono"></i> Ubicación</h2>
                     <div>
-                        <?php if ($tier >= '01' && $google_place_id): ?>
-                        <!-- Planes de pago (01+): Google Maps con place_id (ficha real del negocio) -->
+                        <?php if ($google_place_id): ?>
+                        <!-- Google Maps con place_id (ficha real del negocio), todos los planes -->
                         <iframe
                             src="https://www.google.com/maps/embed/v1/place?key=<?php echo GOOGLE_MAPS_API_KEY; ?>&q=place_id:<?php echo urlencode($google_place_id); ?>"
                             width="100%" height="360"
                             style="border:0; border-radius:var(--radio-dos); margin-bottom:var(--espacio-tres);"
                             allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade">
                         </iframe>
-                        <?php elseif ($tier >= '01' && $lat_mapa): ?>
-                        <!-- Planes de pago (01+) sin place_id: Google Maps embed con coordenadas -->
+                        <?php elseif ($lat_mapa): ?>
+                        <!-- Sin place_id: Google Maps Embed API con coordenadas, todos los planes -->
                         <iframe
-                            src="https://maps.google.com/maps?q=<?php echo $lat_mapa; ?>,<?php echo $lng_mapa; ?>&z=15&output=embed"
+                            src="https://www.google.com/maps/embed/v1/place?key=<?php echo GOOGLE_MAPS_API_KEY; ?>&q=<?php echo $lat_mapa; ?>,<?php echo $lng_mapa; ?>&zoom=15"
                             width="100%" height="360"
                             style="border:0; border-radius:var(--radio-dos); margin-bottom:var(--espacio-tres);"
                             allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade">
                         </iframe>
                         <?php elseif ($usar_leaflet): ?>
-                        <!-- Planes 00 (Gratis) y 01 (Básico): Leaflet + OpenStreetMap -->
+                        <!-- Fallback (sin place_id ni coordenadas válidas): Leaflet + OpenStreetMap -->
                         <div id="mapa-crematorio" style="width:100%; height:360px; border-radius:var(--radio-dos); margin-bottom:var(--espacio-tres); position:relative;"></div>
                         <script>
                         (function() {
@@ -1804,16 +1802,24 @@ include 'includes/header.php';
 
                 <?php
                 $telPrincipal = $fTelefonosVis[0] ?? null;
-                // URL Google Maps (precomputado para botón terciario).
-                // Prioridad: place_id (ficha real del negocio en Google) → coords → dirección.
+                // URLs Google Maps (formato oficial api=1; abre la app de Maps en el móvil).
+                // - $gmaps_url:     "Ver en el mapa" → ficha del lugar.
+                //   Prioridad: place_id (+ nombre para el título) → coords → dirección.
+                // - $gmaps_dir_url: "Cómo llegar" → ruta desde la ubicación del usuario.
+                $gmaps_texto = $direccion ?: trim($ciudad_nombre . ', ' . $provincia_nombre . ', España', ', ');
+                $gmaps_destino = ($lat_mapa !== null && $lng_mapa !== null)
+                    ? $lat_mapa . ',' . $lng_mapa
+                    : $gmaps_texto;
                 if ($google_place_id !== '') {
-                    $gmaps_url = 'https://www.google.com/maps/place/?q=place_id:' . $google_place_id;
-                } elseif ($usar_leaflet) {
-                    $gmaps_url = 'https://www.google.com/maps/search/?api=1&query=' . $lat_mapa . ',' . $lng_mapa;
-                } elseif ($direccion || $ciudad_nombre) {
-                    $gmaps_url = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($direccion ?: $ciudad_nombre . ', ' . $provincia_nombre . ', España');
+                    $gmaps_url     = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($crematorio_nombre)
+                                   . '&query_place_id=' . urlencode($google_place_id);
+                    $gmaps_dir_url = 'https://www.google.com/maps/dir/?api=1&destination=' . urlencode($crematorio_nombre)
+                                   . '&destination_place_id=' . urlencode($google_place_id);
+                } elseif ($gmaps_destino !== '') {
+                    $gmaps_url     = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($gmaps_destino);
+                    $gmaps_dir_url = 'https://www.google.com/maps/dir/?api=1&destination=' . urlencode($gmaps_destino);
                 } else {
-                    $gmaps_url = null;
+                    $gmaps_url = $gmaps_dir_url = null;
                 }
                 ?>
                 <?php
@@ -1958,8 +1964,20 @@ include 'includes/header.php';
                            data-crematorio-id="<?php echo $cremIdAttr; ?>"
                            data-crematorio-nombre="<?php echo $cremNombreAttr; ?>"
                            data-crematorio-logo="<?php echo $logoLeadCapture; ?>">
-                            <i data-lucide="navigation" class="icono"></i>
+                            <i data-lucide="map-pin" class="icono"></i>
                             Ver en el mapa
+                        </a>
+                        <a href="<?php echo htmlspecialchars($gmaps_dir_url); ?>"
+                           target="_blank"
+                           rel="noopener"
+                           class="ficha-cta ficha-cta--maps"
+                           data-lead-capture="maps"
+                           data-destino="<?php echo htmlspecialchars($gmaps_dir_url); ?>"
+                           data-crematorio-id="<?php echo $cremIdAttr; ?>"
+                           data-crematorio-nombre="<?php echo $cremNombreAttr; ?>"
+                           data-crematorio-logo="<?php echo $logoLeadCapture; ?>">
+                            <i data-lucide="navigation" class="icono"></i>
+                            Cómo llegar
                         </a>
                         <?php endif; ?>
                     </div>
