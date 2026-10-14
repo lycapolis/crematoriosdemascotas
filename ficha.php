@@ -1016,6 +1016,9 @@ include 'includes/header.php';
                 </section>
                 <?php endif; ?>
 
+                <!-- Ancla de aterrizaje de los emails (justo tras la galería; el header es fijo) -->
+                <div id="tras-galeria" style="scroll-margin-top: 110px;"></div>
+
                 <!-- Descripción -->
                 <section class="tarjeta simple" style="padding: var(--espacio-cuatro); margin-bottom: var(--espacio-cuatro);">
                     <h2 class="ficha-h2"><i data-lucide="info" class="icono"></i> Sobre el Crematorio de Mascotas</h2>

@@ -173,7 +173,7 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
             <p class="resp-resena__texto">Tu respuesta está publicada bajo la reseña, en la ficha de <?= $e($resena['negocio_nombre']) ?>.</p>
             <p class="resp-resena__tuya"><?= $e($ultima['texto']) ?></p>
             <div class="resp-resena__acciones">
-                <a class="boton uno" href="<?= $e(notifUrlPublica($resena['negocio_slug'])) ?>#lista-resenas">Ver mi ficha</a>
+                <a class="boton uno" href="<?= $e(notifUrlPublica($resena['negocio_slug'])) ?>#tras-galeria">Ver mi ficha</a>
             </div>
 
         <?php elseif ($ultima && !$puedeResponder): ?>
@@ -206,7 +206,7 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 
                 <div class="resp-resena__acciones">
                     <button type="submit" class="boton uno">Enviar para revisión</button>
-                    <a href="<?= $e(notifUrlPublica($resena['negocio_slug'])) ?>#lista-resenas" class="boton dos">Cancelar</a>
+                    <a href="<?= $e(notifUrlPublica($resena['negocio_slug'])) ?>#tras-galeria" class="boton dos">Cancelar</a>
                 </div>
             </form>
             <script>

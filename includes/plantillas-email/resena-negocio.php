@@ -33,7 +33,7 @@ if (!function_exists('renderEmailResenaNegocio')) {
         $asunto = "Nueva reseña positiva para {$nNeg} ({$estrellas})";
 
         $urlResena = notifUrlPublica((string)$negocio['slug'])
-            . '?utm_source=email&utm_medium=transaccional&utm_campaign=resena_negocio#lista-resenas';
+            . '?utm_source=email&utm_medium=transaccional&utm_campaign=resena_negocio#tras-galeria';
 
         // Página del portal con el formulario (enlace firmado: el negocio no necesita cuenta)
         $urlResponder = notifUrlRespuesta((int)($resena['id'] ?? 0));

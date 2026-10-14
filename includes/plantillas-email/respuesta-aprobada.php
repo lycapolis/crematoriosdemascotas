@@ -29,7 +29,7 @@ if (!function_exists('renderEmailRespuestaAprobada')) {
         $asunto = "Tu respuesta a la reseña de {$autor} ya es pública";
 
         $urlFicha = notifUrlPublica((string)$negocio['slug'])
-            . '?utm_source=email&utm_medium=transaccional&utm_campaign=respuesta_aprobada#lista-resenas';
+            . '?utm_source=email&utm_medium=transaccional&utm_campaign=respuesta_aprobada#tras-galeria';
 
         $capa = renderEmailLayoutUsuario([
             'asunto'     => $asunto,

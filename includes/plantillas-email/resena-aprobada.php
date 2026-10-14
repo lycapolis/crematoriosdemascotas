@@ -28,7 +28,7 @@ if (!function_exists('renderEmailResenaAprobada')) {
         $asunto = "Tu reseña de {$nNeg} ya es pública";
 
         $urlFicha = notifUrlPublica((string)$negocio['slug'])
-            . '?utm_source=email&utm_medium=transaccional&utm_campaign=resena_aprobada#lista-resenas';
+            . '?utm_source=email&utm_medium=transaccional&utm_campaign=resena_aprobada#tras-galeria';
 
         $capa = renderEmailLayoutUsuario([
             'asunto'     => $asunto,
