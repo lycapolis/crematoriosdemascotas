@@ -30,12 +30,14 @@ if (!function_exists('notifMaqueta')) {
             'resena_recibida'  => 'Reseña: «Hemos recibido tu reseña»',
             'resena_aprobada'  => 'Reseña: «Tu reseña ya es pública»',
             'resena_negocio'   => 'Reseña positiva: aviso al negocio',
+            'respuesta_aprobada' => 'Respuesta del negocio publicada: aviso al negocio',
             'solicitud_recibida'            => 'Solicitud de alta: «Hemos recibido tu solicitud»',
             'solicitud_aprobada'            => 'Solicitud de alta: «Tu negocio ya está en el directorio»',
             'solicitud_rechazada'           => 'Solicitud de alta: rechazo con motivo',
             'solicitud_rechazada_sin_motivo' => 'Solicitud de alta: rechazo sin motivo',
             // Avisos internos al equipo
             'equipo_resena'        => 'Equipo: nueva reseña',
+            'equipo_respuesta'     => 'Equipo: respuesta de un negocio a una reseña',
             'equipo_contacto'      => 'Equipo: mensaje de contacto',
             'equipo_promociona'    => 'Equipo: lead comercial «Promociona tu crematorio»',
             'equipo_registro'      => 'Equipo: solicitud de alta de negocio',
@@ -183,6 +185,21 @@ if (!function_exists('notifMaqueta')) {
             $avisos[] = 'Negocio de ejemplo (ficticio). Elige uno real o pulsa «Al azar» para ver su nombre en el email.';
         }
 
+        // Aviso interno: un negocio ha respondido a una reseña (no viene de payload ni de lead)
+        if ($tipo === 'equipo_respuesta') {
+            $p2 = [
+                'tipo'    => 'Respuesta de un negocio (pendiente de moderar)',
+                'resumen' => $neg['nombre'] . ' → reseña de María G. · 5★',
+                'filas'   => ['Negocio' => $neg['nombre'], 'Reseña de' => 'María G.', 'Calificación' => notifEquipoEstrellas(5)],
+                'bloques' => ['Reseña' => "Nos atendieron con mucho cariño en un momento muy difícil.\nTodo fue claro y puntual.",
+                              'Respuesta del negocio' => 'Muchas gracias, María. Fue un honor acompañaros en ese momento.'],
+                'cta'     => ['texto' => 'Moderar la respuesta', 'url' => notifUrlPublica('admin/respuestas-resenas.php')],
+                'cta2'    => null, 'origen' => '', 'reply_to' => null,
+            ];
+            $avisos[] = 'Aviso interno: llega a ' . (defined('EMAIL_CONTACTO') ? EMAIL_CONTACTO : 'info@') . ' cuando un negocio envía una respuesta. No lleva enlace de baja.';
+            return ['ok' => true, 'tpl' => renderEmailEquipoConversion($p2), 'avisos' => $avisos];
+        }
+
         // Avisos internos al equipo
         if (strpos($tipo, 'equipo_') === 0) {
             $mapa = ['equipo_resena' => 'resena.recibida', 'equipo_contacto' => 'contacto.recibido',
@@ -282,9 +299,30 @@ if (!function_exists('notifMaqueta')) {
             case 'resena_negocio':
                 $minimo = defined('RESENA_AVISO_NEGOCIO_MIN_ESTRELLAS') ? (int)RESENA_AVISO_NEGOCIO_MIN_ESTRELLAS : 4;
                 $avisos[] = "Se envía al aprobar una reseña del portal de {$minimo} o más estrellas, a todos los planes, una sola vez por reseña.";
+                // El botón «Quiero responder a la reseña» lleva a responder-resena.php: para que la prueba
+                // funcione de verdad se usa una reseña propia aprobada de este negocio, si la tiene.
+                $resenaReal = 0;
+                if (!$neg['ficticio']) {
+                    $q = $pdo->prepare("SELECT id FROM resenas WHERE crematorio_id = ? AND fuente = 'propio' AND estado = 'aprobada' ORDER BY id DESC LIMIT 1");
+                    $q->execute([(int)$neg['id']]);
+                    $resenaReal = (int)$q->fetchColumn();
+                }
+                if ($resenaReal === 0) {
+                    $avisos[] = 'Este negocio no tiene reseñas propias aprobadas: el botón «Quiero responder a la reseña» llevará a «Enlace no válido». Elige otro negocio para probar el formulario.';
+                }
                 $tpl = renderEmailResenaNegocio(
-                    ['id' => 0, 'nombre' => 'María G.', 'calificacion' => 5,
+                    ['id' => $resenaReal, 'nombre' => 'María G.', 'calificacion' => 5,
                      'comentario' => "Nos atendieron con mucho cariño y respeto en un momento muy difícil. Todo fue claro y puntual. Se lo recomiendo a cualquiera que pase por esto."],
+                    ['nombre' => $neg['nombre'], 'slug' => $neg['slug']],
+                    filter_var($emailDestino, FILTER_VALIDATE_EMAIL) ? $emailDestino : 'negocio@example.com'
+                );
+                return ['ok' => true, 'tpl' => $tpl, 'avisos' => $avisos];
+
+            case 'respuesta_aprobada':
+                $avisos[] = 'Se envía al aprobar la respuesta de un negocio en admin/respuestas-resenas.php, una sola vez por respuesta.';
+                $tpl = renderEmailRespuestaAprobada(
+                    ['nombre' => 'María G.', 'calificacion' => 5, 'comentario' => 'Nos atendieron con mucho cariño.'],
+                    'Muchas gracias, María. Fue un honor acompañaros en ese momento.',
                     ['nombre' => $neg['nombre'], 'slug' => $neg['slug']],
                     filter_var($emailDestino, FILTER_VALIDATE_EMAIL) ? $emailDestino : 'negocio@example.com'
                 );

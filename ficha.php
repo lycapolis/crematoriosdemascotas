@@ -1535,6 +1535,7 @@ include 'includes/header.php';
                     <?php
                     $resenas_aprobadas = obtenerResenasAprobadas($crematorio['id'], 10);
                     $fuentes_presentes = array_unique(array_column($resenas_aprobadas, 'fuente'));
+                    $respuestas_negocio = obtenerRespuestasAprobadas(array_column($resenas_aprobadas, 'id'));
                     ?>
 
                     <!-- Filtros de fuente (solo si hay más de una fuente) -->
@@ -1633,6 +1634,17 @@ include 'includes/header.php';
                             <p style="color: var(--color-seis); line-height: 1.6; margin: 0;">
                                 <?php echo nl2br(limpiar($resena['comentario'])); ?>
                             </p>
+
+                            <?php if (!empty($respuestas_negocio[(int)$resena['id']])): $respNeg = $respuestas_negocio[(int)$resena['id']]; ?>
+                            <!-- Respuesta del negocio (moderada antes de publicarse) -->
+                            <div class="resena-respuesta" style="margin-top: var(--espacio-tres); padding: var(--espacio-tres); border-left: 3px solid var(--color-uno); background: white; border-radius: var(--radio-uno);">
+                                <div style="font-size: var(--fs-dos); color: var(--color-seis-claro); margin-bottom: var(--espacio-uno);">
+                                    <strong style="color: var(--color-dos);">Respuesta de <?php echo limpiar($crematorio_nombre); ?></strong>
+                                    · <?php echo date('d/m/Y', strtotime($respNeg['fecha'])); ?>
+                                </div>
+                                <p style="color: var(--color-seis); line-height: 1.6; margin: 0;"><?php echo nl2br(limpiar($respNeg['texto'])); ?></p>
+                            </div>
+                            <?php endif; ?>
 
                             <?php
                             // Mini-galería: imágenes que el cliente envió con esta reseña

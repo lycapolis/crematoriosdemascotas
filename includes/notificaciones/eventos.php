@@ -98,6 +98,21 @@ if (!function_exists('notifCatalogoEventos')) {
                 'reactiva_supresion' => false,
                 'webhook'            => ['modo' => 'sobre'],
             ],
+            // ── Respuesta del negocio a una reseña (siempre moderada) ──
+            'respuesta.recibida' => [
+                'titulo'             => 'Respuesta del negocio recibida (pendiente de moderar)',
+                'canales'            => ['email_equipo'],     // aviso interno; no va a webhook ni al negocio
+                'clave'              => fn(array $d) => 'respuesta.recibida:' . (int)$d['respuesta_id'],
+                'reactiva_supresion' => false,
+                'webhook'            => ['modo' => 'sobre'],
+            ],
+            'respuesta.aprobada' => [
+                'titulo'             => 'Respuesta del negocio aprobada',
+                'canales'            => ['email_negocio'],
+                'clave'              => fn(array $d) => 'respuesta.aprobada:' . (int)$d['respuesta_id'],
+                'reactiva_supresion' => false,
+                'webhook'            => ['modo' => 'sobre'],
+            ],
             // 'resena.rechazada' → deliberadamente SIN aviso al usuario (decisión del 2026-10-12)
         ];
     }

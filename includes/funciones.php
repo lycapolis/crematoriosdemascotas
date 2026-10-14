@@ -1311,6 +1311,36 @@ function obtenerResenasAprobadas($crematorioId, $limite = 10) {
 }
 
 /**
+ * Respuestas del negocio ya aprobadas, indexadas por id de reseña.
+ *
+ * @param int[] $resenaIds
+ * @return array<int, array{texto:string, fecha:string}>
+ */
+function obtenerRespuestasAprobadas(array $resenaIds): array {
+    $resenaIds = array_values(array_filter(array_map('intval', $resenaIds)));
+    if (!$resenaIds) return [];
+    $pdo = obtenerConexion();
+    if (!$pdo) return [];
+
+    try {
+        $ph = implode(',', array_fill(0, count($resenaIds), '?'));
+        $stmt = $pdo->prepare("SELECT resena_id, texto, COALESCE(moderado_en, created_at) AS fecha
+                               FROM resenas_respuestas
+                               WHERE estado = 'aprobada' AND resena_id IN ($ph)
+                               ORDER BY id ASC");
+        $stmt->execute($resenaIds);
+        $mapa = [];
+        while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $mapa[(int)$r['resena_id']] = ['texto' => $r['texto'], 'fecha' => $r['fecha']];
+        }
+        return $mapa;
+    } catch (PDOException $e) {
+        error_log('obtenerRespuestasAprobadas: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/**
  * Cuenta reseñas aprobadas de un crematorio
  *
  * @param int $crematorioId

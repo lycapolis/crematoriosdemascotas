@@ -18,6 +18,7 @@
  *   notifUrlPublica(string $path)     → URL absoluta del sitio (también desde cron)
  *   notifUrlBaja(string $email)       → enlace firmado para dejar de recibir avisos
  *   notifTokenBaja(string $email)     → firma HMAC del email
+ *   notifUrlRespuesta(int $resenaId)  → enlace firmado para que el negocio responda a una reseña
  *   notifEstaSuprimido / notifSuprimir / notifReactivar
  * ═══════════════════════════════════════════════════════════
  */
@@ -265,6 +266,24 @@ if (!function_exists('notificarEvento')) {
         return notifUrlPublica('desuscribir-notificaciones.php')
             . '?e=' . notifB64UrlEncode(mb_strtolower(trim($email)))
             . '&t=' . notifTokenBaja($email);
+    }
+
+    /** Firma HMAC del enlace «Responder a la reseña» (identifica la reseña; el negocio no tiene cuenta). */
+    function notifTokenRespuesta(int $resenaId): string
+    {
+        return substr(hash_hmac('sha256', 'respuesta|' . $resenaId, notifSecreto()), 0, 32);
+    }
+
+    function notifTokenRespuestaValido(int $resenaId, string $token): bool
+    {
+        return $resenaId > 0 && $token !== '' && hash_equals(notifTokenRespuesta($resenaId), $token);
+    }
+
+    function notifUrlRespuesta(int $resenaId): string
+    {
+        return notifUrlPublica('responder-resena.php')
+            . '?r=' . $resenaId
+            . '&t=' . notifTokenRespuesta($resenaId);
     }
 
     // ─── Respuesta HTTP ──────────────────────────────────────

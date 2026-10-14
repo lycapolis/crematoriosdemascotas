@@ -11,7 +11,7 @@
  *
  * Es solo una NOTIFICACIÓN: se dice expresamente que no hay que hacer nada.
  *   · Botón 1 → ver la reseña en su ficha (con UTM, utm_medium=transaccional).
- *   · Botón 2 → escribirnos si quiere responderla (mailto con asunto y arranque del mensaje).
+ *   · Botón 2 → responderla en responder-resena.php (enlace firmado, sin cuenta).
  * La respuesta del negocio NO se publica sola: la revisamos, la publicamos y se le avisa.
  * ═══════════════════════════════════════════════════════════
  */
@@ -35,10 +35,8 @@ if (!function_exists('renderEmailResenaNegocio')) {
         $urlResena = notifUrlPublica((string)$negocio['slug'])
             . '?utm_source=email&utm_medium=transaccional&utm_campaign=resena_negocio#lista-resenas';
 
-        $asuntoMail = 'Respuesta a la reseña de ' . $autor . ' — ' . $nNeg;
-        $cuerpoMail = "Hola, me gustaría responder a la reseña de {$autor} con este mensaje:\n\n";
-        $urlResponder = 'mailto:info@crematoriosdemascotas.com?subject=' . rawurlencode($asuntoMail)
-                      . '&body=' . rawurlencode($cuerpoMail);
+        // Página del portal con el formulario (enlace firmado: el negocio no necesita cuenta)
+        $urlResponder = notifUrlRespuesta((int)($resena['id'] ?? 0));
 
         $capa = renderEmailLayoutUsuario([
             'asunto'     => $asunto,
@@ -51,7 +49,7 @@ if (!function_exists('renderEmailResenaNegocio')) {
             'cta'        => ['texto' => 'Ver la reseña en mi ficha', 'url' => $urlResena],
             'parrafos_despues' => [
                 '<strong>No tienes que hacer nada:</strong> este email es solo una notificación.',
-                'Si quieres responder a la reseña, escríbenos el mensaje que te gustaría mostrar. Lo revisaremos y, si todo está en orden, lo publicaremos y te avisaremos en cuanto esté público.',
+                'Si quieres responder a la reseña, escribe tu mensaje en la página que se abre con el botón de abajo. Lo revisaremos y, si todo está en orden, lo publicaremos bajo la reseña y te avisaremos en cuanto esté público.',
             ],
             'cta2'       => ['texto' => 'Quiero responder a la reseña', 'url' => $urlResponder],
             'pie_motivo' => "Has recibido este mensaje porque {$nNeg} figura en {$sitio} y ha recibido una nueva reseña.",

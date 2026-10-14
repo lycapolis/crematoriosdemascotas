@@ -5,7 +5,8 @@
  * ═══════════════════════════════════════════════════════════
  *
  * Eventos: resena.recibida, contacto.recibido, lead_comercial.recibido,
- *          solicitud.recibida (registro de negocio), lead_b2c.recibido (ficha y burbuja).
+ *          solicitud.recibida (registro de negocio), lead_b2c.recibido (ficha y burbuja),
+ *          respuesta.recibida (un negocio responde a una reseña; pendiente de moderar).
  *
  * Destinatario: EMAIL_CONTACTO (info@). Es un aviso interno: sin enlace de baja ni
  * comprobación de supresiones. El Reply-To es el email de quien convierte, para poder
@@ -25,7 +26,33 @@ if (!function_exists('notifCanal_email_equipo')) {
 
     function notifCanal_email_equipo(\PDO $pdo, string $evento, array $datos): array
     {
-        if ($evento === 'lead_b2c.recibido') {
+        if ($evento === 'respuesta.recibida') {
+            $st = $pdo->prepare("
+                SELECT p.id, p.texto, r.id AS resena_id, r.nombre AS autor, r.calificacion, r.comentario,
+                       c.nombre AS negocio_nombre
+                FROM resenas_respuestas p
+                JOIN resenas r ON r.id = p.resena_id
+                JOIN crematorios c ON c.id = r.crematorio_id
+                WHERE p.id = ? LIMIT 1
+            ");
+            $st->execute([(int)($datos['respuesta_id'] ?? 0)]);
+            $rp = $st->fetch(\PDO::FETCH_ASSOC);
+            if (!$rp) return ['omitir' => 'respuesta_no_existe'];
+            $p = [
+                'tipo'    => 'Respuesta de un negocio (pendiente de moderar)',
+                'resumen' => $rp['negocio_nombre'] . ' → reseña de ' . $rp['autor'] . ' · ' . (int)$rp['calificacion'] . '★',
+                'filas'   => [
+                    'Negocio'      => (string)$rp['negocio_nombre'],
+                    'Reseña de'    => (string)$rp['autor'],
+                    'Calificación' => notifEquipoEstrellas($rp['calificacion']),
+                ],
+                'bloques' => ['Reseña' => (string)$rp['comentario'], 'Respuesta del negocio' => (string)$rp['texto']],
+                'cta'     => ['texto' => 'Moderar la respuesta', 'url' => notifUrlPublica('admin/respuestas-resenas.php')],
+                'cta2'    => null,
+                'origen'  => '',
+                'reply_to' => null,
+            ];
+        } elseif ($evento === 'lead_b2c.recibido') {
             $st = $pdo->prepare("SELECT * FROM leads_b2c WHERE id = ? LIMIT 1");
             $st->execute([(int)($datos['lead_id'] ?? 0)]);
             $lead = $st->fetch(\PDO::FETCH_ASSOC);

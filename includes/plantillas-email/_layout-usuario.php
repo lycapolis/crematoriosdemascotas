@@ -65,7 +65,7 @@ if (!function_exists('renderEmailLayoutUsuario')) {
 
       <?php if ($cita): ?>
       <tr><td style="padding:0 28px 16px 28px;">
-        <p style="margin:0 0 8px 0;font-size:12px;color:#8B7765;text-transform:uppercase;letter-spacing:.06em;font-weight:600;"><?= $e($cita['autor']) ?> · <span style="color:#B8704F;letter-spacing:.1em;"><?= $e(emailEstrellas((int)$cita['estrellas'])) ?></span></p>
+        <p style="margin:0 0 8px 0;font-size:12px;color:#8B7765;text-transform:uppercase;letter-spacing:.06em;font-weight:600;"><?= $e($cita['autor']) ?><?php if ((int)$cita['estrellas'] > 0): ?> · <span style="color:#B8704F;letter-spacing:.1em;"><?= $e(emailEstrellas((int)$cita['estrellas'])) ?></span><?php endif; ?></p>
         <blockquote style="margin:0;padding:14px 18px;border-left:3px solid #B8704F;background:#FFFBF7;font-size:15px;line-height:1.55;color:#2C2C2C;font-style:italic;"><?= nl2br($e($cita['texto'])) ?></blockquote>
       </td></tr>
       <?php endif; ?>
@@ -114,7 +114,7 @@ if (!function_exists('renderEmailLayoutUsuario')) {
             $texto .= trim(html_entity_decode(strip_tags(str_replace(['<br>', '<br/>', '<br />'], "\n", $par)), ENT_QUOTES, 'UTF-8')) . "\n\n";
         }
         if ($cita) {
-            $texto .= $cita['autor'] . ' · ' . emailEstrellas((int)$cita['estrellas']) . "\n  "
+            $texto .= $cita['autor'] . ((int)$cita['estrellas'] > 0 ? ' · ' . emailEstrellas((int)$cita['estrellas']) : '') . "\n  "
                     . str_replace("\n", "\n  ", trim($cita['texto'])) . "\n\n";
         }
         if ($cta) {

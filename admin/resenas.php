@@ -125,6 +125,20 @@ $contadores = $pdo->query($sql_contadores)->fetch();
 
 $nSpam = (int)($contadores['spam'] ?? 0);
 
+// Respuestas del negocio: pendientes de moderar (para el enlace de las tabs) y la última de cada reseña mostrada
+$nRespuestasPendientes = (int) $pdo->query("SELECT COUNT(*) FROM resenas_respuestas WHERE estado = 'pendiente'")->fetchColumn();
+$respuestaPorResena = [];
+if (!empty($resenas)) {
+    $idsRes = array_column($resenas, 'id');
+    $phRes  = implode(',', array_fill(0, count($idsRes), '?'));
+    $stmtResp = $pdo->prepare("SELECT resena_id, texto, estado FROM resenas_respuestas
+                               WHERE resena_id IN ($phRes) ORDER BY id ASC");
+    $stmtResp->execute($idsRes);
+    while ($rp = $stmtResp->fetch(PDO::FETCH_ASSOC)) {
+        $respuestaPorResena[(int)$rp['resena_id']] = $rp;   // la última (id mayor) pisa a las anteriores
+    }
+}
+
 // Pill class por estado de reseña
 function resEstadoPill(string $estado): string {
     return match ($estado) {
@@ -190,6 +204,10 @@ include 'header.php';
         <?php endif; ?>
         <a href="?estado=todas<?php echo $cremQS; ?>" class="admin-tab<?php echo $filtro_estado === 'todas' ? ' admin-tab--activo' : ''; ?>">
             Todas <span class="admin-tab__count"><?php echo (int)($contadores['total'] ?? 0); ?></span>
+        </a>
+        <a href="respuestas-resenas.php" class="admin-tab" title="Respuestas de los negocios a sus reseñas, pendientes de moderar">
+            <i data-lucide="message-square-reply" class="icono" style="width:14px; height:14px;"></i>
+            Respuestas de negocios <span class="admin-tab__count"><?php echo $nRespuestasPendientes; ?></span>
         </a>
     </nav>
 
@@ -308,6 +326,22 @@ include 'header.php';
             <blockquote style="margin: 0 0 var(--espacio-tres) 0; padding: var(--espacio-tres); background: var(--admin-papel-alt); border-radius: var(--admin-r-sm); color: var(--admin-tinta); font-size: var(--admin-body-sm); line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;">
                 <?php echo nl2br(htmlspecialchars($resena['comentario'])); ?>
             </blockquote>
+
+            <!-- Respuesta del negocio (mismo texto que verá el público si está aprobada) -->
+            <?php $respNeg = $respuestaPorResena[(int)$resena['id']] ?? null; if ($respNeg): ?>
+            <div style="margin: 0 0 var(--espacio-tres) 0;">
+                <div style="display: flex; align-items: center; gap: .5rem; font-size: var(--admin-kicker); letter-spacing: .04em; text-transform: uppercase; color: var(--admin-tinta-suave); margin-bottom: .3rem;">
+                    Respuesta del negocio
+                    <span class="admin-pill <?php echo resEstadoPill($respNeg['estado']); ?>"><?php echo ucfirst($respNeg['estado']); ?></span>
+                    <?php if ($respNeg['estado'] === 'pendiente'): ?>
+                    <a href="respuestas-resenas.php?estado=pendiente" class="admin-link" style="text-transform: none; letter-spacing: 0;">Moderar</a>
+                    <?php endif; ?>
+                </div>
+                <blockquote style="margin: 0; padding: var(--espacio-tres); border-left: 3px solid var(--admin-brand); background: var(--admin-papel-alt); border-radius: var(--admin-r-sm); color: var(--admin-tinta); font-size: var(--admin-body-sm); line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;">
+                    <?php echo nl2br(htmlspecialchars($respNeg['texto'])); ?>
+                </blockquote>
+            </div>
+            <?php endif; ?>
 
             <!-- Motivo de rechazo (si aplica) -->
             <?php if ($resena['estado'] === 'rechazada' && !empty($resena['motivo_rechazo'])): ?>

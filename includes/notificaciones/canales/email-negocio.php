@@ -18,11 +18,14 @@
 
 require_once __DIR__ . '/../../notificaciones.php';                 // resolverEmailDestinoNegocio()
 require_once __DIR__ . '/../../plantillas-email/resena-negocio.php';
+require_once __DIR__ . '/../../plantillas-email/respuesta-aprobada.php';
 
 if (!function_exists('notifCanal_email_negocio')) {
 
     function notifCanal_email_negocio(\PDO $pdo, string $evento, array $datos): array
     {
+        if ($evento === 'respuesta.aprobada') return notifCanal_email_negocio_respuesta($pdo, $datos);
+
         $st = $pdo->prepare("
             SELECT r.id, r.nombre, r.calificacion, r.comentario, r.estado, r.fuente,
                    c.nombre AS negocio_nombre, c.slug AS negocio_slug,
@@ -66,6 +69,49 @@ if (!function_exists('notifCanal_email_negocio')) {
                 'info@crematoriosdemascotas.com',
                 $r['negocio_nombre']
             ),
+        ];
+    }
+
+    /**
+     * Evento respuesta.aprobada (Datos: ['respuesta_id' => int]): avisa al negocio de que su
+     * respuesta ya es pública. Mismas reglas de destinatario y bajas que el aviso de reseña.
+     */
+    function notifCanal_email_negocio_respuesta(\PDO $pdo, array $datos): array
+    {
+        $st = $pdo->prepare("
+            SELECT p.id, p.texto, p.estado AS respuesta_estado,
+                   r.nombre, r.calificacion, r.comentario, r.estado, r.fuente,
+                   c.nombre AS negocio_nombre, c.slug AS negocio_slug,
+                   c.email AS crem_email_publico, c.email_notif_leads AS crem_email_notif,
+                   c.emails_json AS crem_emails_json, c.recibe_notif_leads
+            FROM resenas_respuestas p
+            JOIN resenas r ON r.id = p.resena_id
+            JOIN crematorios c ON c.id = r.crematorio_id
+            WHERE p.id = ?
+            LIMIT 1
+        ");
+        $st->execute([(int)($datos['respuesta_id'] ?? 0)]);
+        $r = $st->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$r)                                             return ['omitir' => 'respuesta_no_existe'];
+        if ($r['respuesta_estado'] !== 'aprobada')           return ['omitir' => 'ya_no_aprobada'];
+        if ((int)($r['recibe_notif_leads'] ?? 1) !== 1)      return ['omitir' => 'negocio_opt_out'];
+
+        $email = resolverEmailDestinoNegocio($r);
+        if (!$email)                                         return ['omitir' => 'sin_email'];
+        $email = mb_strtolower(trim($email));
+
+        $tpl = renderEmailRespuestaAprobada(
+            ['nombre' => $r['nombre'], 'calificacion' => (int)$r['calificacion'], 'comentario' => $r['comentario']],
+            (string)$r['texto'],
+            ['nombre' => $r['negocio_nombre'], 'slug' => $r['negocio_slug']],
+            $email
+        );
+
+        return [
+            'destinatario' => $email,
+            'email_baja'   => $email,
+            'enviar'       => fn() => enviarMailHtml($email, $tpl['asunto'], $tpl['html'], $tpl['texto'], 'info@crematoriosdemascotas.com', $r['negocio_nombre']),
         ];
     }
 }

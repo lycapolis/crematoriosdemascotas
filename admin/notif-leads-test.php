@@ -205,9 +205,17 @@ include 'header.php';
       <?php abrirBloque('resena_negocio', 'resena_negocio', 'Reseña positiva: aviso al negocio', '1 email'); ?>
         <p class="notif-card__nota">
           Se envía al aprobar una reseña positiva. Es solo una notificación (no pide nada), con un botón para ver la reseña
-          y otro por si el negocio quiere responderla.
+          y otro por si el negocio quiere responderla (abre responder-resena.php: elige un negocio con reseñas propias aprobadas para probarlo).
         </p>
         <div class="notif-bloque__fila"><?php filaNegocio('resneg_neg'); ?></div>
+        <div class="notif-bloque__envio"><?php filaEnvio($admin['email'] ?? ''); ?></div>
+      <?php cerrarBloque(); ?>
+
+      <?php abrirBloque('respuesta_aprobada', 'respuesta_aprobada', 'Respuesta del negocio publicada: aviso al negocio', '1 email'); ?>
+        <p class="notif-card__nota">
+          Se envía cuando apruebas la respuesta que el negocio escribió a una reseña. Confirma que ya es pública.
+        </p>
+        <div class="notif-bloque__fila"><?php filaNegocio('respapr_neg'); ?></div>
         <div class="notif-bloque__envio"><?php filaEnvio($admin['email'] ?? ''); ?></div>
       <?php cerrarBloque(); ?>
 
@@ -253,7 +261,7 @@ include 'header.php';
 
       <?php grupo('Al equipo', 'Avisos internos a ' . (defined('EMAIL_CONTACTO') ? EMAIL_CONTACTO : 'info@') . ' por cada conversión del sitio.'); ?>
 
-      <?php abrirBloque('equipo', 'equipo_resena', 'Avisos al equipo por conversión', '6 avisos'); ?>
+      <?php abrirBloque('equipo', 'equipo_resena', 'Avisos al equipo por conversión', '7 avisos'); ?>
         <p class="notif-card__nota">
           Uno por cada conversión: reseña, contacto, «Promociona tu crematorio», alta de negocio y lead (de una ficha o de la burbuja).
           Llevan el email de quien convierte en Reply-To, así que se le responde directamente desde la bandeja.
@@ -263,6 +271,7 @@ include 'header.php';
             <label class="field__label" for="equipo_tipo">Conversión</label>
             <select id="equipo_tipo" data-campo="tipo" class="field__select">
               <option value="equipo_resena">Nueva reseña</option>
+              <option value="equipo_respuesta">Respuesta de un negocio a una reseña</option>
               <option value="equipo_contacto">Mensaje de contacto</option>
               <option value="equipo_promociona">Lead comercial «Promociona tu crematorio»</option>
               <option value="equipo_registro">Solicitud de alta de negocio</option>
