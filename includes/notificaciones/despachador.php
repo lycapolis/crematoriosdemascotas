@@ -54,7 +54,13 @@ if (!function_exists('notificarEvento')) {
                     $resultado[$canal] = ['estado' => 'fallida', 'motivo' => 'canal_inexistente'];
                     continue;
                 }
-                $resultado[$canal] = notifDespacharCanal($pdo, $evento, $def, $clave, $canal, $fn, $datos);
+                // Cada canal va aislado: si uno falla, los demás se siguen intentando
+                try {
+                    $resultado[$canal] = notifDespacharCanal($pdo, $evento, $def, $clave, $canal, $fn, $datos);
+                } catch (\Throwable $e) {
+                    error_log("[notif {$evento}] canal {$canal} excepción: " . $e->getMessage());
+                    $resultado[$canal] = ['estado' => 'fallida', 'motivo' => 'excepcion', 'error' => mb_substr($e->getMessage(), 0, 500)];
+                }
             }
         } catch (\Throwable $e) {
             error_log("[notif {$evento}] excepción: " . $e->getMessage());
@@ -123,12 +129,27 @@ if (!function_exists('notificarEvento')) {
                               WHERE clave = ? AND canal = ? AND destinatario = ?");
         $upd->execute([$clave, $canal, $dest]);
 
+        // La fila queda registrada como «en curso» hasta que se cierre; si el proceso muere
+        // antes (fatal, timeout), notifCerrarPendientesAlSalir() la pasa a «fallida» con la causa.
+        notifFilaEnCurso($pdo, $clave, $canal, $dest, true);
+
         $cerrar = function (string $estado, ?string $motivo = null, ?string $error = null) use ($pdo, $clave, $canal, $dest): array {
-            $pdo->prepare("UPDATE notificaciones_log
-                           SET estado = ?, motivo = ?, error = ?, enviado_en = IF(? = 'enviada', NOW(), enviado_en)
-                           WHERE clave = ? AND canal = ? AND destinatario = ?")
-                ->execute([$estado, $motivo, $error ? mb_substr($error, 0, 500) : null, $estado, $clave, $canal, $dest]);
-            return ['estado' => $estado] + ($motivo ? ['motivo' => $motivo] : []) + ($error ? ['error' => mb_substr($error, 0, 500)] : []);
+            $error = $error ? mb_substr($error, 0, 500) : null;
+            try {
+                $sql = "UPDATE notificaciones_log SET estado = ?, motivo = ?, error = ?"
+                     . ($estado === 'enviada' ? ", enviado_en = NOW()" : "")
+                     . " WHERE clave = ? AND canal = ? AND destinatario = ?";
+                $pdo->prepare($sql)->execute([$estado, $motivo, $error, $clave, $canal, $dest]);
+            } catch (\Throwable $e) {
+                // No dejar la fila en «pendiente» sin explicación
+                error_log("[notif] no se pudo cerrar la fila {$clave}/{$canal}: " . $e->getMessage());
+                try {
+                    $pdo->prepare("UPDATE notificaciones_log SET estado = 'fallida', error = ? WHERE clave = ? AND canal = ? AND destinatario = ?")
+                        ->execute([mb_substr('cierre de fila: ' . $e->getMessage(), 0, 500), $clave, $canal, $dest]);
+                } catch (\Throwable $e2) { /* sin más recursos */ }
+            }
+            notifFilaEnCurso($pdo, $clave, $canal, $dest, false);
+            return ['estado' => $estado] + ($motivo ? ['motivo' => $motivo] : []) + ($error ? ['error' => $error] : []);
         };
 
         // 2. Condiciones de omisión propias del canal (fuente no propia, estado cambiado…)
@@ -142,12 +163,48 @@ if (!function_exists('notificarEvento')) {
         }
 
         // 4. Envío
-        $envio = ($prep['enviar'])();
+        try {
+            $envio = ($prep['enviar'])();
+        } catch (\Throwable $e) {
+            $envio = ['ok' => false, 'error' => 'excepción: ' . $e->getMessage()];
+        }
         if (!empty($envio['ok'])) {
             return $cerrar('enviada');
         }
         error_log("[notif {$evento}] {$canal} → {$dest} falló: " . ($envio['error'] ?? '?'));
         return $cerrar('fallida', null, $envio['error'] ?? 'error desconocido');
+    }
+
+    /**
+     * Registro de filas «en curso» (reservadas y aún sin cerrar). Si el script termina con alguna
+     * abierta (error fatal, tiempo agotado), un cierre de emergencia las marca «fallida» con la
+     * última causa conocida de PHP, para que nunca queden en «pendiente» sin explicación.
+     */
+    function notifFilaEnCurso(\PDO $pdo, string $clave, string $canal, string $dest, bool $abrir): void
+    {
+        static $abiertas = [];
+        static $registrado = false;
+        $k = $clave . '|' . $canal . '|' . $dest;
+
+        if ($abrir) {
+            $abiertas[$k] = [$pdo, $clave, $canal, $dest];
+            if (!$registrado) {
+                $registrado = true;
+                register_shutdown_function(function () use (&$abiertas) {
+                    if (!$abiertas) return;
+                    $ult  = error_get_last();
+                    $causa = 'proceso interrumpido' . ($ult ? ': ' . $ult['message'] : ' (sin error PHP: posible corte del hosting)');
+                    foreach ($abiertas as [$p, $c, $ca, $d]) {
+                        try {
+                            $p->prepare("UPDATE notificaciones_log SET estado = 'fallida', error = ? WHERE clave = ? AND canal = ? AND destinatario = ? AND estado = 'pendiente'")
+                              ->execute([mb_substr($causa, 0, 500), $c, $ca, $d]);
+                        } catch (\Throwable $e) { /* nada más que hacer */ }
+                    }
+                });
+            }
+        } else {
+            unset($abiertas[$k]);
+        }
     }
 
     // ─── Bajas ───────────────────────────────────────────────
