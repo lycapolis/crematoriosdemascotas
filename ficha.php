@@ -62,9 +62,9 @@ $negocioCerrado = ($estadoFicha === 'cerrada');
 $fichaDemo      = ($estadoFicha === 'demo');   // demo → operativa por URL directa, sin indexar
 
 if ($fichaDemo) {
-    // Cabecera antes de cualquier salida + meta en <head> (hook de header.php)
+    // Cabecera antes de cualquier salida + meta robots única (la imprime header.php)
     header('X-Robots-Tag: noindex, nofollow');
-    $head_extra = ($head_extra ?? '') . '<meta name="robots" content="noindex, nofollow">';
+    $meta_robots = 'noindex, nofollow';
 }
 
 if (in_array($estadoFicha, ['pausada', 'archivada'], true)) {
