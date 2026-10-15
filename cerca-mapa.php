@@ -82,7 +82,8 @@ $sql = "SELECT c.*,
         FROM crematorios c
         LEFT JOIN provincias p  ON c.provincia_id = p.id
         LEFT JOIN comunidades_autonomas ca ON p.comunidad_id = ca.id
-        WHERE c.latitud IS NOT NULL AND c.latitud != 0
+        WHERE c.estado = 'activa'
+          AND c.latitud IS NOT NULL AND c.latitud != 0
           AND c.longitud IS NOT NULL AND c.longitud != 0
           $whereServicios
         HAVING distancia_km <= :radio

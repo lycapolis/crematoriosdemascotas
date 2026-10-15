@@ -49,6 +49,13 @@ $tarjetas = [
         'visible'      => esSuperAdmin(),
     ],
     [
+        'href'         => BASE_URL . '/admin/fichas-demo.php',
+        'icono'        => 'presentation',
+        'titulo'       => 'Fichas de demostración',
+        'descripcion'  => 'Una ficha de ejemplo por plan, ocultas, con enlaces para compartir con clientes potenciales.',
+        'visible'      => true,
+    ],
+    [
         'href'         => BASE_URL . '/admin/webhooks.php',
         'icono'        => 'webhook',
         'titulo'       => 'Webhooks',

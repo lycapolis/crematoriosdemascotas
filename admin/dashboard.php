@@ -42,35 +42,36 @@ $cremStats = $pdo->query("
         COUNT(*) - SUM(activo)                                     AS inactivos,
         ROUND(AVG(($scoreSql) / 12 * 100))                        AS pct_medio
     FROM crematorios c
+    WHERE c.estado <> 'demo'
 ")->fetch(PDO::FETCH_ASSOC);
 
 // Incompletos (score < 10 de 12, es decir < 83%)
 $cremIncompletos = (int) $pdo->query("
-    SELECT COUNT(*) FROM crematorios c WHERE ($scoreSql) < 10
+    SELECT COUNT(*) FROM crematorios c WHERE c.estado <> 'demo' AND ($scoreSql) < 10
 ")->fetchColumn();
 
 // Sin imágenes procesadas
 $cremSinImagenes = (int) $pdo->query("
     SELECT COUNT(*) FROM crematorios c
-    WHERE NOT EXISTS (SELECT 1 FROM crematorio_imagenes ci WHERE ci.crematorio_id = c.id AND ci.estado_llm = 'procesada')
+    WHERE c.estado <> 'demo' AND NOT EXISTS (SELECT 1 FROM crematorio_imagenes ci WHERE ci.crematorio_id = c.id AND ci.estado_llm = 'procesada')
 ")->fetchColumn();
 
 // Sin logo
 $cremSinLogo = (int) $pdo->query("
     SELECT COUNT(*) FROM crematorios c
-    WHERE NOT EXISTS (SELECT 1 FROM crematorio_imagenes ci WHERE ci.crematorio_id = c.id AND ci.tipo = 'logo' AND ci.categoria = 'logo')
+    WHERE c.estado <> 'demo' AND NOT EXISTS (SELECT 1 FROM crematorio_imagenes ci WHERE ci.crematorio_id = c.id AND ci.tipo = 'logo' AND ci.categoria = 'logo')
 ")->fetchColumn();
 
 // Sin descripción (< 150 chars)
 $cremSinDesc = (int) $pdo->query("
     SELECT COUNT(*) FROM crematorios
-    WHERE descripcion IS NULL OR CHAR_LENGTH(descripcion) < 150
+    WHERE estado <> 'demo' AND (descripcion IS NULL OR CHAR_LENGTH(descripcion) < 150)
 ")->fetchColumn();
 
 // Sin horarios
 $cremSinHorarios = (int) $pdo->query("
     SELECT COUNT(*) FROM crematorios
-    WHERE horarios IS NULL OR horarios = ''
+    WHERE estado <> 'demo' AND (horarios IS NULL OR horarios = '')
 ")->fetchColumn();
 
 // Solicitudes de registro (formulario público)

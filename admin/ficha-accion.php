@@ -41,7 +41,7 @@ if (!$pdo || $id < 1) {
 // ─── Cambiar estado ──────────────────────────────────────────
 if ($accion === 'cambiar_estado') {
     $estado = $_POST['estado'] ?? '';
-    $estadosValidos = ['activa', 'pausada', 'cerrada', 'archivada'];
+    $estadosValidos = ['activa', 'pausada', 'cerrada', 'archivada', 'demo'];
     if (!in_array($estado, $estadosValidos, true)) {
         echo json_encode(['ok' => false, 'mensaje' => 'Estado no válido']);
         exit;

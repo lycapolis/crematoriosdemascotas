@@ -24,8 +24,8 @@ require_once 'includes/funciones.php';
 
 // España operativa: contar de la BD
 $pdo = obtenerConexion();
-$total_espana = (int) $pdo->query("SELECT COUNT(*) FROM crematorios")->fetchColumn();
-$total_provincias = (int) $pdo->query("SELECT COUNT(DISTINCT provincia_id) FROM crematorios WHERE provincia_id IS NOT NULL")->fetchColumn();
+$total_espana = (int) $pdo->query("SELECT COUNT(*) FROM crematorios WHERE estado = 'activa'")->fetchColumn();
+$total_provincias = (int) $pdo->query("SELECT COUNT(DISTINCT provincia_id) FROM crematorios WHERE provincia_id IS NOT NULL AND estado = 'activa'")->fetchColumn();
 
 // Países próximamente (sin enlaces — solo teaser visual)
 $proximos = [

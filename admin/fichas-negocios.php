@@ -44,7 +44,7 @@ $ordenesValidos = [
 ];
 if (!in_array($orden, $ordenesValidos)) $orden = 'nombre_asc';
 
-$estadosValidos = ['activa', 'pausada', 'cerrada', 'archivada'];
+$estadosValidos = ['activa', 'pausada', 'cerrada', 'archivada', 'demo'];
 
 // ─── Listas para filtros ──────────────────────────────────────────────────────
 
@@ -246,7 +246,7 @@ include 'header.php';
                         data-placeholder="Todos los estados"
                         data-ts-search="off">
                     <option value="">Todos</option>
-                    <?php foreach (['activa'=>'Activa','pausada'=>'Pausada','cerrada'=>'Cerrada','archivada'=>'Archivada'] as $val=>$lbl): ?>
+                    <?php foreach (['activa'=>'Activa','pausada'=>'Pausada','cerrada'=>'Cerrada','archivada'=>'Archivada','demo'=>'Demo'] as $val=>$lbl): ?>
                     <option value="<?php echo $val; ?>" <?php echo $filEstado === $val ? 'selected' : ''; ?>><?php echo $lbl; ?></option>
                     <?php endforeach; ?>
                 </select>
@@ -363,7 +363,7 @@ include 'header.php';
                 <select class="field__select field__select--enhanced js-estado-ficha"
                         data-ficha-id="<?php echo (int)$c['id']; ?>"
                         data-ts-search="off">
-                    <?php foreach (['activa'=>'Activa','pausada'=>'Pausada','cerrada'=>'Cerrada','archivada'=>'Archivada'] as $val=>$lbl): ?>
+                    <?php foreach (['activa'=>'Activa','pausada'=>'Pausada','cerrada'=>'Cerrada','archivada'=>'Archivada','demo'=>'Demo'] as $val=>$lbl): ?>
                     <option value="<?php echo $val; ?>" <?php echo $estado === $val ? 'selected' : ''; ?>><?php echo $lbl; ?></option>
                     <?php endforeach; ?>
                 </select>

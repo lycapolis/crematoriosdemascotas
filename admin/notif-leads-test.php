@@ -28,7 +28,7 @@ $admin = obtenerAdminActual();
 $csrf  = generarTokenCSRF();
 
 $planes = $pdo->query("SELECT id, nombre FROM tiers ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
-$negocios = $pdo->query("SELECT id, nombre, tier, ciudad FROM crematorios WHERE activo = 1 ORDER BY nombre ASC")->fetchAll(PDO::FETCH_ASSOC);
+$negocios = $pdo->query("SELECT id, nombre, tier, ciudad FROM crematorios WHERE activo = 1 OR estado = 'demo' ORDER BY nombre ASC")->fetchAll(PDO::FETCH_ASSOC);
 
 /** Fila «Enviar esta maqueta a…» común a todos los bloques (por defecto, el email del admin). */
 function filaEnvio(string $emailPorDefecto): void

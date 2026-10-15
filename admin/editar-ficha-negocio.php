@@ -99,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ':nombre'               => trim($_POST['nombre'] ?? $cr['nombre']),
         ':tier'                 => trim($_POST['tier'] ?? $cr['tier']),
         // estado = source of truth; activo es cache (1 solo si estado='activa')
-        ':estado'               => in_array(($_POST['estado'] ?? 'activa'), ['activa','pausada','cerrada','archivada'], true)
+        ':estado'               => in_array(($_POST['estado'] ?? 'activa'), ['activa','pausada','cerrada','archivada','demo'], true)
                                        ? $_POST['estado'] : 'activa',
         ':activo'               => (($_POST['estado'] ?? 'activa') === 'activa') ? 1 : 0,
         ':website'              => trim($_POST['website'] ?? ''),
@@ -759,6 +759,7 @@ function selectBool(string $name, $valor): string {
                             'pausada'   => 'Pausada — oculta temporalmente',
                             'cerrada'   => 'Cerrada — visible con aviso',
                             'archivada' => 'Archivada — oculta (recuperable)',
+                            'demo'      => 'Demo — oculta, solo por URL directa',
                         ] as $val => $label): ?>
                         <option value="<?php echo $val; ?>" <?php echo $estadoActual === $val ? 'selected' : ''; ?>><?php echo $label; ?></option>
                         <?php endforeach; ?>

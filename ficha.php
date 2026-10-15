@@ -56,8 +56,16 @@ if (!$crematorio) {
 //   cerrada    → se muestra con badge "Cerrado permanentemente" (estilo Google)
 //   pausada    → 404 (pausa temporal, no debe ser indexable ni visible)
 //   archivada  → 404 (soft-delete)
+//   demo       → se muestra normal con franja «ficha de demostración» + noindex
 $estadoFicha    = $crematorio['estado'] ?? 'activa';
 $negocioCerrado = ($estadoFicha === 'cerrada');
+$fichaDemo      = ($estadoFicha === 'demo');   // demo → operativa por URL directa, sin indexar
+
+if ($fichaDemo) {
+    // Cabecera antes de cualquier salida + meta en <head> (hook de header.php)
+    header('X-Robots-Tag: noindex, nofollow');
+    $head_extra = ($head_extra ?? '') . '<meta name="robots" content="noindex, nofollow">';
+}
 
 if (in_array($estadoFicha, ['pausada', 'archivada'], true)) {
     http_response_code(404);
@@ -908,6 +916,12 @@ include 'includes/header.php';
         $migas[] = [$crematorio_nombre, null];
         include ROOT_PATH . '/includes/componentes/breadcrumb.php';
         ?>
+        <?php if ($fichaDemo): ?>
+        <div class="ficha-demo-aviso" role="note" style="display:flex; align-items:center; gap:.6rem; background:#eef4fb; border:1px solid #c5d8ee; color:#27496d; border-radius:var(--radio-dos); padding:var(--espacio-tres) var(--espacio-cuatro); margin-bottom:var(--espacio-tres); font-size:.95rem;">
+            <i data-lucide="eye" class="icono" style="width:20px; height:20px; flex-shrink:0;"></i>
+            <span><strong>Ficha de demostración.</strong> Así se ve una ficha con el plan <?php echo htmlspecialchars(preg_replace('/^Plan\s+\d+\s*[—-]\s*/u', '', $_all_tier_rules[$tier]['nombre'] ?? $tier), ENT_QUOTES, 'UTF-8'); ?>. Los datos son ficticios.</span>
+        </div>
+        <?php endif; ?>
         <?php if ($negocioCerrado): ?>
         <div role="alert" style="display:flex; align-items:center; gap:.6rem; background:#fdecea; border:1px solid #f5c2bd; color:#9b2c20; border-radius:var(--radio-dos); padding:var(--espacio-tres) var(--espacio-cuatro); margin-bottom:var(--espacio-tres); font-size:.95rem;">
             <i data-lucide="circle-slash" class="icono" style="width:20px; height:20px; flex-shrink:0;"></i>
