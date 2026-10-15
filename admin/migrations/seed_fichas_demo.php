@@ -161,7 +161,7 @@ $pdo->beginTransaction();
 $archivosCreados = [];
 try {
     foreach ($demos as $tier => $d) {
-        $email = "info+plan{$tier}@crematoriosdemascotas.com";
+        $email = 'info@crematoriosdemascotas.com';
         $dir   = 'Calle de la Demostración 1';
         $dirCompleta = "$dir, {$d['cp']} {$d['ciudad']}";
         $tel = $telPunto;
