@@ -229,9 +229,19 @@ if (!function_exists('notifMaqueta')) {
                 $completos = json_decode(defined('TIERS_LEAD_COMPLETO') ? TIERS_LEAD_COMPLETO : '[]', true) ?: [];
                 $datosCompletos = in_array($plan, $completos, true);
 
+                // Id de un lead real (el de esta ficha o, si no hay, el último) para que el botón
+                // «Quiero recibir sus datos» lleve un enlace firmado que de verdad abre la página.
+                $leadMaqueta = 0;
+                try {
+                    $q = $pdo->prepare("SELECT id FROM leads_b2c WHERE crematorio_id = ? ORDER BY id DESC LIMIT 1");
+                    $q->execute([(int)$neg['id']]);
+                    $leadMaqueta = (int)$q->fetchColumn();
+                    if (!$leadMaqueta) $leadMaqueta = (int)$pdo->query("SELECT MAX(id) FROM leads_b2c WHERE crematorio_id IS NOT NULL")->fetchColumn();
+                } catch (\Throwable $e) {}
+
                 $tpl = renderEmailLeadNuevo(
                     [
-                        'id' => 0, 'nombre' => 'María García', 'email' => 'maria@example.com',
+                        'id' => $leadMaqueta, 'nombre' => 'María García', 'email' => 'maria@example.com',
                         'phone_code' => '34', 'whatsapp_number' => '600123456',
                         'ciudad' => $neg['ciudad'] ?: 'Madrid', 'servicio' => 'Perro', 'mascota_tamano' => '5 - 15 kg',
                         'mensaje' => "Buenas tardes. Mi perro Toby falleció esta mañana y necesitamos coordinar el servicio para hoy mismo si fuera posible.\n\nGracias.",
@@ -241,7 +251,7 @@ if (!function_exists('notifMaqueta')) {
                     $datosCompletos
                 );
                 if (in_array($plan, ['00', '01'], true)) {
-                    $avisos[] = 'Variante «portal» (planes Gratis/Básico): el negocio ve el contacto ofuscado y puede pedirnos los datos.';
+                    $avisos[] = 'Variante «portal» (planes Gratis/Básico): el negocio ve el contacto ofuscado y, con el botón, abre una página firmada con los datos completos (el enlace apunta a un lead real; abrirlo registra la entrega).';
                 } elseif ($datosCompletos) {
                     $avisos[] = 'Variante «completa» (plan Premium): email y teléfono visibles, botones de respuesta directa.';
                 } else {

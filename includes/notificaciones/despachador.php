@@ -286,6 +286,24 @@ if (!function_exists('notificarEvento')) {
             . '&t=' . notifTokenRespuesta($resenaId);
     }
 
+    /** Firma HMAC del enlace «Quiero recibir sus datos» (identifica el lead; el negocio no tiene cuenta). */
+    function notifTokenEntrega(int $leadId): string
+    {
+        return substr(hash_hmac('sha256', 'entrega|' . $leadId, notifSecreto()), 0, 32);
+    }
+
+    function notifTokenEntregaValido(int $leadId, string $token): bool
+    {
+        return $leadId > 0 && $token !== '' && hash_equals(notifTokenEntrega($leadId), $token);
+    }
+
+    function notifUrlEntrega(int $leadId): string
+    {
+        return notifUrlPublica('recibir-datos.php')
+            . '?l=' . $leadId
+            . '&t=' . notifTokenEntrega($leadId);
+    }
+
     // ─── Respuesta HTTP ──────────────────────────────────────
 
     /**

@@ -62,7 +62,11 @@ if (!function_exists('renderEmailLeadNuevo')) {
         $canalLabel = $canalLabels[$canal] ?? 'Formulario web';
 
         $tierPortal = in_array((string)($negocio['tier'] ?? ''), ['00', '01'], true);
-        $urlSolicitar = 'mailto:info@crematoriosdemascotas.com?subject=' . rawurlencode("Datos del contacto #" . ($lead['id'] ?? '') . " — " . ($negocio['nombre'] ?? ''));
+        $urlSolicitar = '';
+        if ($tierPortal && !$datosCompletos) {
+            require_once __DIR__ . '/../notificaciones/despachador.php';
+            $urlSolicitar = notifUrlEntrega((int)($lead['id'] ?? 0));
+        }
 
         $asunto = $tierPortal
             ? "Un cliente ha dejado sus datos en tu ficha — {$nombre}" . ($ciudad ? " ({$ciudad})" : '')
@@ -154,7 +158,7 @@ if (!function_exists('renderEmailLeadNuevo')) {
           <tr><td>
             <p style="margin:0 0 6px 0;font-size:14px;font-weight:700;color:#5A3E2F;">Podemos enviarte sus datos de contacto</p>
             <p style="margin:0 0 14px 0;font-size:13px;line-height:1.5;color:#5A3E2F;">
-              Este cliente ha dejado su teléfono y su email en tu ficha. Los guardamos nosotros: respóndenos y te los hacemos llegar.
+              Este cliente ha dejado su teléfono y su email en tu ficha. Los guardamos nosotros: pulsa el botón y los verás al instante.
             </p>
             <a href="<?= htmlspecialchars($urlSolicitar) ?>" style="display:inline-block;background:#B8704F;color:#fff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:600;font-size:15px;">Quiero recibir sus datos</a>
           </td></tr>
@@ -207,8 +211,8 @@ if (!function_exists('renderEmailLeadNuevo')) {
         }
         if (!$datosCompletos && $tierPortal) {
             $texto .= "\nEste cliente ha dejado su teléfono y su email en tu ficha.\n";
-            $texto .= "Los guardamos nosotros: respóndenos y te los hacemos llegar.\n";
-            $texto .= "Escríbenos a: info@crematoriosdemascotas.com (indica el contacto #" . ($lead['id'] ?? '') . ")\n";
+            $texto .= "Los guardamos nosotros: abre este enlace y los verás al instante:\n";
+            $texto .= $urlSolicitar . "\n";
         } elseif (!$datosCompletos) {
             $texto .= "\n[Tu plan actual recibe contacto enmascarado.\n";
             $texto .= " Mejora a Destacado para ver email y teléfono completos.]\n";
