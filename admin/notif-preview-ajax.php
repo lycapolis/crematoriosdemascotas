@@ -66,7 +66,7 @@ if (!array_key_exists($tipo, notifMaquetaTipos())) {
     respuestaMaqueta(['ok' => false, 'error' => 'Tipo de maqueta no válido.'], 400);
 }
 
-$m = notifMaqueta($pdo, $tipo, ['plan' => $plan, 'crem_id' => $cremId], $email);
+$m = notifMaqueta($pdo, $tipo, ['plan' => $plan, 'crem_id' => $cremId, 'entregas' => (int)($in['entregas'] ?? 0)], $email);
 if (!$m['ok']) respuestaMaqueta(['ok' => false, 'error' => $m['avisos'][0] ?? 'Error'], 400);
 
 $esWebhook = !empty($m['json']);

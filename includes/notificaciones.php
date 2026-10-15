@@ -17,6 +17,7 @@
  */
 
 require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/notificaciones/despachador.php';
 require_once __DIR__ . '/plantillas-email/lead-nuevo-negocio.php';
 require_once __DIR__ . '/plantillas-email/teaser-leads-area.php';
 
@@ -104,6 +105,7 @@ if (!function_exists('notificarNegocioLead')) {
         // 6. Datos completos vs enmascarados según tier
         $tiersCompletos = json_decode(defined('TIERS_LEAD_COMPLETO') ? TIERS_LEAD_COMPLETO : '[]', true) ?: [];
         $datosCompletos = in_array($tier, $tiersCompletos, true);
+        $cupo = $datosCompletos ? null : notifCupoLeads($pdo, (int)$row['crematorio_id']);
 
         // 7. Render plantilla
         $tpl = renderEmailLeadNuevo(
@@ -127,11 +129,12 @@ if (!function_exists('notificarNegocioLead')) {
                 'slug'   => $row['crem_slug'],
                 'tier'   => $tier,
             ],
-            $datosCompletos
+            $datosCompletos,
+            $cupo
         );
 
-        // 8. Reply-To al email del lead (para que el negocio responda directo si tier alto)
-        $replyTo = $datosCompletos ? (string)$row['email'] : (in_array($tier, ['00', '01'], true) ? 'info@crematoriosdemascotas.com' : null);
+        // 8. Reply-To: al email del lead si el negocio ve los datos completos; si no, a info@ (los datos los guarda el portal)
+        $replyTo = $datosCompletos ? (string)$row['email'] : 'info@crematoriosdemascotas.com';
 
         // 9. Enviar
         $envio = enviarMailHtml(
@@ -408,6 +411,7 @@ if (!function_exists('notificarNegocioLead')) {
             $avisos[] = "El plan del negocio ({$tier}) no recibe leads por email: en la práctica no se enviaría.";
         }
         $datosCompletos = in_array($tier, $tiersCompletos, true);
+        $cupo = ($datosCompletos || !$row['crematorio_id']) ? null : notifCupoLeads($pdo, (int)$row['crematorio_id']);
 
         $tpl = renderEmailLeadNuevo(
             [
@@ -418,7 +422,8 @@ if (!function_exists('notificarNegocioLead')) {
                 'channel_type' => $row['channel_type'], 'created_at' => $row['created_at'],
             ],
             ['id' => $row['crematorio_id'], 'nombre' => $row['crem_nombre'], 'slug' => $row['crem_slug'], 'tier' => $tier],
-            $datosCompletos
+            $datosCompletos,
+            $cupo
         );
         if ($row['crematorio_id']) {
             $avisos[] = $datosCompletos

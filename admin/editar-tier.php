@@ -15,6 +15,7 @@ $tier = [
     'nombre'                     => '',
     'descripcion'                => '',
     'precio_mensual'             => '',
+    'cupo_leads'                 => '',
     'logo_mostrar'               => 1,
     'logo_fuentes'               => ['local', 'url'],
     'portada_mostrar'            => 1,
@@ -125,6 +126,15 @@ include 'header.php';
                             <span class="field__suffix">€</span>
                         </div>
                     </div>
+                </div>
+
+                <div class="field" style="margin-bottom: 0; max-width: 320px;">
+                    <label class="field__label">Cupo de leads (entregas de por vida)</label>
+                    <input type="number" name="cupo_leads" min="0" step="1"
+                           value="<?php echo htmlspecialchars((string)($tier['cupo_leads'] ?? '')); ?>"
+                           placeholder="Vacío = ilimitado"
+                           class="field__input">
+                    <span class="field__hint">Cuántas veces puede una ficha de este plan pulsar «Quiero recibir sus datos». Solo se aplica a planes que no reciben los datos completos en el email (hoy, el 00 Gratis). Vacío = sin límite.</span>
                 </div>
 
             </div>

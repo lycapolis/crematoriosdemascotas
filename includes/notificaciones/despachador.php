@@ -304,6 +304,81 @@ if (!function_exists('notificarEvento')) {
             . '&t=' . notifTokenEntrega($leadId);
     }
 
+    // ─── Cupo de entregas de leads (planes con límite, p. ej. Gratis) ───
+
+    /**
+     * Cupo de entregas de una ficha: límite del plan (tiers.cupo_leads) y entregas ya usadas
+     * (filas de lead_entregas, de por vida). Devuelve null si el plan es ilimitado o no hay ficha.
+     * @return array{limite:int, usadas:int, restantes:int, agotado:bool}|null
+     */
+    function notifCupoLeads(\PDO $pdo, int $crematorioId): ?array
+    {
+        if ($crematorioId <= 0) return null;
+        try {
+            // Dos consultas (sin JOIN): crematorios.tier y tiers.id tienen collations distintas en algunas bases
+            $st = $pdo->prepare("SELECT tier FROM crematorios WHERE id = ?");
+            $st->execute([$crematorioId]);
+            $tier = $st->fetchColumn();
+            if ($tier === false) return null;
+            $st = $pdo->prepare("SELECT cupo_leads FROM tiers WHERE id = ?");
+            $st->execute([(string)$tier]);
+            $limite = $st->fetchColumn();
+            if ($limite === false || $limite === null) return null;
+            $limite = (int)$limite;
+            $st = $pdo->prepare("SELECT COUNT(*) FROM lead_entregas WHERE crematorio_id = ?");
+            $st->execute([$crematorioId]);
+            return notifCupoDesdeCifras($limite, (int)$st->fetchColumn());
+        } catch (\Throwable $e) {
+            error_log('[cupo-leads] ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /** @return array{limite:int, usadas:int, restantes:int, agotado:bool} */
+    function notifCupoDesdeCifras(int $limite, int $usadas): array
+    {
+        $usadas = max(0, min($usadas, $limite));
+        return ['limite' => $limite, 'usadas' => $usadas, 'restantes' => $limite - $usadas, 'agotado' => $usadas >= $limite];
+    }
+
+    /**
+     * Texto y colores del contador (mismo en el email y en recibir-datos.php).
+     * Quedan 3 o más: verde · quedan 2: ámbar · queda 1 o ninguno: rojo.
+     * @return array{texto:string, cifra:string, nivel:string, color:string, fondo:string}
+     */
+    function notifContadorCupo(array $cupo): array
+    {
+        $r = $cupo['restantes'];
+        if ($cupo['usadas'] === 0)      { $texto = 'Tienes ' . $cupo['limite'] . ' leads disponibles'; $nivel = 'verde'; }
+        elseif ($r === 0)               { $texto = 'Ya has usado todos tus leads gratuitos';           $nivel = 'rojo'; }
+        elseif ($r === 1)               { $texto = 'Te queda 1 solo lead gratuito';                    $nivel = 'rojo'; }
+        elseif ($r === 2)               { $texto = 'Te quedan solo 2 leads';                           $nivel = 'ambar'; }
+        else                            { $texto = 'Te quedan ' . $r . ' leads';                       $nivel = 'verde'; }
+
+        $paleta = [
+            'verde' => ['#2E7D32', '#E8F5E9'],
+            'ambar' => ['#B26A00', '#FFF3E0'],
+            'rojo'  => ['#C62828', '#FDECEA'],
+        ];
+        return [
+            'texto' => $texto,
+            'cifra' => $cupo['usadas'] . '/' . $cupo['limite'],
+            'nivel' => $nivel,
+            'color' => $paleta[$nivel][0],
+            'fondo' => $paleta[$nivel][1],
+        ];
+    }
+
+    /** Destino puente de «Mejorar mi plan» hasta que exista la página de planes (tarea 05). */
+    function notifUrlMejorarPlan(string $negocioNombre): string
+    {
+        $para = defined('EMAIL_CONTACTO') ? EMAIL_CONTACTO : 'info@crematoriosdemascotas.com';
+        $asunto = 'Quiero mejorar mi plan';
+        $cuerpo = "Hola,\n\nQuiero mejorar el plan de mi ficha" . ($negocioNombre !== '' ? " ({$negocioNombre})" : '')
+                . " para seguir recibiendo los datos de los clientes que me contactan.\n\nGracias.";
+        return 'mailto:' . $para . '?subject=' . rawurlencode($asunto) . '&body=' . rawurlencode($cuerpo);
+    }
+
     // ─── Respuesta HTTP ──────────────────────────────────────
 
     /**

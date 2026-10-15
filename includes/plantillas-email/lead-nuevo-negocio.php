@@ -24,8 +24,12 @@
  *   id, nombre, slug, tier, ciudad_nombre
  *
  * @param bool $datosCompletos
- *   true → muestra teléfono+email completos (tier alto)
- *   false → enmascara teléfono+email (tier verificado, urgencia upgrade)
+ *   true → muestra teléfono+email completos (planes de pago)
+ *   false → enmascara teléfono+email y ofrece el botón «Quiero recibir sus datos» (plan Gratis)
+ *
+ * @param array|null $cupo
+ *   Cupo de entregas (notifCupoLeads / notifCupoDesdeCifras). null = ilimitado, sin contador.
+ *   Con cupo agotado el botón sale desactivado y se invita a mejorar el plan.
  * ═══════════════════════════════════════════════════════════
  */
 
@@ -33,7 +37,7 @@ require_once __DIR__ . '/_cabecera.php';
 
 if (!function_exists('renderEmailLeadNuevo')) {
 
-    function renderEmailLeadNuevo(array $lead, array $negocio, bool $datosCompletos = true): array
+    function renderEmailLeadNuevo(array $lead, array $negocio, bool $datosCompletos = true, ?array $cupo = null): array
     {
         $sitio   = defined('SITIO_NOMBRE') ? SITIO_NOMBRE : 'Crematorios de Mascotas';
         $baseUrl = defined('BASE_URL') ? BASE_URL : '';
@@ -61,12 +65,20 @@ if (!function_exists('renderEmailLeadNuevo')) {
         ];
         $canalLabel = $canalLabels[$canal] ?? 'Formulario web';
 
-        $tierPortal = in_array((string)($negocio['tier'] ?? ''), ['00', '01'], true);
+        // Sin datos completos en el email = variante «portal»: los datos se piden en recibir-datos.php (con cupo)
+        $tierPortal = !$datosCompletos;
         $urlSolicitar = '';
-        if ($tierPortal && !$datosCompletos) {
+        $contador = null;
+        $urlMejorar = '';
+        if ($tierPortal) {
             require_once __DIR__ . '/../notificaciones/despachador.php';
             $urlSolicitar = notifUrlEntrega((int)($lead['id'] ?? 0));
+            if ($cupo) {
+                $contador   = notifContadorCupo($cupo);
+                $urlMejorar = notifUrlMejorarPlan((string)($negocio['nombre'] ?? ''));
+            }
         }
+        $cupoAgotado = $cupo && $cupo['agotado'];
 
         $asunto = $tierPortal
             ? "Un cliente ha dejado sus datos en tu ficha — {$nombre}" . ($ciudad ? " ({$ciudad})" : '')
@@ -151,28 +163,28 @@ if (!function_exists('renderEmailLeadNuevo')) {
           </tr>
         </table>
       </td></tr>
-      <?php elseif ($tierPortal): ?>
-      <!-- Planes Gratis/Básico: el portal tiene los datos y se los puede enviar -->
+      <?php else: ?>
+      <!-- Plan Gratis: el portal tiene los datos y se los entrega mientras quede cupo -->
       <tr><td style="padding:8px 28px 28px 28px;">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#F5EDE5;border-radius:8px;padding:18px 20px;">
           <tr><td>
+            <?php if ($contador): ?>
+            <p style="margin:0 0 12px 0;"><span style="display:inline-block;background:<?= $contador['fondo'] ?>;color:<?= $contador['color'] ?>;border-radius:999px;padding:5px 12px;font-size:13px;font-weight:700;"><?= $contador['cifra'] ?> · <?= htmlspecialchars($contador['texto']) ?></span></p>
+            <?php endif; ?>
+            <?php if ($cupoAgotado): ?>
+            <p style="margin:0 0 6px 0;font-size:14px;font-weight:700;color:#5A3E2F;">Este cliente ha dejado sus datos en tu ficha</p>
+            <p style="margin:0 0 14px 0;font-size:13px;line-height:1.5;color:#5A3E2F;">
+              Con el plan gratuito puedes recibir los datos de <?= (int)$cupo['limite'] ?> contactos y ya los has usado todos. Mejora tu plan para seguir recibiendo los datos completos de cada cliente.
+            </p>
+            <span style="display:inline-block;background:#D9D2CB;color:#8B7765;padding:12px 22px;border-radius:6px;font-weight:600;font-size:15px;margin-right:8px;">Quiero recibir sus datos</span>
+            <a href="<?= htmlspecialchars($urlMejorar) ?>" style="display:inline-block;background:#5A3E2F;color:#fff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:600;font-size:15px;">Mejorar mi plan</a>
+            <?php else: ?>
             <p style="margin:0 0 6px 0;font-size:14px;font-weight:700;color:#5A3E2F;">Podemos enviarte sus datos de contacto</p>
             <p style="margin:0 0 14px 0;font-size:13px;line-height:1.5;color:#5A3E2F;">
               Este cliente ha dejado su teléfono y su email en tu ficha. Los guardamos nosotros: pulsa el botón y los verás al instante.
             </p>
             <a href="<?= htmlspecialchars($urlSolicitar) ?>" style="display:inline-block;background:#B8704F;color:#fff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:600;font-size:15px;">Quiero recibir sus datos</a>
-          </td></tr>
-        </table>
-      </td></tr>
-      <?php else: ?>
-      <!-- Banner de upgrade -->
-      <tr><td style="padding:8px 28px 28px 28px;">
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:linear-gradient(135deg,#B8704F 0%,#A05F40 100%);border-radius:8px;padding:18px 20px;">
-          <tr><td style="color:#fff;">
-            <p style="margin:0 0 6px 0;font-size:14px;font-weight:700;">Desbloquea el contacto completo</p>
-            <p style="margin:0;font-size:13px;line-height:1.5;opacity:.95;">
-              Tu plan actual recibe leads con contacto enmascarado. Mejora a <strong>Destacado</strong> y recibe el teléfono y email completos al instante.
-            </p>
+            <?php endif; ?>
           </td></tr>
         </table>
       </td></tr>
@@ -209,13 +221,19 @@ if (!function_exists('renderEmailLeadNuevo')) {
             $texto .= "\nMensaje:\n";
             $texto .= "  " . str_replace("\n", "\n  ", trim($mensaje)) . "\n";
         }
-        if (!$datosCompletos && $tierPortal) {
-            $texto .= "\nEste cliente ha dejado su teléfono y su email en tu ficha.\n";
-            $texto .= "Los guardamos nosotros: abre este enlace y los verás al instante:\n";
-            $texto .= $urlSolicitar . "\n";
-        } elseif (!$datosCompletos) {
-            $texto .= "\n[Tu plan actual recibe contacto enmascarado.\n";
-            $texto .= " Mejora a Destacado para ver email y teléfono completos.]\n";
+        if ($tierPortal) {
+            if ($contador) {
+                $texto .= "\nLeads gratuitos usados: {$contador['cifra']} — {$contador['texto']}\n";
+            }
+            if ($cupoAgotado) {
+                $texto .= "Con el plan gratuito puedes recibir los datos de " . (int)$cupo['limite'] . " contactos y ya los has usado todos.\n";
+                $texto .= "Mejora tu plan para seguir recibiendo los datos completos de cada cliente:\n";
+                $texto .= $urlMejorar . "\n";
+            } else {
+                $texto .= "\nEste cliente ha dejado su teléfono y su email en tu ficha.\n";
+                $texto .= "Los guardamos nosotros: abre este enlace y los verás al instante:\n";
+                $texto .= $urlSolicitar . "\n";
+            }
         }
         $texto .= "\n─────────────────────────────────────\n";
         $texto .= "Recibes este email porque tu negocio está activo en {$sitio}.\n";

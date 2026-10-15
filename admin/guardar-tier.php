@@ -18,6 +18,7 @@ $id          = trim($_POST['id']             ?? '');
 $nombre      = trim($_POST['nombre']         ?? '');
 $descripcion = trim($_POST['descripcion']    ?? '');
 $precio      = $_POST['precio_mensual'] !== '' ? floatval($_POST['precio_mensual']) : null;
+$cupoLeads   = ($_POST['cupo_leads'] ?? '') !== '' ? max(0, (int)$_POST['cupo_leads']) : null;   // vacío = ilimitado
 $activo      = isset($_POST['activo']) && $_POST['activo'] == '1' ? 1 : 0;
 
 $redir = BASE_URL . '/admin/editar-tier.php' . (!$esNuevo ? '?id=' . urlencode($idOriginal) : '');
@@ -69,14 +70,14 @@ $contactoReglas = $reglas ? json_encode($reglas) : null;
 if ($esNuevo) {
     $pdo->prepare(
         "INSERT INTO tiers
-            (id, nombre, descripcion, precio_mensual,
+            (id, nombre, descripcion, precio_mensual, cupo_leads,
              logo_mostrar, logo_fuentes,
              portada_mostrar, portada_fuentes,
              galeria_principal_mostrar, galeria_principal_fuentes,
              galeria_categorias_mostrar, galeria_categorias_fuentes,
              contacto_reglas, activo)
          VALUES
-            (:id, :nombre, :desc, :precio,
+            (:id, :nombre, :desc, :precio, :cupo,
              :lm, :lf,
              :pm, :pf,
              :gpm, :gpf,
@@ -87,6 +88,7 @@ if ($esNuevo) {
         ':nombre' => $nombre,
         ':desc'   => $descripcion ?: null,
         ':precio' => $precio,
+        ':cupo'   => $cupoLeads,
         ':lm'  => $logo['mostrar'],    ':lf'  => $logo['fuentes'],
         ':pm'  => $portada['mostrar'], ':pf'  => $portada['fuentes'],
         ':gpm' => $galP['mostrar'],    ':gpf' => $galP['fuentes'],
@@ -98,7 +100,7 @@ if ($esNuevo) {
 } else {
     $pdo->prepare(
         "UPDATE tiers SET
-            nombre = :nombre, descripcion = :desc, precio_mensual = :precio,
+            nombre = :nombre, descripcion = :desc, precio_mensual = :precio, cupo_leads = :cupo,
             logo_mostrar = :lm, logo_fuentes = :lf,
             portada_mostrar = :pm, portada_fuentes = :pf,
             galeria_principal_mostrar = :gpm, galeria_principal_fuentes = :gpf,
@@ -111,6 +113,7 @@ if ($esNuevo) {
         ':nombre' => $nombre,
         ':desc'   => $descripcion ?: null,
         ':precio' => $precio,
+        ':cupo'   => $cupoLeads,
         ':lm'  => $logo['mostrar'],    ':lf'  => $logo['fuentes'],
         ':pm'  => $portada['mostrar'], ':pf'  => $portada['fuentes'],
         ':gpm' => $galP['mostrar'],    ':gpf' => $galP['fuentes'],

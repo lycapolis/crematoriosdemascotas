@@ -173,7 +173,16 @@ include 'header.php';
               <option value="<?= htmlspecialchars($pl['id']) ?>"><?= htmlspecialchars($pl['nombre']) ?></option>
               <?php endforeach; ?>
             </select>
-            <span class="field__hint">Cambia la variante del email (Gratis/Básico, Estándar, Premium).</span>
+            <span class="field__hint">Cambia la variante del email (Gratis con cupo, o datos completos en los planes de pago).</span>
+          </div>
+          <div class="field">
+            <label class="field__label" for="lead_entregas">Entregas usadas (simulación)</label>
+            <select id="lead_entregas" data-campo="entregas" class="field__select">
+              <?php for ($i = 0; $i <= 5; $i++): ?>
+              <option value="<?= $i ?>"><?= $i ?> de 5<?= $i === 5 ? ' — agotado' : '' ?></option>
+              <?php endfor; ?>
+            </select>
+            <span class="field__hint">Solo afecta a planes con cupo (Gratis). No consume cupo real.</span>
           </div>
           <?php filaNegocio('lead_neg'); ?>
         </div>
@@ -358,11 +367,11 @@ include 'header.php';
   }
 
   function estado(bloque) {
-    var e = { tipo: bloque.getAttribute('data-tipo'), plan: '', crem_id: 0, formato: formato,
+    var e = { tipo: bloque.getAttribute('data-tipo'), plan: '', crem_id: 0, entregas: 0, formato: formato,
               email: (bloque.querySelector('[data-campo="email"]') || {}).value || '' };
     bloque.querySelectorAll('[data-campo]').forEach(function (c) {
       var k = c.getAttribute('data-campo');
-      if (k === 'tipo') e.tipo = c.value; else if (k === 'crem_id') e.crem_id = parseInt(c.value || '0', 10); else if (k === 'plan') e.plan = c.value;
+      if (k === 'tipo') e.tipo = c.value; else if (k === 'crem_id') e.crem_id = parseInt(c.value || '0', 10); else if (k === 'plan') e.plan = c.value; else if (k === 'entregas') e.entregas = parseInt(c.value || '0', 10);
     });
     return e;
   }

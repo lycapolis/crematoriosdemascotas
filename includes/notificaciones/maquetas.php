@@ -229,6 +229,19 @@ if (!function_exists('notifMaqueta')) {
                 $completos = json_decode(defined('TIERS_LEAD_COMPLETO') ? TIERS_LEAD_COMPLETO : '[]', true) ?: [];
                 $datosCompletos = in_array($plan, $completos, true);
 
+                // Cupo del plan (tiers.cupo_leads) con las entregas SIMULADAS que se eligen en el selector (no toca la BD)
+                $cupoMaqueta = null;
+                if (!$datosCompletos) {
+                    try {
+                        $q = $pdo->prepare("SELECT cupo_leads FROM tiers WHERE id = ?");
+                        $q->execute([$plan]);
+                        $lim = $q->fetchColumn();
+                        if ($lim !== false && $lim !== null) {
+                            $cupoMaqueta = notifCupoDesdeCifras((int)$lim, (int)($p['entregas'] ?? 0));
+                        }
+                    } catch (\Throwable $e) {}
+                }
+
                 // Id de un lead real (el de esta ficha o, si no hay, el último) para que el botón
                 // «Quiero recibir sus datos» lleve un enlace firmado que de verdad abre la página.
                 $leadMaqueta = 0;
@@ -248,14 +261,16 @@ if (!function_exists('notifMaqueta')) {
                         'channel_type' => 'wa', 'created_at' => date('Y-m-d H:i:s'),
                     ],
                     ['id' => $neg['id'], 'nombre' => $neg['nombre'], 'slug' => $neg['slug'], 'tier' => $plan],
-                    $datosCompletos
+                    $datosCompletos,
+                    $cupoMaqueta
                 );
-                if (in_array($plan, ['00', '01'], true)) {
-                    $avisos[] = 'Variante «portal» (planes Gratis/Básico): el negocio ve el contacto ofuscado y, con el botón, abre una página firmada con los datos completos (el enlace apunta a un lead real; abrirlo registra la entrega).';
-                } elseif ($datosCompletos) {
-                    $avisos[] = 'Variante «completa» (plan Premium): email y teléfono visibles, botones de respuesta directa.';
+                if ($datosCompletos) {
+                    $avisos[] = 'Variante «completa» (planes de pago): email y teléfono visibles en el email, botones de respuesta directa.';
                 } else {
-                    $avisos[] = 'Variante «ofuscada con invitación a mejorar» (plan Estándar).';
+                    $avisos[] = 'Variante «portal» (plan sin datos completos): el negocio ve el contacto ofuscado y, con el botón, abre una página firmada con los datos completos (el enlace apunta a un lead real; abrirlo registra la entrega).';
+                    $avisos[] = $cupoMaqueta
+                        ? 'Cupo del plan: ' . $cupoMaqueta['limite'] . ' entregas. Estás viendo ' . $cupoMaqueta['usadas'] . ' entregas SIMULADAS (selector «Entregas usadas»; no se toca la base de datos).'
+                        : 'Este plan no tiene cupo definido (ilimitado): sin contador.';
                 }
                 if (!in_array($plan, $recibe, true)) {
                     $avisos[] = 'Ojo: este plan NO está en TIERS_RECIBEN_LEAD, no recibiría este email.';

@@ -118,6 +118,11 @@ include 'header.php';
                     </div>
                     <div style="font-size: 0.75rem; color: var(--admin-tinta-suave); margin-top: 0.25rem;">/ mes</div>
                 </div>
+                <!-- Cupo de leads -->
+                <div style="text-align: center;">
+                    <div style="font-size: 1.4rem; font-weight: 700; color: var(--admin-tinta-fuerte); font-variant-numeric: tabular-nums; line-height: 1;"><?php echo isset($tier['cupo_leads']) && $tier['cupo_leads'] !== null ? (int)$tier['cupo_leads'] : '∞'; ?></div>
+                    <div style="font-size: 0.75rem; color: var(--admin-tinta-suave); margin-top: 0.25rem;">leads de cupo</div>
+                </div>
                 <!-- Negocios -->
                 <div style="text-align: center;">
                     <div style="font-size: 1.4rem; font-weight: 700; color: var(--admin-tinta-fuerte); font-variant-numeric: tabular-nums; line-height: 1;"><?php echo $cremCount; ?></div>
