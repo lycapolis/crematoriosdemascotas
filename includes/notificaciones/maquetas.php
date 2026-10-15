@@ -262,8 +262,10 @@ if (!function_exists('notifMaqueta')) {
                     ],
                     ['id' => $neg['id'], 'nombre' => $neg['nombre'], 'slug' => $neg['slug'], 'tier' => $plan],
                     $datosCompletos,
-                    $cupoMaqueta
+                    $cupoMaqueta,
+                    filter_var($emailDestino, FILTER_VALIDATE_EMAIL) ? $emailDestino : 'negocio@example.com'
                 );
+                $avisos[] = 'El pie lleva «Gestionar mis avisos»: enlace firmado a la página de preferencias del email destino (abrirlo no cambia nada hasta que se toca un interruptor).';
                 if ($datosCompletos) {
                     $avisos[] = 'Variante «completa» (planes de pago): email y teléfono visibles en el email, botones de respuesta directa.';
                 } else {
@@ -297,7 +299,8 @@ if (!function_exists('notifMaqueta')) {
                             ['ciudad' => 'Madrid',            'servicio' => 'Gato',  'tamano' => '2 - 5 kg'],
                             ['ciudad' => 'Alcalá de Henares', 'servicio' => 'Perro', 'tamano' => '5 - 15 kg'],
                         ],
-                    ]
+                    ],
+                    filter_var($emailDestino, FILTER_VALIDATE_EMAIL) ? $emailDestino : 'negocio@example.com'
                 );
                 return ['ok' => true, 'tpl' => $tpl, 'avisos' => $avisos];
 

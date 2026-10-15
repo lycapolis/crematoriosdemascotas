@@ -59,7 +59,7 @@ if (!function_exists('notifCanal_email_solicitante')) {
             'email_baja'   => $email,
             'enviar'       => fn() => enviarMailHtml(
                 $email, $tpl['asunto'], $tpl['html'], $tpl['texto'],
-                'info@crematoriosdemascotas.com', $s['contacto_nombre']
+                'info@crematoriosdemascotas.com', $s['contacto_nombre'], 'html', notifUrlBaja($email)
             ),
         ];
     }

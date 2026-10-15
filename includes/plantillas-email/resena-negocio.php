@@ -53,7 +53,8 @@ if (!function_exists('renderEmailResenaNegocio')) {
             ],
             'cta2'       => ['texto' => 'Quiero responder a la reseña', 'url' => $urlResponder],
             'pie_motivo' => "Has recibido este mensaje porque {$nNeg} figura en {$sitio} y ha recibido una nueva reseña.",
-            'url_baja'   => notifUrlBaja($emailNegocio),
+            'url_baja'   => notifUrlPreferencias($emailNegocio),
+            'texto_baja' => 'Gestionar mis avisos',
         ]);
 
         return ['asunto' => $asunto, 'html' => $capa['html'], 'texto' => $capa['texto']];

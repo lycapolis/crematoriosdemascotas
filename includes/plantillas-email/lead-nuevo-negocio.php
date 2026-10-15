@@ -37,9 +37,11 @@ require_once __DIR__ . '/_cabecera.php';
 
 if (!function_exists('renderEmailLeadNuevo')) {
 
-    function renderEmailLeadNuevo(array $lead, array $negocio, bool $datosCompletos = true, ?array $cupo = null): array
+    function renderEmailLeadNuevo(array $lead, array $negocio, bool $datosCompletos = true, ?array $cupo = null, string $emailDestino = ''): array
     {
+        require_once __DIR__ . '/../notificaciones/despachador.php';
         $sitio   = defined('SITIO_NOMBRE') ? SITIO_NOMBRE : 'Crematorios de Mascotas';
+        $urlAvisos = $emailDestino !== '' ? notifUrlPreferencias($emailDestino) : '';
         $baseUrl = defined('BASE_URL') ? BASE_URL : '';
 
         // ─── Datos del lead ──────────────────────────────────────
@@ -194,7 +196,7 @@ if (!function_exists('renderEmailLeadNuevo')) {
       <tr><td style="background:#F5EDE5;padding:18px 28px;border-top:1px solid rgba(184,112,79,.15);">
         <p style="margin:0;font-size:12px;color:#5A3E2F;opacity:.7;line-height:1.5;">
           Recibes este email porque tu negocio está activo en <?= htmlspecialchars($sitio) ?>.<br>
-          Si no quieres recibir más notificaciones de leads, contesta a este mensaje con la palabra <strong>BAJA</strong> o desactívalo en tu panel de negocio.
+          <?php if ($urlAvisos): ?><a href="<?= htmlspecialchars($urlAvisos) ?>" style="color:#5A3E2F;">Gestionar mis avisos</a> (leads, reseñas e informes) o dejar de recibirlos todos.<?php else: ?>Si no quieres recibir más avisos, escríbenos a <?= htmlspecialchars(defined('EMAIL_CONTACTO') ? EMAIL_CONTACTO : 'info@crematoriosdemascotas.com') ?>.<?php endif; ?>
         </p>
       </td></tr>
     </table>
@@ -237,7 +239,9 @@ if (!function_exists('renderEmailLeadNuevo')) {
         }
         $texto .= "\n─────────────────────────────────────\n";
         $texto .= "Recibes este email porque tu negocio está activo en {$sitio}.\n";
-        $texto .= "Para darte de baja, responde con la palabra BAJA.\n";
+        $texto .= $urlAvisos !== ''
+            ? "Gestionar mis avisos o dejar de recibirlos: {$urlAvisos}\n"
+            : "Si no quieres recibir más avisos, escríbenos a " . (defined('EMAIL_CONTACTO') ? EMAIL_CONTACTO : 'info@crematoriosdemascotas.com') . ".\n";
 
         return [
             'asunto' => $asunto,

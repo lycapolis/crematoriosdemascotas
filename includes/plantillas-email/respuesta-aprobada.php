@@ -44,7 +44,8 @@ if (!function_exists('renderEmailRespuestaAprobada')) {
                 'No tienes que hacer nada más. Gracias por responder a tus clientes.',
             ],
             'pie_motivo' => "Has recibido este mensaje porque {$nNeg} figura en {$sitio} y has respondido a una reseña.",
-            'url_baja'   => notifUrlBaja($emailNegocio),
+            'url_baja'   => notifUrlPreferencias($emailNegocio),
+            'texto_baja' => 'Gestionar mis avisos',
         ]);
 
         return ['asunto' => $asunto, 'html' => $capa['html'], 'texto' => $capa['texto']];

@@ -61,13 +61,16 @@ if (!function_exists('notifCanal_email_negocio')) {
         return [
             'destinatario' => $email,
             'email_baja'   => $email,
+            'categoria_baja' => 'resenas',
             'enviar'       => fn() => enviarMailHtml(
                 $email,
                 $tpl['asunto'],
                 $tpl['html'],
                 $tpl['texto'],
                 'info@crematoriosdemascotas.com',
-                $r['negocio_nombre']
+                $r['negocio_nombre'],
+                'html',
+                notifUrlPreferencias($email)
             ),
         ];
     }
@@ -111,7 +114,8 @@ if (!function_exists('notifCanal_email_negocio')) {
         return [
             'destinatario' => $email,
             'email_baja'   => $email,
-            'enviar'       => fn() => enviarMailHtml($email, $tpl['asunto'], $tpl['html'], $tpl['texto'], 'info@crematoriosdemascotas.com', $r['negocio_nombre']),
+            'categoria_baja' => 'resenas',
+            'enviar'       => fn() => enviarMailHtml($email, $tpl['asunto'], $tpl['html'], $tpl['texto'], 'info@crematoriosdemascotas.com', $r['negocio_nombre'], 'html', notifUrlPreferencias($email)),
         ];
     }
 }

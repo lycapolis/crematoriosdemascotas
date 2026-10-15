@@ -57,7 +57,9 @@ if (!function_exists('notifCanal_email_usuario')) {
                 $tpl['html'],
                 $tpl['texto'],
                 'info@crematoriosdemascotas.com',   // Reply-To: una persona real responde
-                $r['nombre']
+                $r['nombre'],
+                'html',
+                notifUrlBaja($email)
             ),
         ];
     }

@@ -27,8 +27,10 @@ require_once __DIR__ . '/_cabecera.php';
 
 if (!function_exists('renderEmailTeaserLeadsArea')) {
 
-    function renderEmailTeaserLeadsArea(array $negocio, array $stats): array
+    function renderEmailTeaserLeadsArea(array $negocio, array $stats, string $emailDestino = ''): array
     {
+        require_once __DIR__ . '/../notificaciones/despachador.php';
+        $urlAvisos = $emailDestino !== '' ? notifUrlPreferencias($emailDestino) : '';
         $sitio  = defined('SITIO_NOMBRE') ? SITIO_NOMBRE : 'Crematorios de Mascotas';
 
         $negNombre   = (string)($negocio['nombre'] ?? 'tu negocio');
@@ -149,7 +151,7 @@ if (!function_exists('renderEmailTeaserLeadsArea')) {
       <tr><td style="background:#F5EDE5;padding:18px 28px;border-top:1px solid rgba(184,112,79,.15);">
         <p style="margin:0;font-size:12px;color:#5A3E2F;opacity:.7;line-height:1.5;">
           Recibes este reporte porque tu negocio aparece en <?= htmlspecialchars($sitio) ?>.<br>
-          Si no quieres recibir más reportes de actividad, contesta a este mensaje con la palabra <strong>BAJA</strong>.
+          <?php if ($urlAvisos): ?><a href="<?= htmlspecialchars($urlAvisos) ?>" style="color:#5A3E2F;">Gestionar mis avisos</a> (informes, leads y reseñas) o dejar de recibirlos todos.<?php else: ?>Si no quieres recibir más informes, escríbenos a <?= htmlspecialchars(defined('EMAIL_CONTACTO') ? EMAIL_CONTACTO : 'info@crematoriosdemascotas.com') ?>.<?php endif; ?>
         </p>
       </td></tr>
     </table>
@@ -191,7 +193,9 @@ if (!function_exists('renderEmailTeaserLeadsArea')) {
         $texto .= "─────────────────────────────────────\n";
         $texto .= "Mejora a Verificado y recibe los datos completos.\n";
         $texto .= "Responde a este email con \"PLAN\" o llama al equipo.\n\n";
-        $texto .= "Para darte de baja, responde con BAJA.\n";
+        $texto .= $urlAvisos !== ''
+            ? "Gestionar mis avisos o dejar de recibirlos: {$urlAvisos}\n"
+            : "Si no quieres recibir más informes, escríbenos a " . (defined('EMAIL_CONTACTO') ? EMAIL_CONTACTO : 'info@crematoriosdemascotas.com') . ".\n";
 
         return [
             'asunto' => $asunto,

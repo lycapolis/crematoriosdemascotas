@@ -20,6 +20,7 @@
  *     'cta2'       => ['texto'=>..., 'url'=>...] | null,   // botón secundario (opcional)
  *     'pie_motivo' => string,          // por qué recibe el email
  *     'url_baja'   => string,
+ *     'texto_baja' => string,          // opcional; por defecto «Dejar de recibir estas notificaciones»
  *   ]
  * ═══════════════════════════════════════════════════════════
  */
@@ -38,6 +39,7 @@ if (!function_exists('renderEmailLayoutUsuario')) {
         $cita       = $p['cita'] ?? null;
         $despues    = $p['parrafos_despues'] ?? [];
         $cta2       = $p['cta2'] ?? null;
+        $textoBaja  = (string)($p['texto_baja'] ?? 'Dejar de recibir estas notificaciones');
 
         ob_start(); ?><!doctype html>
 <html lang="es">
@@ -97,7 +99,7 @@ if (!function_exists('renderEmailLayoutUsuario')) {
       <tr><td style="background:#F5EDE5;padding:18px 28px;border-top:1px solid rgba(184,112,79,.15);">
         <p style="margin:0;font-size:12px;color:#5A3E2F;opacity:.8;line-height:1.6;">
           <?= $e($p['pie_motivo']) ?><br>
-          <a href="<?= $e($p['url_baja']) ?>" style="color:#5A3E2F;">Dejar de recibir estas notificaciones</a>
+          <a href="<?= $e($p['url_baja']) ?>" style="color:#5A3E2F;"><?= $e($textoBaja) ?></a>
           <?php if ($urlPriv): ?> · <a href="<?= $e($urlPriv) ?>" style="color:#5A3E2F;">Política de privacidad</a><?php endif; ?>
         </p>
       </td></tr>
@@ -129,7 +131,7 @@ if (!function_exists('renderEmailLayoutUsuario')) {
         $texto .= "Gracias,\nEl equipo de {$sitio}\n\n";
         $texto .= "────────────────────────────\n";
         $texto .= $p['pie_motivo'] . "\n";
-        $texto .= 'Dejar de recibir estas notificaciones: ' . $p['url_baja'] . "\n";
+        $texto .= $textoBaja . ': ' . $p['url_baja'] . "\n";
         if ($urlPriv) $texto .= 'Política de privacidad: ' . $urlPriv . "\n";
 
         return ['html' => $html, 'texto' => $texto];

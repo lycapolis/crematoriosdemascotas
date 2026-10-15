@@ -32,6 +32,8 @@ if (!function_exists('enviarMailHtml')) {
      * @param string|null $replyTo   Reply-To opcional (ej: email del lead para que el negocio pueda responder directo)
      * @param string|null $destinoNombre Nombre del destinatario (mejora deliverabilidad)
      * @param string      $formato   'html' (diseñado + texto alternativo) o 'texto' (solo texto plano, sin HTML)
+     * @param string|null $urlBaja   Enlace de baja: añade List-Unsubscribe (+ List-Unsubscribe-Post, baja de un clic) y
+     *                               hace que Gmail muestre su botón «Cancelar suscripción»
      * @return array{ok:bool, error?:string, transporte:string}
      */
     function enviarMailHtml(
@@ -41,7 +43,8 @@ if (!function_exists('enviarMailHtml')) {
         string $bodyText,
         ?string $replyTo = null,
         ?string $destinoNombre = null,
-        string $formato = 'html'
+        string $formato = 'html',
+        ?string $urlBaja = null
     ): array {
         $destino = trim($destino);
         if ($destino === '' || !filter_var($destino, FILTER_VALIDATE_EMAIL)) {
@@ -53,11 +56,22 @@ if (!function_exists('enviarMailHtml')) {
                        && defined('SMTP_PASS') && SMTP_PASS !== '';
 
         if ($smtpDisponible && file_exists(__DIR__ . '/../assets/librerias/phpmailer/PHPMailer.php')) {
-            return enviarMailHtmlSmtp($destino, $asunto, $bodyHtml, $bodyText, $replyTo, $destinoNombre, $formato);
+            return enviarMailHtmlSmtp($destino, $asunto, $bodyHtml, $bodyText, $replyTo, $destinoNombre, $formato, $urlBaja);
         }
 
         // Fallback: mail() nativo
-        return enviarMailHtmlNativo($destino, $asunto, $bodyHtml, $bodyText, $replyTo, $formato);
+        return enviarMailHtmlNativo($destino, $asunto, $bodyHtml, $bodyText, $replyTo, $formato, $urlBaja);
+    }
+
+    /**
+     * Valor de List-Unsubscribe: enlace https de baja y, además, mailto a info@.
+     * Devuelve null si la URL no es http(s) (no se emite la cabecera).
+     */
+    function cabeceraListUnsubscribe(?string $urlBaja): ?string
+    {
+        if (!$urlBaja || !preg_match('#^https?://#i', $urlBaja)) return null;
+        $para = defined('EMAIL_CONTACTO') ? EMAIL_CONTACTO : 'info@crematoriosdemascotas.com';
+        return '<' . $urlBaja . '>, <mailto:' . $para . '?subject=BAJA>';
     }
 
     /**
@@ -70,7 +84,8 @@ if (!function_exists('enviarMailHtml')) {
         string $bodyText,
         ?string $replyTo,
         ?string $destinoNombre,
-        string $formato = 'html'
+        string $formato = 'html',
+        ?string $urlBaja = null
     ): array {
         $libDir = __DIR__ . '/../assets/librerias/phpmailer';
         require_once $libDir . '/Exception.php';
@@ -101,6 +116,11 @@ if (!function_exists('enviarMailHtml')) {
 
             if ($replyTo && filter_var($replyTo, FILTER_VALIDATE_EMAIL)) {
                 $mail->addReplyTo($replyTo);
+            }
+
+            if ($lu = cabeceraListUnsubscribe($urlBaja)) {
+                $mail->addCustomHeader('List-Unsubscribe', $lu);
+                $mail->addCustomHeader('List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
             }
 
             $mail->Subject = $asunto;
@@ -134,18 +154,22 @@ if (!function_exists('enviarMailHtml')) {
         string $bodyHtml,
         string $bodyText,
         ?string $replyTo,
-        string $formato = 'html'
+        string $formato = 'html',
+        ?string $urlBaja = null
     ): array {
+        $lu = cabeceraListUnsubscribe($urlBaja);
+        $cabBaja = $lu ? "List-Unsubscribe: {$lu}\r\nList-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n" : '';
         if ($formato === 'texto') {
             $fromE = defined('SMTP_FROM_EMAIL') ? SMTP_FROM_EMAIL : ('noreply@' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
             $fromN = defined('SMTP_FROM_NAME')  ? SMTP_FROM_NAME  : (defined('SITIO_NOMBRE') ? SITIO_NOMBRE : 'Sitio');
-            $h  = "From: " . encodeHeaderUtf8($fromN) . " <{$fromE}>
+            $h  = "From: " . encodeHeaderUtf8($fromN) . " <{$fromE}>
 ";
-            if ($replyTo && filter_var($replyTo, FILTER_VALIDATE_EMAIL)) $h .= "Reply-To: {$replyTo}
+            if ($replyTo && filter_var($replyTo, FILTER_VALIDATE_EMAIL)) $h .= "Reply-To: {$replyTo}
 ";
-            $h .= "MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: base64
+            $h .= $cabBaja;
+            $h .= "MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: base64
 ";
             $ok = @mail($destino, encodeHeaderUtf8($asunto), chunk_split(base64_encode($bodyText)), $h);
             return $ok ? ['ok' => true, 'transporte' => 'mail()'] : ['ok' => false, 'error' => 'mail() returned false', 'transporte' => 'mail()'];
@@ -158,6 +182,7 @@ Content-Transfer-Encoding: base64
         if ($replyTo && filter_var($replyTo, FILTER_VALIDATE_EMAIL)) {
             $headers .= "Reply-To: {$replyTo}\r\n";
         }
+        $headers .= $cabBaja;
         $headers .= "MIME-Version: 1.0\r\n";
         $headers .= "Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n";
 

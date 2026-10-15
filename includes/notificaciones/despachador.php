@@ -16,7 +16,8 @@
  * Utilidades públicas:
  *   notifCerrarRespuesta()            → cierra la respuesta HTTP al navegador antes de enviar
  *   notifUrlPublica(string $path)     → URL absoluta del sitio (también desde cron)
- *   notifUrlBaja(string $email)       → enlace firmado para dejar de recibir avisos
+ *   notifUrlBaja(string $email)       → enlace firmado para dejar de recibir avisos (baja total, un clic)
+ *   notifUrlPreferencias($email)      → enlace firmado a la página de interruptores por categoría (negocios)
  *   notifTokenBaja(string $email)     → firma HMAC del email
  *   notifUrlRespuesta(int $resenaId)  → enlace firmado para que el negocio responda a una reseña
  *   notifEstaSuprimido / notifSuprimir / notifReactivar
@@ -72,7 +73,7 @@ if (!function_exists('notificarEvento')) {
 
     /**
      * Cada canal expone notifCanal_<nombre>($pdo, $evento, $datos) que devuelve:
-     *   ['destinatario'=>string, 'email_baja'=>?string, 'omitir'=>?string,
+     *   ['destinatario'=>string, 'email_baja'=>?string, 'categoria_baja'=>?string ('resenas'|'leads'|'informes'), 'omitir'=>?string,
      *    'enviar'=>callable():array{ok:bool,error?:string}]
      * (preparar → el despachador decide → enviar)
      */
@@ -159,7 +160,7 @@ if (!function_exists('notificarEvento')) {
         }
 
         // 3. Baja
-        if (!empty($prep['email_baja']) && notifEstaSuprimido($pdo, $prep['email_baja'])) {
+        if (!empty($prep['email_baja']) && notifEstaSuprimido($pdo, $prep['email_baja'], $prep['categoria_baja'] ?? null)) {
             return $cerrar('omitida', 'baja');
         }
 
@@ -215,8 +216,30 @@ if (!function_exists('notificarEvento')) {
         return hash('sha256', mb_strtolower(trim($email)));
     }
 
-    function notifEstaSuprimido(\PDO $pdo, string $email): bool
+    /** Categorías de aviso que un negocio puede apagar por separado (clave → columna de notificaciones_supresiones). */
+    function notifCategoriasBaja(): array
     {
+        return ['resenas' => 'baja_resenas', 'leads' => 'baja_leads', 'informes' => 'baja_informes'];
+    }
+
+    /**
+     * ¿Está dado de baja este email? Con $categoria, también cuenta si esa categoría está apagada.
+     * Sin $categoria, solo la baja total.
+     */
+    function notifEstaSuprimido(\PDO $pdo, string $email, ?string $categoria = null): bool
+    {
+        $cats = notifCategoriasBaja();
+        if ($categoria !== null && isset($cats[$categoria])) {
+            try {
+                $st = $pdo->prepare("SELECT suprimido, {$cats[$categoria]} FROM notificaciones_supresiones WHERE email_hash = ? LIMIT 1");
+                $st->execute([notifHashEmail($email)]);
+                $f = $st->fetch(\PDO::FETCH_NUM);
+                return $f && ((int)$f[0] === 1 || (int)$f[1] === 1);
+            } catch (\Throwable $e) {
+                // Migración de categorías sin aplicar: se cae a la baja total
+                error_log('[notif] categorías de baja no disponibles: ' . $e->getMessage());
+            }
+        }
         $st = $pdo->prepare("SELECT suprimido FROM notificaciones_supresiones WHERE email_hash = ? LIMIT 1");
         $st->execute([notifHashEmail($email)]);
         return (int)$st->fetchColumn() === 1;
@@ -237,6 +260,63 @@ if (!function_exists('notificarEvento')) {
                        SET suprimido = 0, reactivado_en = NOW()
                        WHERE email_hash = ? AND suprimido = 1")
             ->execute([notifHashEmail($email)]);
+    }
+
+    /**
+     * Estado de las preferencias de un email: la baja total y cada categoría (true = recibe).
+     * @return array{todo_apagado:bool, resenas:bool, leads:bool, informes:bool}
+     */
+    function notifPreferencias(\PDO $pdo, string $email): array
+    {
+        $cols = implode(', ', notifCategoriasBaja());
+        $st = $pdo->prepare("SELECT suprimido, {$cols} FROM notificaciones_supresiones WHERE email_hash = ? LIMIT 1");
+        $st->execute([notifHashEmail($email)]);
+        $f = $st->fetch(\PDO::FETCH_ASSOC) ?: [];
+        $todo = (int)($f['suprimido'] ?? 0) === 1;
+        $out = ['todo_apagado' => $todo];
+        foreach (notifCategoriasBaja() as $clave => $col) {
+            $out[$clave] = !$todo && (int)($f[$col] ?? 0) === 0;
+        }
+        return $out;
+    }
+
+    /**
+     * Enciende o apaga UNA categoría. Encender una categoría quita también la baja total
+     * (el negocio ha elegido recibir algo), dejando las demás categorías como estaban.
+     */
+    function notifGuardarCategoria(\PDO $pdo, string $email, string $categoria, bool $recibir): void
+    {
+        $cats = notifCategoriasBaja();
+        if (!isset($cats[$categoria])) return;
+        $col  = $cats[$categoria];
+        $hash = notifHashEmail($email);
+        if ($recibir) {
+            // Si había baja total, las otras categorías pasan a «apagadas» para no reactivarlas sin querer
+            $otras = array_diff(array_values($cats), [$col]);
+            $set   = [];
+            foreach ($otras as $o) $set[] = "{$o} = IF(suprimido = 1, 1, {$o})";
+            $pdo->prepare("UPDATE notificaciones_supresiones
+                           SET " . implode(', ', $set) . ", {$col} = 0, suprimido = 0, reactivado_en = NOW()
+                           WHERE email_hash = ?")
+                ->execute([$hash]);
+        } else {
+            $pdo->prepare("INSERT INTO notificaciones_supresiones (email_hash, suprimido, {$col}, baja_en)
+                           VALUES (?, 0, 1, NOW())
+                           ON DUPLICATE KEY UPDATE {$col} = 1, baja_en = NOW()")
+                ->execute([$hash]);
+        }
+    }
+
+    /** Vuelve a un estado guardado antes (para «Deshacer»). */
+    function notifRestaurarPreferencias(\PDO $pdo, string $email, bool $todoApagado, array $categorias): void
+    {
+        $sets = ['suprimido = ' . ($todoApagado ? 1 : 0)];
+        foreach (notifCategoriasBaja() as $clave => $col) {
+            $sets[] = "{$col} = " . (empty($categorias[$clave]) ? 1 : 0);
+        }
+        $hash = notifHashEmail($email);
+        $pdo->prepare("INSERT IGNORE INTO notificaciones_supresiones (email_hash, suprimido, baja_en) VALUES (?, 0, NOW())")->execute([$hash]);
+        $pdo->prepare("UPDATE notificaciones_supresiones SET " . implode(', ', $sets) . " WHERE email_hash = ?")->execute([$hash]);
     }
 
     // ─── Enlaces ─────────────────────────────────────────────
@@ -266,6 +346,24 @@ if (!function_exists('notificarEvento')) {
         return notifUrlPublica('desuscribir-notificaciones.php')
             . '?e=' . notifB64UrlEncode(mb_strtolower(trim($email)))
             . '&t=' . notifTokenBaja($email);
+    }
+
+    /** Firma HMAC de la página de preferencias del negocio (prefijo propio: un enlace de baja simple no sirve aquí). */
+    function notifTokenPreferencias(string $email): string
+    {
+        return substr(hash_hmac('sha256', 'preferencias|' . mb_strtolower(trim($email)), notifSecreto()), 0, 32);
+    }
+
+    function notifTokenPreferenciasValido(string $email, string $token): bool
+    {
+        return $token !== '' && hash_equals(notifTokenPreferencias($email), $token);
+    }
+
+    function notifUrlPreferencias(string $email): string
+    {
+        return notifUrlPublica('preferencias-notificaciones.php')
+            . '?e=' . notifB64UrlEncode(mb_strtolower(trim($email)))
+            . '&t=' . notifTokenPreferencias($email);
     }
 
     /** Firma HMAC del enlace «Responder a la reseña» (identifica la reseña; el negocio no tiene cuenta). */

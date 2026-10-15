@@ -87,7 +87,10 @@ if ($accion === 'enviar') {
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         respuestaMaqueta(['ok' => false, 'error' => 'Escribe un email válido para recibir la maqueta.']);
     }
-    $envio = enviarMailHtml($email, '[MAQUETA] ' . $m['tpl']['asunto'], $m['tpl']['html'], $m['tpl']['texto'], 'info@crematoriosdemascotas.com', null, $formato);
+    // Cabecera List-Unsubscribe como en el envío real (para comprobar el botón de baja de Gmail)
+    $tiposNegocio = ['lead_negocio', 'teaser', 'resena_negocio', 'respuesta_aprobada'];
+    $urlBajaCab   = in_array($tipo, $tiposNegocio, true) ? notifUrlPreferencias($email) : notifUrlBaja($email);
+    $envio = enviarMailHtml($email, '[MAQUETA] ' . $m['tpl']['asunto'], $m['tpl']['html'], $m['tpl']['texto'], 'info@crematoriosdemascotas.com', null, $formato, $urlBajaCab);
     respuestaMaqueta($envio['ok']
         ? ['ok' => true, 'mensaje' => 'Enviada a ' . $email . ' en ' . ($formato === 'texto' ? 'texto plano' : 'formato diseñado') . ' (transporte: ' . ($envio['transporte'] ?? '?') . ').']
         : ['ok' => false, 'error' => 'No se pudo enviar (' . ($envio['transporte'] ?? '?') . '): ' . ($envio['error'] ?? 'error desconocido')]);

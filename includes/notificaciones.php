@@ -85,6 +85,11 @@ if (!function_exists('notificarNegocioLead')) {
             return ['ok' => false, 'motivo' => 'sin_email'];
         }
 
+        // 4b. Baja del email (total o de la categoría «leads»)
+        if (notifEstaSuprimido($pdo, $emailDestino, 'leads')) {
+            return ['ok' => false, 'motivo' => 'baja'];
+        }
+
         // 5. Throttle anti-flood (consultar última notif al mismo negocio)
         $throttleSeg = defined('LEAD_NOTIF_THROTTLE_SEG') ? (int)LEAD_NOTIF_THROTTLE_SEG : 60;
         if ($throttleSeg > 0) {
@@ -130,7 +135,8 @@ if (!function_exists('notificarNegocioLead')) {
                 'tier'   => $tier,
             ],
             $datosCompletos,
-            $cupo
+            $cupo,
+            $emailDestino
         );
 
         // 8. Reply-To: al email del lead si el negocio ve los datos completos; si no, a info@ (los datos los guarda el portal)
@@ -143,7 +149,9 @@ if (!function_exists('notificarNegocioLead')) {
             $tpl['html'],
             $tpl['texto'],
             $replyTo,
-            $row['crem_nombre']
+            $row['crem_nombre'],
+            'html',
+            notifUrlPreferencias($emailDestino)
         );
 
         if (!$envio['ok']) {
@@ -259,6 +267,11 @@ if (!function_exists('notificarNegocioLead')) {
         ]);
         if (!$emailDestino) return ['ok' => false, 'motivo' => 'sin_email'];
 
+        // 5b. Baja del email (total o de la categoría «informes»)
+        if (notifEstaSuprimido($pdo, $emailDestino, 'informes')) {
+            return ['ok' => false, 'motivo' => 'baja'];
+        }
+
         // 6. Stats de leads en el área (ventana últimos N días)
         $stats = calcularStatsLeadsArea($pdo, $crem);
 
@@ -275,7 +288,8 @@ if (!function_exists('notificarNegocioLead')) {
                 'ciudad'           => $crem['ciudad'],
                 'provincia_nombre' => $crem['provincia_nombre'],
             ],
-            $stats
+            $stats,
+            (string)$emailDestino
         );
 
         if ($dryRun) {
@@ -283,7 +297,7 @@ if (!function_exists('notificarNegocioLead')) {
         }
 
         // 8. Envío
-        $envio = enviarMailHtml($emailDestino, $tpl['asunto'], $tpl['html'], $tpl['texto'], null, $crem['nombre']);
+        $envio = enviarMailHtml($emailDestino, $tpl['asunto'], $tpl['html'], $tpl['texto'], null, $crem['nombre'], 'html', notifUrlPreferencias($emailDestino));
         if (!$envio['ok']) {
             error_log("[teaser crem {$crematorioId}] envío fallido: " . ($envio['error'] ?? '?'));
             return ['ok' => false, 'motivo' => 'envio_fallido', 'transporte' => $envio['transporte'] ?? '?'];
@@ -391,7 +405,8 @@ if (!function_exists('notificarNegocioLead')) {
             SELECT l.id, l.crematorio_id, l.channel_type, l.servicio, l.mascota_tamano,
                    l.nombre, l.email, l.phone_code, l.whatsapp_number, l.ciudad_lead AS ciudad,
                    l.mensaje, l.created_at,
-                   c.nombre AS crem_nombre, c.slug AS crem_slug, c.tier AS crem_tier
+                   c.nombre AS crem_nombre, c.slug AS crem_slug, c.tier AS crem_tier,
+                   c.email AS crem_email_publico, c.email_notif_leads AS crem_email_notif, c.emails_json AS crem_emails_json
             FROM leads_b2c l
             LEFT JOIN crematorios c ON c.id = l.crematorio_id
             WHERE l.id = ? LIMIT 1
@@ -423,7 +438,8 @@ if (!function_exists('notificarNegocioLead')) {
             ],
             ['id' => $row['crematorio_id'], 'nombre' => $row['crem_nombre'], 'slug' => $row['crem_slug'], 'tier' => $tier],
             $datosCompletos,
-            $cupo
+            $cupo,
+            (string)(resolverEmailDestinoNegocio($row) ?: '')
         );
         if ($row['crematorio_id']) {
             $avisos[] = $datosCompletos
@@ -460,11 +476,12 @@ if (!function_exists('notificarNegocioLead')) {
         if ((int)($crem['recibe_notif_leads'] ?? 1) !== 1) {
             $avisos[] = 'Este negocio pidió no recibir notificaciones: no se enviaría.';
         }
-        if (!resolverEmailDestinoNegocio([
+        $emailPreview = resolverEmailDestinoNegocio([
             'crem_email_notif' => $crem['email_notif_leads'],
             'crem_emails_json' => $crem['emails_json'],
             'crem_email_publico' => $crem['email'],
-        ])) {
+        ]);
+        if (!$emailPreview) {
             $avisos[] = 'El negocio no tiene ningún email válido: no se enviaría.';
         }
 
@@ -488,7 +505,8 @@ if (!function_exists('notificarNegocioLead')) {
 
         $tpl = renderEmailTeaserLeadsArea(
             ['id' => $crem['id'], 'nombre' => $crem['nombre'], 'ciudad' => $crem['ciudad'], 'provincia_nombre' => $crem['provincia_nombre']],
-            $stats
+            $stats,
+            (string)($emailPreview ?: '')
         );
         return ['ok' => true, 'tpl' => $tpl, 'avisos' => $avisos];
     }
