@@ -248,6 +248,24 @@ include 'header.php';
         <div class="notif-bloque__envio"><?php filaEnvio($admin['email'] ?? ''); ?></div>
       <?php cerrarBloque(); ?>
 
+      <?php abrirBloque('lead_confirmacion', 'lead_confirmacion_ficha', 'Confirmación al visitante que deja sus datos', '2 variantes'); ?>
+        <p class="notif-card__nota">
+          Se envía al visitante al completar el formulario de lead, como máximo un email por ficha y día para la misma dirección.
+          Sin botones ni teléfono: el portal es intermediario.
+        </p>
+        <div class="notif-bloque__fila">
+          <div class="field">
+            <label class="field__label" for="leadconf_tipo">Email</label>
+            <select id="leadconf_tipo" data-campo="tipo" class="field__select">
+              <option value="lead_confirmacion_ficha">1) Desde una ficha (nombra el negocio)</option>
+              <option value="lead_confirmacion_burbuja">2) Desde la burbuja (sin ficha)</option>
+            </select>
+          </div>
+          <?php filaNegocio('leadconf_neg'); ?>
+        </div>
+        <div class="notif-bloque__envio"><?php filaEnvio($admin['email'] ?? ''); ?></div>
+      <?php cerrarBloque(); ?>
+
       <?php abrirBloque('solicitud', 'solicitud_recibida', 'Solicitud de alta de negocio (al solicitante)', '4 variantes'); ?>
         <p class="notif-card__nota">
           Los tres momentos del alta: recibida (al enviar el formulario), aprobada y rechazada (al moderar en Solicitudes).

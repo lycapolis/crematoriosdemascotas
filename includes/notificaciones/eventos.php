@@ -67,6 +67,16 @@ if (!function_exists('notifCatalogoEventos')) {
                 'webhook'            => ['modo' => 'heredado', 'lista' => true],
             ],
 
+            // Confirmación al visitante que deja sus datos (ficha o burbuja). Un email por ficha y día:
+            // la clave lleva la ficha (0 = burbuja) y el día; el destinatario completa la unicidad.
+            'lead_b2c.confirmacion' => [
+                'titulo'             => 'Confirmación al visitante que deja sus datos',
+                'canales'            => ['email_usuario'],
+                'clave'              => fn(array $d) => 'lead_b2c.confirmacion:' . (int)($d['crematorio_id'] ?? 0) . ':' . (string)($d['dia'] ?? date('Ymd')),
+                'reactiva_supresion' => false,   // quien se dio de baja no recibe nada aunque vuelva a escribir
+                'webhook'            => ['modo' => 'sobre'],
+            ],
+
             // ── Ciclo de vida (sobre normalizado) ──
             'resena.aprobada' => [
                 'titulo'             => 'Reseña aprobada',

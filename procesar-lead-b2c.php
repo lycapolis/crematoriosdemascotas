@@ -255,6 +255,14 @@ try {
             ->execute([$wh['estado'] === 'enviada' ? 1 : 0, $wh['estado'] === 'fallida' ? ($wh['error'] ?? 'fallido') : null, $leadId]);
     }
 
+    // Confirmación al visitante («hemos recibido tus datos»), con ficha o sin ella.
+    // Un email por ficha y día: si repite el formulario, el despachador lo omite como duplicado.
+    notificarEvento($pdo, 'lead_b2c.confirmacion', [
+        'lead_id'       => $leadId,
+        'crematorio_id' => (int)$crematorioId,
+        'dia'           => date('Ymd'),
+    ]);
+
     // Entrega al negocio (solo si el lead viene de una ficha; el resto de reglas están dentro)
     if ($crematorioId) {
         notificarNegocioLead($pdo, $leadId);

@@ -27,6 +27,8 @@ if (!function_exists('notifMaqueta')) {
         return [
             'lead_negocio'     => 'Lead nuevo al negocio',
             'teaser'           => 'Teaser regional (métricas de la provincia)',
+            'lead_confirmacion_ficha'   => 'Lead: «Hemos recibido tus datos» (desde una ficha)',
+            'lead_confirmacion_burbuja' => 'Lead: «Hemos recibido tus datos» (desde la burbuja, sin ficha)',
             'resena_recibida'  => 'Reseña: «Hemos recibido tu reseña»',
             'resena_aprobada'  => 'Reseña: «Tu reseña ya es pública»',
             'resena_negocio'   => 'Reseña positiva: aviso al negocio',
@@ -353,6 +355,15 @@ if (!function_exists('notifMaqueta')) {
                     'Muchas gracias, María. Fue un honor acompañaros en ese momento.',
                     ['nombre' => $neg['nombre'], 'slug' => $neg['slug']],
                     filter_var($emailDestino, FILTER_VALIDATE_EMAIL) ? $emailDestino : 'negocio@example.com'
+                );
+                return ['ok' => true, 'tpl' => $tpl, 'avisos' => $avisos];
+
+            case 'lead_confirmacion_ficha':
+            case 'lead_confirmacion_burbuja':
+                $avisos[] = 'Se envía al visitante al dejar sus datos (ficha o burbuja), como máximo un email por ficha y día para la misma dirección. Sin botones: el portal es intermediario.';
+                $tpl = renderEmailLeadConfirmacion(
+                    ['nombre' => 'María', 'email' => filter_var($emailDestino, FILTER_VALIDATE_EMAIL) ? $emailDestino : 'maria@example.com'],
+                    $tipo === 'lead_confirmacion_ficha' ? ['nombre' => $neg['nombre'], 'slug' => $neg['slug']] : null
                 );
                 return ['ok' => true, 'tpl' => $tpl, 'avisos' => $avisos];
 
