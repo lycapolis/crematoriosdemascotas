@@ -86,7 +86,7 @@ if (!function_exists('notificarEvento')) {
         if (is_array($prep) && !empty($prep['multiples'])) {
             $estados = []; $errores = [];
             foreach ($prep['multiples'] as $p) {
-                $r = notifEjecutarPrep($pdo, $evento, $def, $clave, $canal, $p);
+                $r = notifEjecutarPrep($pdo, $evento, $def, $clave, $canal, $p, $datos);
                 $estados[] = $r['estado'];
                 if (!empty($r['error'])) $errores[] = $r['error'];
             }
@@ -95,11 +95,11 @@ if (!function_exists('notificarEvento')) {
             return ['estado' => $estado, 'destinos' => count($estados)] + ($errores ? ['error' => implode(' | ', $errores)] : []);
         }
 
-        return notifEjecutarPrep($pdo, $evento, $def, $clave, $canal, is_array($prep) ? $prep : []);
+        return notifEjecutarPrep($pdo, $evento, $def, $clave, $canal, is_array($prep) ? $prep : [], $datos);
     }
 
     /** Reserva la fila, comprueba condiciones y envía UN destinatario de un canal. */
-    function notifEjecutarPrep(\PDO $pdo, string $evento, array $def, string $clave, string $canal, array $prep): array
+    function notifEjecutarPrep(\PDO $pdo, string $evento, array $def, string $clave, string $canal, array $prep, array $datos = []): array
     {
         if (empty($prep['destinatario'])) {
             return ['estado' => 'omitida', 'motivo' => $prep['omitir'] ?? 'sin_destinatario'];
@@ -135,6 +135,15 @@ if (!function_exists('notificarEvento')) {
         // antes (fatal, timeout), notifCerrarPendientesAlSalir() la pasa a «fallida» con la causa.
         notifFilaEnCurso($pdo, $clave, $canal, $dest, true);
 
+        // Copia de los datos del evento para que el cron pueda reintentar si falla (se vacía al cerrar bien).
+        // Aparte y silenciosa: si la columna `datos` aún no existe (migración sin correr), no pasa nada.
+        if ($datos) {
+            try {
+                $pdo->prepare("UPDATE notificaciones_log SET datos = ? WHERE clave = ? AND canal = ? AND destinatario = ?")
+                    ->execute([json_encode($datos, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), $clave, $canal, $dest]);
+            } catch (\Throwable $e) { /* sin columna datos: los reintentos solo cubren eventos reconstruibles */ }
+        }
+
         $cerrar = function (string $estado, ?string $motivo = null, ?string $error = null) use ($pdo, $clave, $canal, $dest): array {
             $error = $error ? mb_substr($error, 0, 500) : null;
             try {
@@ -142,6 +151,12 @@ if (!function_exists('notificarEvento')) {
                      . ($estado === 'enviada' ? ", enviado_en = NOW()" : "")
                      . " WHERE clave = ? AND canal = ? AND destinatario = ?";
                 $pdo->prepare($sql)->execute([$estado, $motivo, $error, $clave, $canal, $dest]);
+                if ($estado !== 'fallida') {
+                    try {
+                        $pdo->prepare("UPDATE notificaciones_log SET datos = NULL WHERE clave = ? AND canal = ? AND destinatario = ?")
+                            ->execute([$clave, $canal, $dest]);
+                    } catch (\Throwable $e) { /* sin columna datos */ }
+                }
             } catch (\Throwable $e) {
                 // No dejar la fila en «pendiente» sin explicación
                 error_log("[notif] no se pudo cerrar la fila {$clave}/{$canal}: " . $e->getMessage());
@@ -207,6 +222,92 @@ if (!function_exists('notificarEvento')) {
         } else {
             unset($abiertas[$k]);
         }
+    }
+
+    // ─── Reintentos (cron/reintentar-notificaciones.php) ─────
+
+    /**
+     * Datos para reenviar un evento fallido. Usa la copia guardada en la fila (`datos`); si no la hay,
+     * reconstruye los eventos de ciclo de vida desde la clave (solo llevan un id). null = no reintentable.
+     */
+    function notifDatosParaReintento(\PDO $pdo, string $evento, string $clave, ?string $guardados): ?array
+    {
+        if ($guardados !== null && $guardados !== '') {
+            $d = json_decode($guardados, true);
+            if (is_array($d)) return $d;
+        }
+        $partes = explode(':', $clave);
+        $id = (int)($partes[1] ?? 0);
+        if ($id <= 0) return null;
+        switch ($evento) {
+            case 'resena.aprobada':     return ['resena_id' => $id];
+            case 'solicitud.aprobada':  return ['solicitud_id' => $id];
+            case 'lead.entregado':      return ['lead_id' => $id];
+            case 'respuesta.recibida':
+            case 'respuesta.aprobada':  return ['respuesta_id' => $id];
+            case 'solicitud.rechazada':
+                $st = $pdo->prepare("SELECT motivo_rechazo FROM solicitudes_registro WHERE id = ? LIMIT 1");
+                $st->execute([$id]);
+                $m = $st->fetchColumn();
+                return $m === false ? null : ['solicitud_id' => $id, 'motivo' => (string)$m];
+        }
+        return null;   // conversiones del sitio: su payload no se puede reconstruir sin la copia guardada
+    }
+
+    /**
+     * Reintenta las filas «fallida» con menos de 3 intentos (últimos 7 días, de más de 2 minutos).
+     * Las filas «pendiente» antiguas NO se tocan (se tratan como duplicado). Reenvía el evento entero:
+     * lo ya «enviada» se omite como duplicado, solo se repite lo que falló.
+     * @return array{evaluadas:int, reintentadas:int, enviadas:int, sin_datos:int, detalle:array<int,string>}
+     */
+    function notifReintentarFallidas(\PDO $pdo, bool $dryRun = false, int $limite = 50): array
+    {
+        $out = ['evaluadas' => 0, 'reintentadas' => 0, 'enviadas' => 0, 'sin_datos' => 0, 'detalle' => []];
+        $catalogo = notifCatalogoEventos();
+
+        try {
+            $filas = $pdo->query("SELECT id, evento, clave, canal, destinatario, intentos, datos FROM notificaciones_log
+                                  WHERE estado = 'fallida' AND intentos < 3
+                                    AND created_at > NOW() - INTERVAL 7 DAY AND created_at < NOW() - INTERVAL 2 MINUTE
+                                  ORDER BY id LIMIT " . (int)$limite)->fetchAll(\PDO::FETCH_ASSOC);
+        } catch (\Throwable $e) {
+            // Sin columna `datos` (migración sin correr): se leen igual, sin copia guardada
+            $filas = $pdo->query("SELECT id, evento, clave, canal, destinatario, intentos, NULL AS datos FROM notificaciones_log
+                                  WHERE estado = 'fallida' AND intentos < 3
+                                    AND created_at > NOW() - INTERVAL 7 DAY AND created_at < NOW() - INTERVAL 2 MINUTE
+                                  ORDER BY id LIMIT " . (int)$limite)->fetchAll(\PDO::FETCH_ASSOC);
+        }
+
+        $hechos = [];   // evento+clave ya reenviado en esta pasada (un evento puede tener varias filas fallidas)
+        foreach ($filas as $f) {
+            $out['evaluadas']++;
+            $k = $f['evento'] . '|' . $f['clave'];
+            if (isset($hechos[$k])) continue;
+
+            $etq = "#{$f['id']} {$f['evento']} / {$f['canal']} → {$f['destinatario']} (intento " . ((int)$f['intentos'] + 1) . "/3)";
+            $def = $catalogo[$f['evento']] ?? null;
+            $datos = $def ? notifDatosParaReintento($pdo, $f['evento'], $f['clave'], $f['datos']) : null;
+
+            // Si los datos ya no producen la misma clave (p. ej. cambió el motivo de rechazo), no se reenvía
+            if ($datos === null || ($def['clave'])($datos) !== $f['clave']) {
+                $out['sin_datos']++;
+                $out['detalle'][] = "{$etq}: no reintentable (sin copia de los datos)";
+                continue;
+            }
+            $hechos[$k] = true;
+
+            if ($dryRun) {
+                $out['detalle'][] = "{$etq}: se reintentaría";
+                continue;
+            }
+            $out['reintentadas']++;
+            $res = notificarEvento($pdo, $f['evento'], $datos);
+            $r = $res[$f['canal']] ?? null;
+            $estado = $r['estado'] ?? '?';
+            if ($estado === 'enviada') $out['enviadas']++;
+            $out['detalle'][] = "{$etq}: {$estado}" . (!empty($r['error']) ? ' — ' . $r['error'] : '');
+        }
+        return $out;
     }
 
     // ─── Bajas ───────────────────────────────────────────────

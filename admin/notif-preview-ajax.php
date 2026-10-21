@@ -77,7 +77,8 @@ if ($accion === 'preview') {
     if (!$esWebhook && $formato === 'texto') {
         array_unshift($avisosP, 'Versión en TEXTO PLANO: así llega si se envía sin diseño (sin imágenes ni botones; los enlaces van en claro).');
     }
-    respuestaMaqueta(['ok' => true, 'asunto' => $m['tpl']['asunto'], 'html' => $html, 'avisos' => $avisosP]);
+    respuestaMaqueta(['ok' => true, 'asunto' => $m['tpl']['asunto'], 'html' => $html, 'avisos' => $avisosP]
+        + ($esWebhook ? ['json' => $m['tpl']['texto']] : []));
 }
 
 if ($accion === 'enviar') {

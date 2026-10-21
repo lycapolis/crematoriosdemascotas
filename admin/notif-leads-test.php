@@ -336,6 +336,7 @@ include 'header.php';
         <button type="button" data-formato="texto">Texto plano</button>
       </div>
       <p class="notif-preview__asunto" id="preview-titulo">Preview</p>
+      <button type="button" class="boton tres notif-preview__copiar" id="preview-copiar" hidden><i data-lucide="copy" class="icono"></i> <span class="notif-preview__copiar-texto">Copiar JSON</span></button>
       <div class="notif-test__marco" id="preview-marco">
         <div class="notif-test__cuerpo" id="preview-cuerpo">
           <iframe class="notif-test__iframe" id="preview-iframe" title="Preview del email" scrolling="no"></iframe>
@@ -439,6 +440,24 @@ include 'header.php';
   document.getElementById('preview-iframe').addEventListener('load', ajustarPreview);
   window.addEventListener('resize', ajustarPreview);
 
+  // Botón «Copiar JSON» (solo visible cuando el preview es un webhook)
+  var jsonActual = null;
+  document.getElementById('preview-copiar').addEventListener('click', function () {
+    var etq = this.querySelector('.notif-preview__copiar-texto');
+    var listo = function (ok) {
+      etq.textContent = ok ? 'Copiado ✓' : 'No se pudo copiar';
+      setTimeout(function () { etq.textContent = 'Copiar JSON'; }, 2000);
+    };
+    if (jsonActual === null) return;
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(jsonActual).then(function () { listo(true); }, function () { listo(false); });
+    } else {
+      var ta = document.createElement('textarea'); ta.value = jsonActual; document.body.appendChild(ta); ta.select();
+      var ok = false; try { ok = document.execCommand('copy'); } catch (x) {}
+      document.body.removeChild(ta); listo(ok);
+    }
+  });
+
   function previsualizar(bloque) {
     activo = bloque;
     document.querySelectorAll('.notif-bloque').forEach(function (b) { b.classList.toggle('is-activo', b === bloque); });
@@ -453,6 +472,8 @@ include 'header.php';
       if (!r.ok) { pintarAvisos([r.error || 'No se pudo generar el preview.']); return; }
       document.getElementById('preview-titulo').textContent = 'Preview · ' + r.asunto;
       pintarAvisos(r.avisos);
+      jsonActual = (typeof r.json === 'string') ? r.json : null;
+      document.getElementById('preview-copiar').hidden = (jsonActual === null);
       iframe.srcdoc = r.html;
     }).catch(function () {
       if (miSecuencia !== secuencia) return;

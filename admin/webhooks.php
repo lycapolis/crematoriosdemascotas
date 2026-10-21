@@ -184,6 +184,7 @@ include 'header.php';
     .wh-evento__cuerpo { padding: 0 var(--espacio-cuatro) var(--espacio-cuatro); }
     .wh-evento pre { background: #FFFBF7; border: 1px solid var(--admin-linea); border-radius: 8px; padding: 12px 14px; font-size: .78rem; line-height: 1.5; overflow: auto; max-height: 360px; margin: var(--espacio-tres) 0 0; }
     .wh-nota { font-size: .85rem; color: var(--admin-tinta-tenue); margin: .25rem 0 0; }
+    .wh-json__cabecera { display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; margin-top: var(--espacio-tres); }
 </style>
 
 <div class="admin-page">
@@ -359,8 +360,11 @@ include 'header.php';
                         <div style="margin-top:var(--espacio-tres);"><button type="submit" class="boton tres"><i data-lucide="save" class="icono"></i> Guardar</button></div>
                     </form>
                     <?php if ($w): ?>
-                    <p class="wh-nota" style="margin-top:var(--espacio-tres);">Ejemplo de lo que recibe cada destino (datos ficticios):</p>
-                    <pre><?= $e($w['json']) ?></pre>
+                    <div class="wh-json__cabecera">
+                        <p class="wh-nota">Ejemplo de lo que recibe cada destino (datos ficticios):</p>
+                        <button type="button" class="boton tres wh-json__copiar" data-copiar-json><i data-lucide="copy" class="icono"></i> <span class="wh-json__copiar-texto">Copiar</span></button>
+                    </div>
+                    <pre class="wh-json__codigo"><?= $e($w['json']) ?></pre>
                     <?php endif; ?>
                 </div>
             </details>
@@ -382,7 +386,7 @@ include 'header.php';
                     <td>
                         <span class="wh-etiqueta <?= $l['estado'] === 'enviada' ? 'wh-etiqueta--ok' : ($l['estado'] === 'fallida' ? 'wh-etiqueta--error' : 'wh-etiqueta--off') ?>"><?= $e($l['estado']) ?></span>
                         <?php if ($l['error']): ?><br><small class="admin-text-muted"><?= $e($l['error']) ?></small><?php endif; ?>
-                        <?php if ($l['estado'] === 'fallida'): ?><br><small class="admin-text-muted">Intentos: <?= (int)$l['intentos'] ?>/3 (se reintenta si el evento se repite)</small><?php endif; ?>
+                        <?php if ($l['estado'] === 'fallida'): ?><br><small class="admin-text-muted">Intentos: <?= (int)$l['intentos'] ?>/3 (se reintenta solo cada ~15 min)</small><?php endif; ?>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -395,5 +399,27 @@ include 'header.php';
 
     </div>
 </div>
+
+<script>
+// Botón «Copiar» de cada JSON de ejemplo (.wh-json__copiar → copia el <pre class="wh-json__codigo"> de su evento)
+document.querySelectorAll('[data-copiar-json]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        var pre = btn.closest('.wh-evento__cuerpo').querySelector('.wh-json__codigo');
+        var etq = btn.querySelector('.wh-json__copiar-texto');
+        var listo = function (ok) {
+            etq.textContent = ok ? 'Copiado ✓' : 'No se pudo copiar';
+            setTimeout(function () { etq.textContent = 'Copiar'; }, 2000);
+        };
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(pre.textContent).then(function () { listo(true); }, function () { listo(false); });
+        } else {
+            var r = document.createRange(); r.selectNodeContents(pre);
+            var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+            var ok = false; try { ok = document.execCommand('copy'); } catch (x) {}
+            s.removeAllRanges(); listo(ok);
+        }
+    });
+});
+</script>
 
 <?php include 'footer.php'; ?>
