@@ -14,8 +14,11 @@
  *   Si cambia el número, pasa a ser el teléfono público de la ficha y el anterior se conserva como historial.
  * - «No me interesa»: marca la baja de la campaña y suprime los emails de la ficha (notificaciones_supresiones).
  *
- * Tramo 2 (pendiente): el formulario completo de actualización de datos irá en la MISMA página,
- * en el bloque `.verificar__formulario` (ver comentario más abajo).
+ * - «Prefiero completarlo yo» (tramo 2): formulario completo de actualización de datos en la MISMA página
+ *   (bloque `.verificar__formulario`, campos compartidos con registrar-negocio.php). Precargado con los datos
+ *   actuales; el envío queda como «pendiente de revisión» (actualizaciones_ficha) y NO cambia la ficha pública.
+ *   El equipo lo revisa campo a campo en admin/actualizaciones-pendientes.php. Quien pidió la llamada puede
+ *   adelantar datos aquí; actualiza campana_fichas.estado (llamada / formulario). Aviso al equipo + email al negocio.
  *
  * Antispam: honeypot + time-trap + máximo de solicitudes por IP y hora. Fechas comparadas en SQL (NOW()).
  * Excepción documentada a «nombre + email + teléfono obligatorios»: aquí solo se confirma el teléfono;
@@ -27,6 +30,8 @@ require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/conexion_db.php';
 require_once __DIR__ . '/includes/funciones.php';
 require_once __DIR__ . '/includes/notificaciones/despachador.php';
+require_once __DIR__ . '/includes/actualizacion-ficha.php';
+require_once __DIR__ . '/includes/ImagenHelper.php';
 
 const VERIFICAR_MAX_POR_IP_HORA = 5;
 
@@ -50,7 +55,10 @@ if ($firmaOk) {
 }
 
 $error     = '';
-$resultado = '';          // '' | 'llamada' | 'baja'
+$resultado = '';          // '' | 'llamada' | 'baja' | 'actualizacion'
+$erroresForm = [];        // errores del formulario de actualización (se muestran dentro de su bloque)
+$actPendiente = null;     // actualización ya enviada y aún sin revisar
+$ffDatos = [];            // datos que pinta el formulario (actuales, o lo enviado si hubo errores)
 $telNuevoPublicado = false;
 $telConfirmado = '';
 $valores = ['telefono_opcion' => 'correcto', 'telefono_nuevo' => ''];
@@ -77,6 +85,15 @@ function verificarMarcarCampana(PDO $pdo, int $fichaId, string $estado): void
 if ($ficha) {
     $telMostrado = fichaTelefonoMostrado($ficha);
 
+    // Datos actuales de la ficha (para precargar el formulario y detectar qué cambia)
+    $valoresActuales = actFichaValoresActuales($pdo, $fichaId)['valores'] ?? [];
+    $ffDatos = $valoresActuales + ['pais' => 'España'];
+    $ffDatos['nombre_negocio'] = (string)$ficha['nombre'];
+
+    $q = $pdo->prepare("SELECT id FROM actualizaciones_ficha WHERE crematorio_id = ? AND estado = 'pendiente' ORDER BY id DESC LIMIT 1");
+    $q->execute([$fichaId]);
+    $actPendiente = $q->fetch(PDO::FETCH_ASSOC) ?: null;
+
     $q = $pdo->prepare("SELECT id, telefono_confirmado FROM solicitudes_llamada
                         WHERE crematorio_id = ? AND estado IN ('pendiente','reagendar') ORDER BY id DESC LIMIT 1");
     $q->execute([$fichaId]);
@@ -89,7 +106,7 @@ if ($ficha) {
 
         if ($esBot) {
             error_log('anti-spam bloqueado [verificar-ficha] ip=' . ($_SERVER['REMOTE_ADDR'] ?? '?'));
-            $resultado = $accion === 'baja' ? 'baja' : 'llamada';
+            $resultado = $accion === 'baja' ? 'baja' : ($accion === 'actualizar' ? 'actualizacion' : 'llamada');
             $telConfirmado = (string)$telMostrado;
         } elseif ($accion === 'baja') {
             try {
@@ -99,6 +116,78 @@ if ($ficha) {
             } catch (\Throwable $ex) {
                 error_log('[verificar-ficha baja] ' . $ex->getMessage());
                 $error = 'No hemos podido registrar tu respuesta. Inténtalo de nuevo en unos minutos.';
+            }
+        } elseif ($accion === 'actualizar') {
+            if ($actPendiente) {
+                $resultado = 'actualizacion';
+            } else {
+                $posted = [];
+                foreach (array_merge(array_keys(actFichaCatalogo()), ['contacto_nombre', 'contacto_email', 'contacto_telefono', 'comunidad', 'pais', 'comentarios_admin']) as $k) {
+                    $posted[$k] = trim(mb_scrub((string)($_POST[$k] ?? '')));   // mb_scrub: descarta bytes que no sean UTF-8 válido
+                }
+                $posted['nombre_negocio'] = (string)$ficha['nombre'];
+                $ffDatos = $posted;   // si hay errores, el formulario conserva lo escrito
+
+                $cNombre = mb_substr($posted['contacto_nombre'], 0, 150);
+                if ($cNombre === '') $erroresForm[] = 'Escribe tu nombre.';
+                if (!filter_var($posted['contacto_email'], FILTER_VALIDATE_EMAIL)) $erroresForm[] = 'Escribe un email de contacto válido.';
+                if (strlen(preg_replace('/\D/', '', $posted['contacto_telefono'])) < 9) $erroresForm[] = 'Escribe un teléfono de contacto válido.';
+                if (empty($_POST['consentimiento'])) $erroresForm[] = 'Para enviar tus datos tienes que aceptar que revisemos la información.';
+
+                $cambios = actFichaDiff($valoresActuales, $posted);
+                $erroresForm = array_merge($erroresForm, actFichaValidarCambios($cambios));
+
+                $hayLogo    = !empty($_FILES['logo']['tmp_name']) && ($_FILES['logo']['error'] ?? 4) === UPLOAD_ERR_OK;
+                $hayGaleria = !empty($_FILES['galeria']['tmp_name'][0]);
+                if (!$erroresForm && !$cambios && !$hayLogo && !$hayGaleria) {
+                    $erroresForm[] = 'No has cambiado ningún dato. Modifica lo que quieras actualizar o sube alguna imagen y vuelve a enviarlo.';
+                }
+
+                if (!$erroresForm) {
+                    try {
+                        $ipHash = hash('sha256', $_SERVER['REMOTE_ADDR'] ?? '');
+                        $q = $pdo->prepare("SELECT COUNT(*) FROM actualizaciones_ficha WHERE ip_hash = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)");
+                        $q->execute([$ipHash]);
+                        if ((int)$q->fetchColumn() >= VERIFICAR_MAX_POR_IP_HORA) {
+                            $erroresForm[] = 'Se han enviado varias solicitudes desde tu conexión. Vuelve a intentarlo dentro de un rato.';
+                        } else {
+                            $pdo->beginTransaction();
+                            $pdo->prepare("INSERT INTO actualizaciones_ficha
+                                (crematorio_id, contacto_nombre, contacto_email, contacto_telefono, comentarios, acepta_comunicaciones, datos_enviados_json, desde_llamada, ip_hash)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                                ->execute([$fichaId, $cNombre, mb_strtolower($posted['contacto_email']), mb_substr($posted['contacto_telefono'], 0, 50),
+                                           $posted['comentarios_admin'] !== '' ? $posted['comentarios_admin'] : null,
+                                           !empty($_POST['consentimiento_comunicaciones']) ? 1 : 0,
+                                           json_encode($posted, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), $llamadaPendiente ? 1 : 0, $ipHash]);
+                            $actId = (int)$pdo->lastInsertId();
+
+                            $ic = $pdo->prepare("INSERT INTO actualizacion_ficha_campos (actualizacion_id, campo, valor_actual, valor_propuesto) VALUES (?, ?, ?, ?)");
+                            foreach ($cambios as $campo => $c) $ic->execute([$actId, $campo, $c['actual'] !== '' ? $c['actual'] : null, $c['propuesto']]);
+
+                            // Imágenes propuestas (quedan aparte hasta que el admin las apruebe)
+                            $ii = $pdo->prepare("INSERT INTO actualizacion_ficha_imagenes (actualizacion_id, tipo, nombre_original, nombre_archivo, ruta, tamano, orden) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                            $gd = extension_loaded('gd') && function_exists('imagecreatefromjpeg');
+                            if ($gd && $hayLogo) {
+                                $r = ImagenHelper::procesar($_FILES['logo'], 'logo', 'act' . $actId, 'solicitudes');
+                                if (!empty($r['ok'])) $ii->execute([$actId, 'logo', $r['nombre_original'], $r['nombre'], $r['ruta'], $r['tamano'], 0]);
+                                else error_log('[verificar-ficha] logo no procesado: ' . ($r['error'] ?? ''));
+                            }
+                            if ($gd && $hayGaleria) {
+                                $r = ImagenHelper::procesarGaleria($_FILES['galeria'], 'act' . $actId, 'solicitudes', 10);
+                                foreach ($r['imagenes'] ?? [] as $n => $img) $ii->execute([$actId, 'galeria', $img['nombre_original'], $img['nombre'], $img['ruta'], $img['tamano'], $n + 1]);
+                            }
+                            $pdo->commit();
+
+                            verificarMarcarCampana($pdo, $fichaId, $llamadaPendiente ? 'llamada' : 'formulario');
+                            notificarEvento($pdo, 'ficha.actualizacion_recibida', ['actualizacion_id' => $actId]);
+                            $resultado = 'actualizacion';
+                        }
+                    } catch (\Throwable $ex) {
+                        if ($pdo->inTransaction()) $pdo->rollBack();
+                        error_log('[verificar-ficha actualizar] ' . $ex->getMessage());
+                        $erroresForm[] = 'No hemos podido guardar tus datos. Inténtalo de nuevo en unos minutos.';
+                    }
+                }
             }
         } elseif ($accion === 'llamada') {
             $opcion = (($_POST['telefono_opcion'] ?? '') === 'otro' || !$telMostrado) ? 'otro' : 'correcto';
@@ -203,6 +292,13 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
         </div>
         <p class="verificar__texto">La llamada es gratuita y solo sirve para comprobar que los datos de tu ficha son correctos.</p>
 
+    <?php elseif ($resultado === 'actualizacion'): ?>
+        <h1 class="verificar__titulo">¡Gracias! Hemos recibido tus datos</h1>
+        <div class="verificar__ok">
+            Hemos recibido la actualización de la ficha de <strong><?= $e($ficha['nombre']) ?></strong>. Nuestro equipo la revisará y, hasta entonces, tu ficha sigue mostrando los datos de siempre: <strong>no se publica nada sin revisar</strong>.
+        </div>
+        <p class="verificar__texto">Te escribiremos por email en cuanto esté revisada. No tienes que hacer nada más.</p>
+
     <?php else:
         $telMostrado = fichaTelefonoMostrado($ficha);
         $abrirOtro   = $valores['telefono_opcion'] === 'otro' || !$telMostrado;
@@ -252,9 +348,52 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
         </section>
         <?php endif; ?>
 
-        <!-- TRAMO 2: aquí irá el formulario completo para actualizar los datos de la ficha (bloque .verificar__formulario),
-             en esta misma página. Quien pide la llamada podrá adelantar datos; quien no, completará el formulario. -->
-        <div class="verificar__formulario" hidden></div>
+        <!-- Formulario completo para actualizar los datos de la ficha. Quien pide la llamada puede adelantar datos aquí;
+             quien no, simplemente lo completa. Nada se publica sin revisión humana. -->
+        <section class="verificar__formulario" id="verificar-formulario">
+            <h2 class="verificar__tarjeta-titulo">Prefiero completarlo yo</h2>
+            <?php if ($actPendiente): ?>
+            <div class="verificar__ok">Ya tenemos tu actualización y la estamos revisando. Te escribiremos por email en cuanto esté lista. Si quieres añadir algo más, respóndenos a ese email.</div>
+            <?php else: ?>
+            <p class="verificar__texto">Revisa los datos de tu ficha, corrige o completa lo que quieras y envíalos. Nuestro equipo los revisará antes de publicarlos: <strong>tu ficha no cambia hasta entonces</strong>.</p>
+
+            <?php if ($erroresForm): ?>
+            <div class="verificar__error" role="alert">
+                <strong>Revisa lo siguiente:</strong>
+                <ul style="margin:var(--espacio-uno) 0 0; padding-left:1.2rem;">
+                    <?php foreach ($erroresForm as $msg): ?><li><?= $e($msg) ?></li><?php endforeach; ?>
+                </ul>
+            </div>
+            <?php endif; ?>
+
+            <form method="post" action="verificar-ficha.php#verificar-formulario" enctype="multipart/form-data" novalidate class="verificar__form-ficha" style="display:flex; flex-direction:column; gap:var(--espacio-cuatro);">
+                <input type="hidden" name="f" value="<?= (int)$fichaId ?>">
+                <input type="hidden" name="t" value="<?= $e($token) ?>">
+                <input type="hidden" name="accion" value="actualizar">
+                <?php
+                $ffModo   = 'actualizacion';
+                $GEO_ES   = include __DIR__ . '/includes/geo_es.php';
+                include __DIR__ . '/includes/form-ficha-campos.php';
+                ?>
+
+                <div style="display:flex; flex-direction:column; gap:var(--espacio-dos);">
+                    <label class="field__opcion" style="align-items:flex-start; gap:.6rem;">
+                        <input type="checkbox" class="field__check" id="consentimiento" name="consentimiento" value="1">
+                        <span>Acepto que revisen la información que envío para actualizar mi ficha y que me escriban sobre esta revisión. *</span>
+                    </label>
+                    <label class="field__opcion" style="align-items:flex-start; gap:.6rem;">
+                        <input type="checkbox" class="field__check" id="consentimiento_comunicaciones" name="consentimiento_comunicaciones" value="1">
+                        <span>Quiero recibir también ofertas comerciales y novedades de servicios para mi negocio (opcional).</span>
+                    </label>
+                    <p class="verificar__ayuda">Usamos estos datos para revisar y actualizar tu ficha. Más información en nuestra <a href="privacidad.php" target="_blank" rel="noopener">política de privacidad</a>.</p>
+                </div>
+
+                <div class="verificar__acciones">
+                    <button type="submit" class="boton uno">Enviar los datos para revisión</button>
+                </div>
+            </form>
+            <?php endif; ?>
+        </section>
 
         <form method="post" action="verificar-ficha.php" class="verificar__baja">
             <input type="hidden" name="f" value="<?= (int)$fichaId ?>">

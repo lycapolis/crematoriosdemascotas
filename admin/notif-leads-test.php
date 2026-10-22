@@ -286,9 +286,29 @@ include 'header.php';
         <div class="notif-bloque__envio"><?php filaEnvio($admin['email'] ?? ''); ?></div>
       <?php cerrarBloque(); ?>
 
+      <?php abrirBloque('actualizacion', 'actualizacion_recibida', 'Actualización de ficha por el negocio (al negocio)', '4 variantes'); ?>
+        <p class="notif-card__nota">
+          Los dos momentos del formulario de verificar-ficha.php: recibida (al enviar los datos) y revisada (al terminar la revisión en Actualizaciones),
+          con tres resultados posibles: todo aprobado, parte aprobada y nada aprobado.
+        </p>
+        <div class="notif-bloque__fila">
+          <div class="field">
+            <label class="field__label" for="act_tipo">Email</label>
+            <select id="act_tipo" data-campo="tipo" class="field__select">
+              <option value="actualizacion_recibida">1) Hemos recibido tus datos</option>
+              <option value="actualizacion_revisada">2) Tu ficha está revisada (todo aprobado)</option>
+              <option value="actualizacion_revisada_parcial">3) Revisada, con algo sin aprobar</option>
+              <option value="actualizacion_revisada_nada">4) Revisada, nada aprobado</option>
+            </select>
+          </div>
+          <?php filaNegocio('act_neg'); ?>
+        </div>
+        <div class="notif-bloque__envio"><?php filaEnvio($admin['email'] ?? ''); ?></div>
+      <?php cerrarBloque(); ?>
+
       <?php grupo('Al equipo', 'Avisos internos a ' . (defined('EMAIL_CONTACTO') ? EMAIL_CONTACTO : 'info@') . ' por cada conversión del sitio.'); ?>
 
-      <?php abrirBloque('equipo', 'equipo_resena', 'Avisos al equipo por conversión', '8 avisos'); ?>
+      <?php abrirBloque('equipo', 'equipo_resena', 'Avisos al equipo por conversión', '9 avisos'); ?>
         <p class="notif-card__nota">
           Uno por cada conversión: reseña, contacto, «Promociona tu crematorio», alta de negocio y lead (de una ficha o de la burbuja).
           Llevan el email de quien convierte en Reply-To, así que se le responde directamente desde la bandeja.
@@ -300,6 +320,7 @@ include 'header.php';
               <option value="equipo_resena">Nueva reseña</option>
               <option value="equipo_respuesta">Respuesta de un negocio a una reseña</option>
               <option value="equipo_llamada">Un negocio pide que le llamemos (verificación)</option>
+              <option value="equipo_actualizacion">Un negocio envía datos para actualizar su ficha</option>
               <option value="equipo_contacto">Mensaje de contacto</option>
               <option value="equipo_promociona">Lead comercial «Promociona tu crematorio»</option>
               <option value="equipo_registro">Solicitud de alta de negocio</option>

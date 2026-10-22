@@ -131,6 +131,21 @@ if (!function_exists('notifCatalogoEventos')) {
                 'reactiva_supresion' => false,
                 'webhook'            => ['modo' => 'sobre'],
             ],
+            // ── Campaña de prospección: el negocio envía datos para actualizar su ficha (revisión humana) ──
+            'ficha.actualizacion_recibida' => [
+                'titulo'             => 'Un negocio envía datos para actualizar su ficha (pendiente de revisar)',
+                'canales'            => ['email_equipo', 'email_actualizacion'],   // aviso interno + «hemos recibido tus datos»
+                'clave'              => fn(array $d) => 'ficha.actualizacion_recibida:' . (int)$d['actualizacion_id'],
+                'reactiva_supresion' => true,    // escribirnos con sus datos cuenta como volver a hablar con nosotros
+                'webhook'            => ['modo' => 'sobre'],
+            ],
+            'ficha.actualizacion_revisada' => [
+                'titulo'             => 'Actualización de ficha revisada (aviso al negocio)',
+                'canales'            => ['email_actualizacion'],
+                'clave'              => fn(array $d) => 'ficha.actualizacion_revisada:' . (int)$d['actualizacion_id'],
+                'reactiva_supresion' => false,
+                'webhook'            => ['modo' => 'sobre'],
+            ],
             // 'resena.rechazada' → deliberadamente SIN aviso al usuario (decisión del 2026-10-12)
         ];
     }

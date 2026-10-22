@@ -63,6 +63,23 @@ if (!function_exists('notifCanal_email_equipo')) {
             $ll = $st->fetch(\PDO::FETCH_ASSOC);
             if (!$ll) return ['omitir' => 'llamada_no_existe'];
             $p = notifEquipoDesdeLlamada($ll);
+        } elseif ($evento === 'ficha.actualizacion_recibida') {
+            $st = $pdo->prepare("
+                SELECT a.*, c.nombre AS negocio_nombre, c.slug AS negocio_slug
+                FROM actualizaciones_ficha a
+                JOIN crematorios c ON c.id = a.crematorio_id
+                WHERE a.id = ? LIMIT 1
+            ");
+            $st->execute([(int)($datos['actualizacion_id'] ?? 0)]);
+            $ac = $st->fetch(\PDO::FETCH_ASSOC);
+            if (!$ac) return ['omitir' => 'actualizacion_no_existe'];
+            $q = $pdo->prepare("SELECT campo FROM actualizacion_ficha_campos WHERE actualizacion_id = ?");
+            $q->execute([(int)$ac['id']]);
+            $ac['campos'] = $q->fetchAll(\PDO::FETCH_COLUMN);
+            $q = $pdo->prepare("SELECT COUNT(*) FROM actualizacion_ficha_imagenes WHERE actualizacion_id = ?");
+            $q->execute([(int)$ac['id']]);
+            $ac['n_imagenes'] = (int)$q->fetchColumn();
+            $p = notifEquipoDesdeActualizacion($ac);
         } elseif ($evento === 'lead_b2c.recibido') {
             $st = $pdo->prepare("SELECT * FROM leads_b2c WHERE id = ? LIMIT 1");
             $st->execute([(int)($datos['lead_id'] ?? 0)]);
@@ -219,6 +236,38 @@ if (!function_exists('notifCanal_email_equipo')) {
             'cta2'    => !empty($l['negocio_slug']) ? ['texto' => 'Ver la ficha', 'url' => notifUrlPublica($l['negocio_slug'])] : null,
             'origen'  => '',
             'reply_to' => null,
+        ];
+    }
+
+    /**
+     * Un negocio envía datos para actualizar su ficha (campaña de verificación): se construye desde la fila
+     * de actualizaciones_ficha + 'campos' (claves de los datos que cambian) + 'n_imagenes'.
+     */
+    function notifEquipoDesdeActualizacion(array $a): array
+    {
+        $negocio = notifEquipoTxt($a['negocio_nombre'] ?? '');
+        $mail    = notifEquipoTxt($a['contacto_email'] ?? '');
+        $cat     = function_exists('actFichaCatalogo') ? actFichaCatalogo() : [];
+        $etqs    = array_map(fn($k) => $cat[$k][0] ?? $k, (array)($a['campos'] ?? []));
+        $nImg    = (int)($a['n_imagenes'] ?? 0);
+
+        return [
+            'tipo'    => 'Un negocio actualiza su ficha (pendiente de revisar)',
+            'resumen' => $negocio . ' · ' . count($etqs) . ' dato(s)' . ($nImg ? ' y ' . $nImg . ' imagen(es)' : ''),
+            'filas'   => [
+                'Negocio'      => $negocio,
+                'Contacto'     => (string)($a['contacto_nombre'] ?? ''),
+                'Email'        => $mail,
+                'Teléfono'     => (string)($a['contacto_telefono'] ?? ''),
+                'Datos que cambia' => $etqs ? implode(', ', $etqs) : 'Ninguno (solo imágenes)',
+                'Imágenes'     => $nImg ? $nImg . ' pendiente(s) de aprobar' : '',
+                'Pidió la llamada' => !empty($a['desde_llamada']) ? 'Sí (adelanta datos para la llamada)' : 'No',
+            ],
+            'bloques' => ['Comentarios del negocio' => (string)($a['comentarios'] ?? '')],
+            'cta'     => ['texto' => 'Revisar la actualización', 'url' => notifUrlPublica('admin/actualizaciones-pendientes.php')],
+            'cta2'    => !empty($a['negocio_slug']) ? ['texto' => 'Ver la ficha', 'url' => notifUrlPublica($a['negocio_slug'])] : null,
+            'origen'  => '',
+            'reply_to' => $mail,
         ];
     }
 

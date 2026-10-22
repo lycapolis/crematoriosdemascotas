@@ -129,6 +129,7 @@ $fechaHoy = $dias_es[(int)date('w')] . ', ' . (int)date('j') . ' de ' . $meses_e
             $leadsNuevos           = 0;
             $leadsB2CNuevos        = 0;
             $llamadasPendientes    = 0;
+            $actualizacionesPendientes = 0;
             if ($pdo_header) {
                 try {
                     $pendientesSolicitudes = (int) $pdo_header->query("SELECT COUNT(*) FROM solicitudes_registro WHERE estado = 'pendiente'")->fetchColumn();
@@ -144,6 +145,9 @@ $fechaHoy = $dias_es[(int)date('w')] . ', ' . (int)date('j') . ' de ' . $meses_e
                 } catch (PDOException $e) { /* idem */ }
                 try {
                     $llamadasPendientes = (int) $pdo_header->query("SELECT COUNT(*) FROM solicitudes_llamada WHERE estado IN ('pendiente','reagendar')")->fetchColumn();
+                } catch (PDOException $e) { /* migración sin correr: sin contador */ }
+                try {
+                    $actualizacionesPendientes = (int) $pdo_header->query("SELECT COUNT(*) FROM actualizaciones_ficha WHERE estado = 'pendiente'")->fetchColumn();
                 } catch (PDOException $e) { /* migración sin correr: sin contador */ }
             }
             function badgeContador(int $n, string $color = '#f59e0b'): string {
@@ -169,6 +173,10 @@ $fechaHoy = $dias_es[(int)date('w')] . ', ' . (int)date('j') . ' de ' . $meses_e
             <a href="<?php echo $base_url; ?>/admin/llamadas-pendientes.php" class="admin-header__link"
                style="<?php echo $currentPage === 'llamadas-pendientes.php' ? 'opacity:1;font-weight:700;' : ''; ?>">
                 Llamadas<?php echo badgeContador($llamadasPendientes, '#dc2626'); ?>
+            </a>
+            <a href="<?php echo $base_url; ?>/admin/actualizaciones-pendientes.php" class="admin-header__link"
+               style="<?php echo $currentPage === 'actualizaciones-pendientes.php' ? 'opacity:1;font-weight:700;' : ''; ?>">
+                Actualizaciones<?php echo badgeContador($actualizacionesPendientes, '#dc2626'); ?>
             </a>
             <?php endif; ?>
 

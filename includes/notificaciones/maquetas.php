@@ -37,10 +37,15 @@ if (!function_exists('notifMaqueta')) {
             'solicitud_aprobada'            => 'Solicitud de alta: «Tu negocio ya está en el directorio»',
             'solicitud_rechazada'           => 'Solicitud de alta: rechazo con motivo',
             'solicitud_rechazada_sin_motivo' => 'Solicitud de alta: rechazo sin motivo',
+            'actualizacion_recibida'       => 'Actualización de ficha: «Hemos recibido tus datos»',
+            'actualizacion_revisada'       => 'Actualización de ficha: «Tu ficha está revisada» (todo aprobado)',
+            'actualizacion_revisada_parcial' => 'Actualización de ficha: revisada, con algo sin aprobar',
+            'actualizacion_revisada_nada'  => 'Actualización de ficha: revisada, nada aprobado',
             // Avisos internos al equipo
             'equipo_resena'        => 'Equipo: nueva reseña',
             'equipo_respuesta'     => 'Equipo: respuesta de un negocio a una reseña',
             'equipo_llamada'       => 'Equipo: un negocio pide que le llamemos (campaña de verificación)',
+            'equipo_actualizacion' => 'Equipo: un negocio envía datos para actualizar su ficha',
             'equipo_contacto'      => 'Equipo: mensaje de contacto',
             'equipo_promociona'    => 'Equipo: lead comercial «Promociona tu crematorio»',
             'equipo_registro'      => 'Equipo: solicitud de alta de negocio',
@@ -214,6 +219,18 @@ if (!function_exists('notifMaqueta')) {
             return ['ok' => true, 'tpl' => renderEmailEquipoConversion($p2), 'avisos' => $avisos];
         }
 
+        // Aviso interno: un negocio envía datos para actualizar su ficha (pendiente de revisar)
+        if ($tipo === 'equipo_actualizacion') {
+            $p2 = notifEquipoDesdeActualizacion([
+                'negocio_nombre' => $neg['nombre'], 'negocio_slug' => $neg['slug'] ?? '',
+                'contacto_nombre' => 'Carlos Pérez', 'contacto_email' => 'carlos@example.com', 'contacto_telefono' => '+34 612 34 56 78',
+                'campos' => ['telefono_clientes', 'descripcion', 'horarios', 'sitio_web'], 'n_imagenes' => 2, 'desde_llamada' => 1,
+                'comentarios' => 'Hemos cambiado de horario en verano.',
+            ]);
+            $avisos[] = 'Aviso interno: llega a ' . (defined('EMAIL_CONTACTO') ? EMAIL_CONTACTO : 'info@') . ' cuando un negocio envía datos desde la página de verificación. No lleva enlace de baja.';
+            return ['ok' => true, 'tpl' => renderEmailEquipoConversion($p2), 'avisos' => $avisos];
+        }
+
         // Avisos internos al equipo
         if (strpos($tipo, 'equipo_') === 0) {
             $mapa = ['equipo_resena' => 'resena.recibida', 'equipo_contacto' => 'contacto.recibido',
@@ -335,6 +352,30 @@ if (!function_exists('notifMaqueta')) {
                         : null;
                     $tpl = renderEmailSolicitudRechazada($sol, $motivo, $emailSol);
                     if ($motivo === null) $avisos[] = 'El motivo es opcional: si el admin no lo escribe al rechazar, el email no incluye ese párrafo.';
+                }
+                return ['ok' => true, 'tpl' => $tpl, 'avisos' => $avisos];
+
+            case 'actualizacion_recibida':
+            case 'actualizacion_revisada':
+            case 'actualizacion_revisada_parcial':
+            case 'actualizacion_revisada_nada':
+                $emailAct = filter_var($emailDestino, FILTER_VALIDATE_EMAIL) ? $emailDestino : 'carlos@example.com';
+                if ($tipo === 'actualizacion_recibida') {
+                    $avisos[] = 'Se envía al enviar el formulario de verificar-ficha.php, a la dirección de contacto que escribió el negocio. Lleva enlace de baja.';
+                    $tpl = renderEmailActualizacionRecibida(['contacto_nombre' => 'Carlos', 'negocio_nombre' => $neg['nombre'], 'n_cambios' => 4, 'n_imagenes' => 2], $emailAct);
+                } else {
+                    $avisos[] = 'Se envía al terminar la revisión en admin/actualizaciones-pendientes.php. El botón «Ver mi ficha» solo sale si algo se publicó; el nombre de la insignia sale cuando se aprueba algo.';
+                    $base = ['contacto_nombre' => 'Carlos', 'negocio_nombre' => $neg['nombre']];
+                    if ($tipo === 'actualizacion_revisada') {
+                        $base += ['aprobados' => ['Teléfono para clientes', 'Descripción', 'Horarios', '2 imágenes'], 'rechazados' => [], 'insignia' => true];
+                    } elseif ($tipo === 'actualizacion_revisada_parcial') {
+                        $base += ['aprobados' => ['Teléfono para clientes', 'Descripción'], 'rechazados' => ['Sitio web', '1 imagen'], 'insignia' => true,
+                                  'mensaje_admin' => 'El enlace del sitio web no abre. Envíanos la dirección correcta y lo añadimos.'];
+                    } else {
+                        $base += ['aprobados' => [], 'rechazados' => ['Descripción', 'Sitio web'], 'insignia' => false,
+                                  'mensaje_admin' => 'La descripción incluye precios cerrados que no podemos publicar tal cual.'];
+                    }
+                    $tpl = renderEmailActualizacionRevisada($base, $neg['slug'], $emailAct);
                 }
                 return ['ok' => true, 'tpl' => $tpl, 'avisos' => $avisos];
 

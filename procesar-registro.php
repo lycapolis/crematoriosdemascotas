@@ -105,7 +105,7 @@ if ($render_ts > 0) {
     }
     if ($delta > 86400) {
         if (ob_get_length()) ob_clean();
-        echo json_encode(['ok' => false, 'mensaje' => 'El formulario expiró. Recargá la página y volvé a intentar.']);
+        echo json_encode(['ok' => false, 'mensaje' => 'El formulario expiró. Recarga la página e inténtalo de nuevo.']);
         exit;
     }
 }
@@ -113,7 +113,7 @@ if ($render_ts > 0) {
 // Rate-limit por IP
 if (!antiSpamRateLimitRegistro()) {
     if (ob_get_length()) ob_clean();
-    echo json_encode(['ok' => false, 'mensaje' => 'Hemos recibido varias solicitudes desde tu conexión. Esperá un rato antes de enviar otra.']);
+    echo json_encode(['ok' => false, 'mensaje' => 'Hemos recibido varias solicitudes desde tu conexión. Espera un rato antes de enviar otra.']);
     exit;
 }
 
@@ -183,7 +183,7 @@ if (empty($contacto_telefono)) {
 
 // Datos del negocio
 if (empty($nombre_negocio)) {
-    $errores[] = 'El nombre del crematorio es requerido';
+    $errores[] = 'El nombre del negocio es requerido';
 }
 if (empty($email_clientes) || !filter_var($email_clientes, FILTER_VALIDATE_EMAIL)) {
     $errores[] = 'Email para clientes válido es requerido';
@@ -222,9 +222,10 @@ if (empty($horarios)) {
     $errores[] = 'Los horarios son requeridos';
 }
 
-// Consentimientos obligatorios (RGPD) — no confiar solo en el JS
-if (!$consentimiento || !$consentimiento_com) {
-    $errores[] = 'Debes aceptar ambos consentimientos para enviar la solicitud';
+// Consentimiento (RGPD) — no confiar solo en el JS
+// El consentimiento de revisión es obligatorio; el de comunicaciones comerciales es opcional.
+if (!$consentimiento) {
+    $errores[] = 'Debes aceptar que revisemos tu información para enviar la solicitud';
 }
 
 // Si hay errores, retornar

@@ -30,6 +30,7 @@ require_once __DIR__ . '/eventos.php';
 require_once __DIR__ . '/canales/email-usuario.php';
 require_once __DIR__ . '/canales/email-negocio.php';
 require_once __DIR__ . '/canales/email-solicitante.php';
+require_once __DIR__ . '/canales/email-actualizacion.php';
 require_once __DIR__ . '/canales/email-equipo.php';
 require_once __DIR__ . '/canales/webhook.php';
 
@@ -244,6 +245,8 @@ if (!function_exists('notificarEvento')) {
             case 'solicitud.aprobada':  return ['solicitud_id' => $id];
             case 'lead.entregado':      return ['lead_id' => $id];
             case 'llamada.solicitada':  return ['llamada_id' => $id];
+            case 'ficha.actualizacion_recibida':
+            case 'ficha.actualizacion_revisada': return ['actualizacion_id' => $id];
             case 'respuesta.recibida':
             case 'respuesta.aprobada':  return ['respuesta_id' => $id];
             case 'solicitud.rechazada':
