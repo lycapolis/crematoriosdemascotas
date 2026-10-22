@@ -139,10 +139,26 @@ function insigniaFijarManual(PDO $pdo, int $crematorioId, string $slug, bool $ac
              VALUES (:c, :i, 'manual', :a)
              ON DUPLICATE KEY UPDATE fuente = 'manual'"
         )->execute([':c' => $crematorioId, ':i' => $insId, ':a' => $adminId]);
+
+        // Acumulativas: «Verificado por humano» implica «Datos actualizados por el negocio» (30 + 10 pts).
+        // Al quitar la verificación NO se quita la otra: son hechos distintos.
+        if ($slug === 'verificado_humano') {
+            insigniaFijarManual($pdo, $crematorioId, 'datos_actualizados', true, $adminId);
+        }
     } else {
         $pdo->prepare("DELETE FROM insignias_ficha WHERE crematorio_id = :c AND insignia_id = :i AND fuente = 'manual'")
             ->execute([':c' => $crematorioId, ':i' => $insId]);
     }
+}
+
+/**
+ * Una llamada de la campaña ha salido bien: otorga «Verificado por humano» (y, por la regla
+ * acumulativa, «Datos actualizados por el negocio») y recalcula puntaje y cache de la ficha.
+ */
+function insigniaOtorgarVerificacion(PDO $pdo, int $crematorioId, ?int $adminId = null): void
+{
+    insigniaFijarManual($pdo, $crematorioId, 'verificado_humano', true, $adminId);
+    recalcularInsignias($pdo, $crematorioId);
 }
 
 // ─── Cálculo ────────────────────────────────────────────────────────────────

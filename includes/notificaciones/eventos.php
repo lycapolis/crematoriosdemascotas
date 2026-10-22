@@ -123,6 +123,14 @@ if (!function_exists('notifCatalogoEventos')) {
                 'reactiva_supresion' => false,
                 'webhook'            => ['modo' => 'sobre'],
             ],
+            // ── Campaña de prospección: un negocio pide que le llamemos (aviso interno, sin webhook) ──
+            'llamada.solicitada' => [
+                'titulo'             => 'Un negocio pide que le llamemos (campaña de verificación)',
+                'canales'            => ['email_equipo'],
+                'clave'              => fn(array $d) => 'llamada.solicitada:' . (int)$d['llamada_id'],
+                'reactiva_supresion' => false,
+                'webhook'            => ['modo' => 'sobre'],
+            ],
             // 'resena.rechazada' → deliberadamente SIN aviso al usuario (decisión del 2026-10-12)
         ];
     }

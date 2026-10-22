@@ -52,6 +52,17 @@ if (!function_exists('notifCanal_email_equipo')) {
                 'origen'  => '',
                 'reply_to' => null,
             ];
+        } elseif ($evento === 'llamada.solicitada') {
+            $st = $pdo->prepare("
+                SELECT l.*, c.nombre AS negocio_nombre, c.slug AS negocio_slug
+                FROM solicitudes_llamada l
+                JOIN crematorios c ON c.id = l.crematorio_id
+                WHERE l.id = ? LIMIT 1
+            ");
+            $st->execute([(int)($datos['llamada_id'] ?? 0)]);
+            $ll = $st->fetch(\PDO::FETCH_ASSOC);
+            if (!$ll) return ['omitir' => 'llamada_no_existe'];
+            $p = notifEquipoDesdeLlamada($ll);
         } elseif ($evento === 'lead_b2c.recibido') {
             $st = $pdo->prepare("SELECT * FROM leads_b2c WHERE id = ? LIMIT 1");
             $st->execute([(int)($datos['lead_id'] ?? 0)]);
@@ -185,6 +196,30 @@ if (!function_exists('notifCanal_email_equipo')) {
                 ];
         }
         return null;
+    }
+
+    /** Solicitud de llamada de la campaña de verificación: se construye desde la fila de solicitudes_llamada. */
+    function notifEquipoDesdeLlamada(array $l): array
+    {
+        $negocio = notifEquipoTxt($l['negocio_nombre'] ?? '');
+        $cambio  = !empty($l['telefono_cambiado']);
+        return [
+            'tipo'    => 'Un negocio pide que le llamemos',
+            'resumen' => $negocio . ' · ' . ($l['telefono_confirmado'] ?? ''),
+            'filas'   => [
+                'Negocio'            => $negocio,
+                'Teléfono al que llamar' => (string)($l['telefono_confirmado'] ?? ''),
+                'Cambio de teléfono' => $cambio
+                    ? 'CAMBIADO por el negocio (ya es el público de la ficha). Antes: ' . (($l['telefono_original'] ?? '') !== '' ? $l['telefono_original'] : 'ninguno')
+                    : 'Confirmado, sin cambios',
+                'Cuándo'             => 'Lo antes posible, en horario comercial, de lunes a viernes',
+            ],
+            'bloques' => [],
+            'cta'     => ['texto' => 'Ver llamadas por hacer', 'url' => notifUrlPublica('admin/llamadas-pendientes.php')],
+            'cta2'    => !empty($l['negocio_slug']) ? ['texto' => 'Ver la ficha', 'url' => notifUrlPublica($l['negocio_slug'])] : null,
+            'origen'  => '',
+            'reply_to' => null,
+        ];
     }
 
     /** Lead de la ficha o de la burbuja: se construye desde la fila de leads_b2c. */

@@ -243,6 +243,7 @@ if (!function_exists('notificarEvento')) {
             case 'resena.aprobada':     return ['resena_id' => $id];
             case 'solicitud.aprobada':  return ['solicitud_id' => $id];
             case 'lead.entregado':      return ['lead_id' => $id];
+            case 'llamada.solicitada':  return ['llamada_id' => $id];
             case 'respuesta.recibida':
             case 'respuesta.aprobada':  return ['respuesta_id' => $id];
             case 'solicitud.rechazada':
@@ -501,6 +502,24 @@ if (!function_exists('notificarEvento')) {
         return notifUrlPublica('recibir-datos.php')
             . '?l=' . $leadId
             . '&t=' . notifTokenEntrega($leadId);
+    }
+
+    /** Firma HMAC del enlace de la campaña «Verifica tu ficha» (identifica la ficha; el negocio no tiene cuenta). */
+    function notifTokenVerificacion(int $crematorioId): string
+    {
+        return substr(hash_hmac('sha256', 'verificar|' . $crematorioId, notifSecreto()), 0, 32);
+    }
+
+    function notifTokenVerificacionValido(int $crematorioId, string $token): bool
+    {
+        return $crematorioId > 0 && $token !== '' && hash_equals(notifTokenVerificacion($crematorioId), $token);
+    }
+
+    function notifUrlVerificarFicha(int $crematorioId): string
+    {
+        return notifUrlPublica('verificar-ficha.php')
+            . '?f=' . $crematorioId
+            . '&t=' . notifTokenVerificacion($crematorioId);
     }
 
     // ─── Cupo de entregas de leads (planes con límite, p. ej. Gratis) ───

@@ -288,7 +288,7 @@ include 'header.php';
 
       <?php grupo('Al equipo', 'Avisos internos a ' . (defined('EMAIL_CONTACTO') ? EMAIL_CONTACTO : 'info@') . ' por cada conversión del sitio.'); ?>
 
-      <?php abrirBloque('equipo', 'equipo_resena', 'Avisos al equipo por conversión', '7 avisos'); ?>
+      <?php abrirBloque('equipo', 'equipo_resena', 'Avisos al equipo por conversión', '8 avisos'); ?>
         <p class="notif-card__nota">
           Uno por cada conversión: reseña, contacto, «Promociona tu crematorio», alta de negocio y lead (de una ficha o de la burbuja).
           Llevan el email de quien convierte en Reply-To, así que se le responde directamente desde la bandeja.
@@ -299,6 +299,7 @@ include 'header.php';
             <select id="equipo_tipo" data-campo="tipo" class="field__select">
               <option value="equipo_resena">Nueva reseña</option>
               <option value="equipo_respuesta">Respuesta de un negocio a una reseña</option>
+              <option value="equipo_llamada">Un negocio pide que le llamemos (verificación)</option>
               <option value="equipo_contacto">Mensaje de contacto</option>
               <option value="equipo_promociona">Lead comercial «Promociona tu crematorio»</option>
               <option value="equipo_registro">Solicitud de alta de negocio</option>

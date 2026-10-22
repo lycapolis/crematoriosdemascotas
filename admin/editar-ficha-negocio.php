@@ -2701,6 +2701,7 @@ function toggleResenasResueltas() {
         {v:'dueno',       lbl:'Dueño / Propietario',     privado:true },
         {v:'gerente',     lbl:'Gerente / Dirección',     privado:true },
         {v:'admin',       lbl:'Administración',           privado:true },
+        {v:'anterior',    lbl:'Teléfono anterior (historial)', privado:true },
         {v:'custom',      lbl:'Otro (personalizado)',     privado:false},
     ];
     const EMAIL_TIPOS = [
@@ -2821,7 +2822,15 @@ function toggleResenasResueltas() {
         items.forEach((tel,i)=>{
             const info=telInfo(tel.tipo);
             const priv=info.privado?`<div style="font-size:var(--admin-body-sm);color:var(--admin-tone-alerta-fg);background:var(--admin-tone-alerta-bg);border-radius:var(--admin-r-sm);padding:.3rem .7rem;margin-bottom:var(--espacio-dos);">⚠ Este número no es público ni visible en la ficha</div>`:'';
+            // Cambios hechos por el propio negocio desde verificar-ficha.php (campaña de verificación)
+            const fechaNeg = f => f ? ' · ' + String(f).slice(0,10).split('-').reverse().join('/') : '';
+            const porNegocio = tel.origen==='negocio'
+                ? `<div style="font-size:var(--admin-body-sm);color:var(--admin-tone-exito-fg);background:var(--admin-tone-exito-bg);border-radius:var(--admin-r-sm);padding:.3rem .7rem;margin-bottom:var(--espacio-dos);">✓ Cargado por el negocio${fechaNeg(tel.cargado_en)}</div>`
+                : (tel.reemplazado_por==='negocio'
+                    ? `<div style="font-size:var(--admin-body-sm);color:var(--admin-tone-alerta-fg);background:var(--admin-tone-alerta-bg);border-radius:var(--admin-r-sm);padding:.3rem .7rem;margin-bottom:var(--espacio-dos);">↻ Reemplazado por el negocio${fechaNeg(tel.reemplazado_en)}</div>`
+                    : '');
             html+=`<div style="padding:var(--espacio-tres) 0;${i<items.length-1?'border-bottom:1px solid var(--admin-linea);':''}${!tel.visible?'opacity:.55;':''}">
+                ${porNegocio}
                 ${priv}
                 <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:var(--espacio-dos);align-items:center;">
                     <select class="field__select field__select--enhanced" data-ts-search="off" data-ts-portal="off" onchange="cTelTipo('${tel.id}',this.value)">

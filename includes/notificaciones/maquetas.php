@@ -40,6 +40,7 @@ if (!function_exists('notifMaqueta')) {
             // Avisos internos al equipo
             'equipo_resena'        => 'Equipo: nueva reseña',
             'equipo_respuesta'     => 'Equipo: respuesta de un negocio a una reseña',
+            'equipo_llamada'       => 'Equipo: un negocio pide que le llamemos (campaña de verificación)',
             'equipo_contacto'      => 'Equipo: mensaje de contacto',
             'equipo_promociona'    => 'Equipo: lead comercial «Promociona tu crematorio»',
             'equipo_registro'      => 'Equipo: solicitud de alta de negocio',
@@ -199,6 +200,17 @@ if (!function_exists('notifMaqueta')) {
                 'cta2'    => null, 'origen' => '', 'reply_to' => null,
             ];
             $avisos[] = 'Aviso interno: llega a ' . (defined('EMAIL_CONTACTO') ? EMAIL_CONTACTO : 'info@') . ' cuando un negocio envía una respuesta. No lleva enlace de baja.';
+            return ['ok' => true, 'tpl' => renderEmailEquipoConversion($p2), 'avisos' => $avisos];
+        }
+
+        // Aviso interno: un negocio pide la llamada de verificación (ejemplo con teléfono cambiado)
+        if ($tipo === 'equipo_llamada') {
+            $p2 = notifEquipoDesdeLlamada([
+                'negocio_nombre' => $neg['nombre'], 'negocio_slug' => $neg['slug'] ?? '',
+                'telefono_original' => '+34 937 13 22 70',
+                'telefono_confirmado' => '+34 612 34 56 78', 'telefono_cambiado' => 1,
+            ]);
+            $avisos[] = 'Aviso interno: llega a ' . (defined('EMAIL_CONTACTO') ? EMAIL_CONTACTO : 'info@') . ' cuando un negocio pide la llamada. No lleva enlace de baja.';
             return ['ok' => true, 'tpl' => renderEmailEquipoConversion($p2), 'avisos' => $avisos];
         }
 

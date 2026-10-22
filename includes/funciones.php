@@ -2622,3 +2622,98 @@ function urlConUtm(?string $url, array $extra = []): string
 
     return $resultado;
 }
+
+// ═══════════════════════════════════════════════════════════
+// TELÉFONOS DE ESPAÑA + CAMBIO DESDE LA CAMPAÑA DE VERIFICACIÓN
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Normaliza un teléfono de España (fijo o móvil): 9 dígitos que empiezan por 6, 7, 8 o 9,
+ * con o sin prefijo +34 / 0034. Devuelve «+34 XXX XX XX XX» (el formato de las fichas) o null si no vale.
+ */
+function telefonoEspanaNormalizar(string $raw): ?string
+{
+    $s = preg_replace('/[\s().\-]/', '', trim($raw));
+    if (str_starts_with($s, '+34'))      $s = substr($s, 3);
+    elseif (str_starts_with($s, '0034')) $s = substr($s, 4);
+    elseif (strlen($s) === 11 && str_starts_with($s, '34')) $s = substr($s, 2);
+    if (!preg_match('/^[6789]\d{8}$/', $s)) return null;
+    return '+34 ' . substr($s, 0, 3) . ' ' . substr($s, 3, 2) . ' ' . substr($s, 5, 2) . ' ' . substr($s, 7, 2);
+}
+
+/** Teléfonos de una ficha como array; si no hay JSON, se arma desde las columnas planas. */
+function fichaTelefonosLista(array $cr): array
+{
+    $arr = json_decode((string)($cr['telefonos_json'] ?? ''), true);
+    if (is_array($arr) && $arr) return $arr;
+    $out = [];
+    if (!empty($cr['telefono']))          $out[] = ['id'=>'p1','origen'=>'manual','tipo'=>'principal','label'=>'Teléfono principal','numero'=>$cr['telefono'],'visible'=>true];
+    if (!empty($cr['telefono_clientes'])) $out[] = ['id'=>'p2','origen'=>'manual','tipo'=>'clientes','label'=>'Atención a clientes','numero'=>$cr['telefono_clientes'],'visible'=>true];
+    return $out;
+}
+
+/** El teléfono que la ficha pública muestra primero (el primer visible con número), o null si no hay. */
+function fichaTelefonoMostrado(array $cr): ?string
+{
+    foreach (fichaTelefonosLista($cr) as $t) {
+        if (!empty($t['visible']) && trim((string)($t['numero'] ?? '')) !== '') return trim((string)$t['numero']);
+    }
+    return null;
+}
+
+/**
+ * El negocio cambia su teléfono de atención al público desde el enlace firmado.
+ * - El nuevo pasa a ser el primero visible (el que muestra la ficha), con origen «negocio» y la fecha.
+ * - El que se mostraba NO se borra: queda con tipo «anterior», oculto y marcado «reemplazado por el negocio».
+ * - Sin teléfono público previo, el nuevo se añade como principal.
+ * Escribe en telefonos_json (fuente de verdad) y sincroniza las columnas planas.
+ *
+ * @param string $nuevo teléfono ya normalizado con telefonoEspanaNormalizar()
+ * @return array{cambiado:bool, anterior:?string}
+ */
+function telefonoReemplazarPorNegocio(PDO $pdo, int $crematorioId, string $nuevo): array
+{
+    $st = $pdo->prepare("SELECT telefono, telefono_clientes, telefonos_json FROM crematorios WHERE id = ?");
+    $st->execute([$crematorioId]);
+    $cr = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$cr) return ['cambiado' => false, 'anterior' => null];
+
+    $lista    = fichaTelefonosLista($cr);
+    $anterior = fichaTelefonoMostrado($cr);
+    $digitos  = fn($n) => preg_replace('/\D/', '', (string)$n);
+    if ($anterior !== null && $digitos($anterior) === $digitos($nuevo)) {
+        return ['cambiado' => false, 'anterior' => $anterior];
+    }
+
+    $ahora   = date('Y-m-d H:i:s');
+    $tipoNew = 'principal';
+    $labelNew = 'Teléfono principal';
+    foreach ($lista as $i => $t) {
+        if (!empty($t['visible']) && trim((string)($t['numero'] ?? '')) !== '') {
+            // Hereda el tipo del que reemplaza, para ocupar su sitio también en las columnas planas
+            $tipoNew  = $t['tipo'] ?? 'principal';
+            $labelNew = $t['label'] ?? $labelNew;
+            $lista[$i]['tipo']            = 'anterior';
+            $lista[$i]['label']           = 'Teléfono anterior';
+            $lista[$i]['visible']         = false;
+            $lista[$i]['reemplazado_por'] = 'negocio';
+            $lista[$i]['reemplazado_en']  = $ahora;
+            $lista[$i]['tipo_original']   = $t['tipo'] ?? 'principal';
+            break;
+        }
+    }
+    array_unshift($lista, [
+        'id'          => 'n' . substr(bin2hex(random_bytes(4)), 0, 7),
+        'origen'      => 'negocio',
+        'tipo'        => $tipoNew,
+        'label'       => $labelNew,
+        'numero'      => $nuevo,
+        'visible'     => true,
+        'cargado_en'  => $ahora,
+    ]);
+
+    $pdo->prepare("UPDATE crematorios SET telefonos_json = ? WHERE id = ?")
+        ->execute([json_encode($lista, JSON_UNESCAPED_UNICODE), $crematorioId]);
+    sincronizarCamposFlat($pdo, $crematorioId);
+    return ['cambiado' => true, 'anterior' => $anterior];
+}
