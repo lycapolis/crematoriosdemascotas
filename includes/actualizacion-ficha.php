@@ -8,11 +8,13 @@
  *   - verificar-ficha.php            → precarga el formulario con los datos actuales y calcula qué ha cambiado.
  *   - admin/actualizaciones-pendientes.php → aplica a la ficha lo que el admin aprueba, campo a campo.
  *
- * Dos modos de aplicación (columna `modo` del catálogo):
+ * Tres modos de aplicación (columna `modo` del catálogo):
  *   'directo'        → al aprobar, el dato pasa a la ficha pública (admin = ficha pública).
  *   'texto_original' → servicios, horarios y precios llegan como texto libre. Al aprobar se archivan en
  *                      texto_origen_json (referencia inmutable del editor) y el admin los estructura con la
  *                      IA desde editar-ficha-negocio.php; hasta entonces la ficha pública no cambia.
+ *   'etiqueta_propuesta' → etiquetas propias que escribe el negocio (p. ej. servicios que no están en la nube). Al aprobar
+ *                      se archivan en texto_origen_json; NO entran en filtros ni buscadores (eso es el tramo 2).
  *
  * Regla: un campo vacío en el formulario NO es un cambio (nunca se borra un dato por omisión).
  * El texto original que envió el negocio se conserva siempre (actualizaciones_ficha.datos_enviados_json).
@@ -34,10 +36,13 @@ if (!function_exists('actFichaCatalogo')) {
             'provincia'          => ['Provincia',                'directo',        'Ubicación'],
             'ciudad'             => ['Ciudad',                   'directo',        'Ubicación'],
             'codigo_postal'      => ['Código postal',            'directo',        'Ubicación'],
+            'contactos_extra'    => ['Otros contactos o direcciones', 'texto_original', 'Contacto'],
             'zona_cobertura'     => ['Zona de cobertura (provincias / comunidades)', 'directo', 'Cobertura'],
             'ciudades_cobertura' => ['Ciudades de cobertura',    'directo',        'Cobertura'],
+            'cobertura_texto'    => ['Cobertura: «con sus palabras»', 'texto_original', 'Cobertura'],
             'descripcion'        => ['Descripción',              'directo',        'Contenido'],
             'servicios'          => ['Servicios',                'texto_original', 'Contenido'],
+            'servicios_propios'  => ['Servicios propios (etiquetas)', 'etiqueta_propuesta', 'Contenido'],
             'horarios'           => ['Horarios',                 'texto_original', 'Contenido'],
             'precios'            => ['Precios o tarifas',        'texto_original', 'Contenido'],
             'sitio_web'          => ['Sitio web',                'directo',        'Presencia en línea'],
@@ -45,6 +50,31 @@ if (!function_exists('actFichaCatalogo')) {
             'whatsapp'           => ['WhatsApp',                 'directo',        'Presencia en línea'],
             'facebook'           => ['Facebook',                 'directo',        'Presencia en línea'],
             'instagram'          => ['Instagram',                'directo',        'Presencia en línea'],
+            'tiktok'             => ['TikTok',                   'directo',        'Presencia en línea'],
+            'youtube'            => ['YouTube',                  'directo',        'Presencia en línea'],
+            'x'                  => ['X (Twitter)',              'directo',        'Presencia en línea'],
+            'linkedin'           => ['LinkedIn',                 'directo',        'Presencia en línea'],
+            'pinterest'          => ['Pinterest',                'directo',        'Presencia en línea'],
+            'telegram'           => ['Telegram',                 'directo',        'Presencia en línea'],
+            'red_otra'           => ['Otra red (nombre | enlace)', 'directo',      'Presencia en línea'],
+        ];
+    }
+
+    /**
+     * Redes del formulario → [clave `red` en redes_json, etiqueta]. Las que la ficha pública no tiene con icono
+     * propio (Telegram) se guardan como 'custom' con su etiqueta; la ficha ya sabe pintarlas.
+     */
+    function actFichaRedes(): array
+    {
+        return [
+            'facebook'  => ['facebook',  'Facebook'],
+            'instagram' => ['instagram', 'Instagram'],
+            'tiktok'    => ['tiktok',    'TikTok'],
+            'youtube'   => ['youtube',   'YouTube'],
+            'x'         => ['x',         'X'],
+            'linkedin'  => ['linkedin',  'LinkedIn'],
+            'pinterest' => ['pinterest', 'Pinterest'],
+            'telegram'  => ['custom',    'Telegram'],
         ];
     }
 
@@ -65,10 +95,36 @@ if (!function_exists('actFichaCatalogo')) {
         ];
     }
 
+    /**
+     * Servicios habituales por categoría (nube del formulario). Los que tienen casilla propia en la ficha
+     * (actFichaServiciosFlags) van tal cual; el resto es texto libre. Lo que el negocio escriba fuera de esta lista
+     * (y que no estuviera ya en su ficha) se trata como «etiqueta propuesta».
+     */
+    function actFichaServiciosCatalogo(): array
+    {
+        return [
+            'Cremación' => ['Cremación individual', 'Cremación colectiva', 'Cremación presencial', 'Cremación de animales exóticos', 'Cremación de mascotas grandes'],
+            'Recogida y traslado' => ['Recogida a domicilio', 'Recogida en clínica veterinaria', 'Entrega a domicilio', 'Traslado urgente'],
+            'Despedida y ceremonia' => ['Sala velatoria', 'Ceremonia de despedida', 'Acompañamiento en el duelo'],
+            'Recuerdos' => ['Urna incluida', 'Urnas personalizadas', 'Souvenirs / recuerdos', 'Molde de huella', 'Joyería con cenizas', 'Carta de condolencias'],
+            'Atención' => ['Atención 24h', 'Atención con cita previa', 'Atención en domingos y festivos', 'Asesoramiento sin compromiso'],
+        ];
+    }
+
+    /** Horarios habituales (etiquetas del formulario). Se pueden marcar varios: un humano revisa siempre el resultado. */
+    function actFichaHorariosSugeridos(): array
+    {
+        return [
+            'Lunes a viernes 9:00–18:00', 'Lunes a viernes 9:00–14:00 y 16:00–19:00', 'Lunes a sábado 9:00–19:00',
+            'Sábados 9:00–14:00', 'Domingos y festivos cerrado', 'Atención 24 horas', 'Urgencias 24 horas', 'Cita previa',
+        ];
+    }
+
     /** Clave del texto original (texto_origen_json) que corresponde a un campo en modo 'texto_original'. */
     function actFichaClaveTextoOrigen(string $campo): string
     {
-        return ['servicios' => 'servicios_texto', 'horarios' => 'horarios_texto', 'precios' => 'precios_texto'][$campo] ?? '';
+        return ['servicios' => 'servicios_texto', 'horarios' => 'horarios_texto', 'precios' => 'precios_texto',
+                'cobertura_texto' => 'cobertura_texto', 'contactos_extra' => 'contactos_extra_texto'][$campo] ?? '';
     }
 
     /** Lista separada por comas/saltos → «a, b, c» (comparable y presentable). */
@@ -85,16 +141,31 @@ if (!function_exists('actFichaCatalogo')) {
         return trim(preg_replace('/[ \t]+/u', ' ', str_replace("\r\n", "\n", $s)));
     }
 
+    /** Añade «https://» si el negocio pegó un enlace sin esquema (www.ejemplo.com, facebook.com/x…). */
+    function actFichaUrlConEsquema(string $v): string
+    {
+        $v = trim($v);
+        if ($v === '' || preg_match('~^https?://~i', $v) || preg_match('/\s/', $v) || !preg_match('/^[^\s\/]+\.[^\s\/]+/', $v)) return $v;
+        return 'https://' . ltrim($v, '/');
+    }
+
     /** Normaliza un valor según el campo (para comparar y para guardar). */
     function actFichaNormalizar(string $campo, string $valor): string
     {
         if ($campo === 'zona_cobertura' || $campo === 'ciudades_cobertura') return actFichaNormLista($valor);
-        if ($campo === 'servicios') return actFichaNormLista($valor);
+        if ($campo === 'servicios' || $campo === 'servicios_propios') return actFichaNormLista($valor);
         if ($campo === 'telefono_clientes') {
             $n = telefonoEspanaNormalizar($valor);
             return $n ?? actFichaNormTexto($valor);
         }
-        if ($campo === 'whatsapp') return actFichaNormTexto($valor);
+        if ($campo === 'whatsapp') return telefonoEspanaNormalizar($valor) ?? actFichaNormTexto($valor);
+        if (in_array($campo, ['sitio_web', 'google_maps_url', 'facebook', 'instagram', 'tiktok', 'youtube', 'x', 'linkedin', 'pinterest', 'telegram'], true)) {
+            return actFichaUrlConEsquema(actFichaNormTexto($valor));
+        }
+        if ($campo === 'red_otra') {
+            $p = array_map('trim', explode('|', $valor, 2));
+            return count($p) === 2 ? $p[0] . ' | ' . actFichaUrlConEsquema($p[1]) : actFichaNormTexto($valor);
+        }
         return actFichaNormTexto($valor);
     }
 
@@ -119,8 +190,13 @@ if (!function_exists('actFichaCatalogo')) {
         // Redes
         $redes = json_decode((string)($c['redes_json'] ?? ''), true);
         $entradas = is_array($redes) ? ($redes['entries'] ?? []) : [];
-        $red = function (string $nombre) use ($entradas): string {
-            foreach ($entradas as $e) if (($e['red'] ?? '') === $nombre) return (string)($e['url'] ?? '');
+        $red = function (string $campo) use ($entradas): string {
+            [$clave, $etq] = actFichaRedes()[$campo];
+            foreach ($entradas as $e) {
+                if (($e['red'] ?? '') !== $clave) continue;
+                if ($clave === 'custom' && mb_strtolower((string)($e['label'] ?? '')) !== mb_strtolower($etq)) continue;
+                return (string)($e['url'] ?? '');
+            }
             return '';
         };
 
@@ -168,9 +244,12 @@ if (!function_exists('actFichaCatalogo')) {
             'sitio_web'          => (string)($c['website'] ?? ''),
             'google_maps_url'    => (string)($c['google_maps_url'] ?? ''),
             'whatsapp'           => (string)($c['whatsapp'] ?? ''),
-            'facebook'           => $red('facebook'),
-            'instagram'          => $red('instagram'),
+            'cobertura_texto'    => trim((string)($origen['cobertura_texto'] ?? '')),
+            'contactos_extra'    => trim((string)($origen['contactos_extra_texto'] ?? '')),
+            'servicios_propios'  => '',
+            'red_otra'           => '',
         ];
+        foreach (array_keys(actFichaRedes()) as $campoRed) $valores[$campoRed] = $red($campoRed);
         foreach ($valores as $k => $v) $valores[$k] = actFichaNormalizar($k, $v);
 
         return ['ficha' => $c, 'valores' => $valores];
@@ -214,9 +293,21 @@ if (!function_exists('actFichaCatalogo')) {
                     break;
                 case 'descripcion':
                     if (mb_strlen($v) < 150) $err[] = 'La descripción debe tener al menos 150 caracteres (ahora tiene ' . mb_strlen($v) . ').';
+                    if (mb_strlen($v) > 1800) $err[] = 'La descripción puede tener como máximo 1800 caracteres (ahora tiene ' . mb_strlen($v) . ').';
                     break;
                 case 'sitio_web': case 'google_maps_url': case 'facebook': case 'instagram':
+                case 'tiktok': case 'youtube': case 'x': case 'linkedin': case 'pinterest': case 'telegram':
                     if (!$url($v)) $err[] = actFichaCatalogo()[$campo][0] . ': escribe la dirección completa, empezando por https://';
+                    break;
+                case 'red_otra':
+                    $p = array_map('trim', explode('|', $v, 2));
+                    if (count($p) < 2 || mb_strlen($p[0]) < 2 || mb_strlen($p[0]) > 40) $err[] = 'Otra red: escribe el nombre de la red (entre 2 y 40 caracteres).';
+                    elseif (!$url($p[1])) $err[] = 'Otra red: escribe la dirección completa, empezando por https://';
+                    break;
+                case 'servicios_propios':
+                    $items = array_filter(array_map('trim', explode(',', $v)));
+                    if (count($items) > 15) $err[] = 'Servicios propios: como máximo 15 etiquetas.';
+                    foreach ($items as $it) if (mb_strlen($it) > 60) { $err[] = 'Servicios propios: cada etiqueta debe tener como máximo 60 caracteres.'; break; }
                     break;
                 case 'whatsapp':
                     if (!preg_match('/^\+?[\d\s().\-]{7,20}$/', $v)) $err[] = 'El WhatsApp debe ser un número, con código de país si es posible.';
@@ -307,22 +398,45 @@ if (!function_exists('actFichaCatalogo')) {
                 sincronizarCamposFlat($pdo, $fichaId);
                 return '';
 
-            case 'facebook':
-            case 'instagram':
+            case 'facebook': case 'instagram': case 'tiktok': case 'youtube': case 'x':
+            case 'linkedin': case 'pinterest': case 'telegram': case 'red_otra':
+                if ($campo === 'red_otra') {
+                    $partes = array_map('trim', explode('|', $valor, 2));
+                    $clave = 'custom'; $etq = $partes[0]; $url = $partes[1] ?? '';
+                } else {
+                    [$clave, $etq] = actFichaRedes()[$campo];
+                    $url = $valor;
+                }
                 $redes = json_decode((string)($c['redes_json'] ?? ''), true);
                 $redes = is_array($redes) ? $redes : ['modo' => 'iconos', 'entries' => []];
                 $redes['entries'] = $redes['entries'] ?? [];
                 $hecho = false;
                 foreach ($redes['entries'] as $i => $e) {
-                    if (($e['red'] ?? '') === $campo) { $redes['entries'][$i]['url'] = $valor; $hecho = true; break; }
+                    if (($e['red'] ?? '') !== $clave) continue;
+                    if ($clave === 'custom' && mb_strtolower((string)($e['label'] ?? '')) !== mb_strtolower($etq)) continue;
+                    $redes['entries'][$i]['url'] = $url; $hecho = true; break;
                 }
-                if (!$hecho) $redes['entries'][] = ['red' => $campo, 'url' => $valor, 'label' => ucfirst($campo), 'visible' => true];
+                if (!$hecho) $redes['entries'][] = ['red' => $clave, 'url' => $url, 'label' => $etq, 'visible' => true];
                 $upd('redes_json', json_encode($redes, JSON_UNESCAPED_UNICODE));
                 return '';
+
+            case 'servicios_propios':
+                $origen = json_decode((string)($c['texto_origen_json'] ?? ''), true);
+                if (!is_array($origen) || !$origen) $origen = ['fuente' => 'manual_negocio', 'fecha' => date('Y-m-d')];
+                $previas = is_array($origen['servicios_propuestos'] ?? null) ? $origen['servicios_propuestos'] : [];
+                $vistas  = array_map('mb_strtolower', $previas);
+                foreach (array_filter(array_map('trim', explode(',', $valor))) as $n) {
+                    if (!in_array(mb_strtolower($n), $vistas, true)) { $previas[] = $n; $vistas[] = mb_strtolower($n); }
+                }
+                $origen['servicios_propuestos'] = array_values($previas);
+                $upd('texto_origen_json', json_encode($origen, JSON_UNESCAPED_UNICODE));
+                return 'archivadas como etiquetas propuestas; aún no entran en filtros ni buscadores';
 
             case 'servicios':
             case 'horarios':
             case 'precios':
+            case 'cobertura_texto':
+            case 'contactos_extra':
                 $origen = json_decode((string)($c['texto_origen_json'] ?? ''), true);
                 if (!is_array($origen) || !$origen) $origen = ['fuente' => 'manual_negocio', 'fecha' => date('Y-m-d')];
                 $origen[actFichaClaveTextoOrigen($campo)] = $valor;

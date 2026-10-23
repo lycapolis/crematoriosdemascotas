@@ -30,6 +30,7 @@ require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/conexion_db.php';
 require_once __DIR__ . '/includes/funciones.php';
 require_once __DIR__ . '/includes/notificaciones/despachador.php';
+require_once __DIR__ . '/includes/insignias.php';
 require_once __DIR__ . '/includes/actualizacion-ficha.php';
 require_once __DIR__ . '/includes/ImagenHelper.php';
 
@@ -106,6 +107,22 @@ if ($ficha) {
     // Datos actuales de la ficha (para precargar el formulario y detectar qué cambia)
     $valoresActuales = actFichaValoresActuales($pdo, $fichaId)['valores'] ?? [];
     $ffDatos = $valoresActuales + ['pais' => 'España'];
+    $ffDatos['google_maps_url'] = '';   // llega vacío: el negocio pone el suyo y en la revisión se compara con el del scraping
+
+    // Ciudades que ya existen en las fichas activas, para el selector de cobertura (una sola grafía por ciudad:
+    // la más frecuente). Mientras no exista el gestor de ciudades (ficha 12) este es el listado.
+    $ffCiudadesListado = [];
+    try {
+        $porSlug = [];
+        foreach ($pdo->query("SELECT ciudad, COUNT(*) AS n FROM crematorios
+                              WHERE estado = 'activa' AND ciudad IS NOT NULL AND ciudad != ''
+                              GROUP BY ciudad ORDER BY n DESC, ciudad ASC")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $k = slugificar((string)$r['ciudad']);
+            if ($k !== '' && !isset($porSlug[$k])) $porSlug[$k] = trim((string)$r['ciudad']);
+        }
+        $ffCiudadesListado = array_values($porSlug);
+        sort($ffCiudadesListado, SORT_LOCALE_STRING);
+    } catch (\Throwable $ex) { /* sin listado: el selector admite escribir ciudades */ }
 
     $q = $pdo->prepare("SELECT id FROM actualizaciones_ficha WHERE crematorio_id = ? AND estado = 'pendiente' ORDER BY id DESC LIMIT 1");
     $q->execute([$fichaId]);
@@ -151,7 +168,46 @@ if ($ficha) {
                 foreach (array_merge(array_keys(actFichaCatalogo()), ['contacto_nombre', 'contacto_email', 'contacto_telefono', 'comunidad', 'pais', 'comentarios_admin']) as $k) {
                     $posted[$k] = trim(mb_scrub((string)($_POST[$k] ?? '')));   // mb_scrub: descarta bytes que no sean UTF-8 válido
                 }
+
+                // Cobertura: los selectores múltiples llegan como listas; se guardan como «a, b, c» en los campos de siempre
+                $lista = fn(string $k) => implode(', ', array_filter(array_map(
+                    fn($x) => trim(mb_scrub((string)$x)), is_array($_POST[$k] ?? null) ? $_POST[$k] : [])));
+                $posted['zona_cobertura']     = $lista('cobertura_zonas');
+                $posted['ciudades_cobertura'] = $lista('cobertura_ciudades');
+                // Servicios y horarios: lo marcado en las etiquetas + lo que el negocio escribe de más.
+                // Si el conjunto coincide con el actual (aunque cambie el orden), no cuenta como cambio.
+                $lim = fn($k) => array_values(array_filter(array_map(fn($x) => trim(mb_scrub((string)$x)), is_array($_POST[$k] ?? null) ? $_POST[$k] : [])));
+                $mismoConjunto = function (array $a, array $b): bool {
+                    $a = array_map('mb_strtolower', $a); $b = array_map('mb_strtolower', $b); sort($a); sort($b); return $a === $b;
+                };
+                if (isset($_POST['servicios_sel'])) {
+                    $conocidos = [];
+                    foreach (actFichaServiciosCatalogo() as $its) foreach ($its as $it) $conocidos[mb_strtolower($it)] = true;
+                    $actualesServ = array_values(array_filter(array_map('trim', explode(',', (string)($valoresActuales['servicios'] ?? '')))));
+                    foreach ($actualesServ as $it) $conocidos[mb_strtolower($it)] = true;
+                    $habituales = []; $propios = [];
+                    foreach (array_merge($lim('servicios_sel'), $lim('servicios_propios')) as $it) {
+                        if (isset($conocidos[mb_strtolower($it)])) $habituales[mb_strtolower($it)] = $it; else $propios[mb_strtolower($it)] = $it;
+                    }
+                    $posted['servicios']         = $mismoConjunto(array_values($habituales), $actualesServ) ? (string)($valoresActuales['servicios'] ?? '') : implode(', ', $habituales);
+                    $posted['servicios_propios'] = implode(', ', $propios);
+                }
+                if (isset($_POST['horarios_sel'])) {
+                    $horActual  = array_values(array_filter(array_map('trim', preg_split('/\n+/', (string)($valoresActuales['horarios'] ?? '')) ?: [])));
+                    // Los horarios actuales que no son una etiqueta se conservan (la caja de abajo solo añade notas nuevas)
+                    $horEtiquetas = array_map('mb_strtolower', actFichaHorariosSugeridos());
+                    $horConservados = array_values(array_filter($horActual, fn($l) => !in_array(mb_strtolower($l), $horEtiquetas, true)));
+                    $horNuevo   = array_values(array_unique(array_merge($lim('horarios_sel'), $horConservados, $lim('horarios_extra'))));
+                    $ffExtraPost = $lim('horarios_extra');
+                    $posted['horarios'] = $mismoConjunto($horNuevo, $horActual) ? (string)($valoresActuales['horarios'] ?? '') : implode("\n", $horNuevo);
+                }
+                // Otra red: nombre + enlace → «nombre | enlace» (así lo guarda el catálogo)
+                $posted['red_otra_nombre'] = trim(mb_scrub((string)($_POST['red_otra_nombre'] ?? '')));
+                $posted['red_otra_url']    = trim(mb_scrub((string)($_POST['red_otra_url'] ?? '')));
+                $posted['red_otra'] = ($posted['red_otra_nombre'] !== '' || $posted['red_otra_url'] !== '')
+                    ? $posted['red_otra_nombre'] . ' | ' . $posted['red_otra_url'] : '';
                 $ffDatos = $posted;   // si hay errores, el formulario conserva lo escrito
+                if (isset($ffExtraPost)) $ffDatos['horarios_extra_post'] = $ffExtraPost;
 
                 $cNombre = mb_substr($posted['contacto_nombre'], 0, 150);
                 if ($cNombre === '') $erroresForm[] = 'Escribe tu nombre.';
@@ -224,7 +280,7 @@ if ($ficha) {
                 if ($telFinal === null) {
                     $error = $valores['telefono_nuevo'] === ''
                         ? 'Escribe el teléfono al que podemos llamarte (un número de España).'
-                        : 'Este número no parece un teléfono de España. Revísalo e inténtalo de nuevo (9 dígitos, por ejemplo 612 345 678).';
+                        : 'Este número no parece un teléfono de España. Revísalo e inténtalo de nuevo (por ejemplo, +34 612 34 56 78).';
                 }
             }
 
@@ -273,12 +329,15 @@ $meta_robots   = 'noindex, nofollow';
 include 'includes/header.php';
 
 $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+$tel = fn($t) => $e(telefonoEspanaNormalizar((string)$t) ?? $t);   // teléfono siempre en formato «+34 612 34 56 78»
 ?>
 
 <style>
     .verificar { min-height: 60vh; display: flex; justify-content: center; padding: var(--espacio-seis) var(--espacio-cuatro); }
     .verificar__inner { width: 100%; max-width: 640px; }
     .verificar__titulo { font-family: var(--fuente-titulo); font-size: var(--fs-cinco); color: var(--color-dos); margin: 0 0 var(--espacio-tres); letter-spacing: -.01em; }
+    .verificar__negocio { color: var(--color-uno); text-decoration: none; }
+    a.verificar__negocio:hover, a.verificar__negocio:focus { color: var(--color-uno); text-decoration: none; cursor: pointer; }
     .verificar__texto { color: var(--color-seis); line-height: 1.65; margin: 0 0 var(--espacio-cuatro); }
     .verificar__tarjeta { margin: 0 0 var(--espacio-cuatro); padding: var(--espacio-cuatro); background: var(--color-cinco); border-radius: var(--radio-dos); }
     .verificar__tarjeta-titulo { margin: 0 0 var(--espacio-tres); font-size: var(--fs-tres); color: var(--color-dos); }
@@ -298,6 +357,14 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
     .verificar__insignia { display: flex; gap: var(--espacio-tres); align-items: flex-start; margin: 0 0 var(--espacio-cuatro); padding: var(--espacio-tres) var(--espacio-cuatro); background: var(--color-ocho); border: 1px solid var(--color-cinco); border-radius: var(--radio-dos); }
     .verificar__insignia-icono { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; background: var(--color-cinco); }
     .verificar__insignia-nombre { display: block; color: var(--color-dos); font-weight: var(--peso-negrita); }
+    .verificar__insignia--tarjeta { flex-direction: column; align-items: stretch; gap: var(--espacio-tres); padding: var(--espacio-cuatro); }
+    .verificar__insignia-titulo { align-self: center; text-align: center; font-size: var(--fs-dos); font-weight: var(--peso-negrita); color: var(--color-dos); background: #F6E3D8; padding: .25rem .8rem; border-radius: 999px; }
+    .verificar__insignia-fila { display: flex; align-items: center; gap: var(--espacio-tres); padding: var(--espacio-dos) 0; border-top: 1px solid var(--color-cinco); border-bottom: 1px solid var(--color-cinco); }
+    .verificar__insignia-fila .verificar__insignia-nombre { line-height: 1.25; }
+    .verificar__insignia-grande { min-width: 52px; height: 52px; }
+    .verificar__insignia-grande .icono { width: 28px; height: 28px; }
+    .verificar__insignia--tarjeta .verificar__insignia-texto { margin: 0; font-size: var(--fs-dos); line-height: 1.5; text-align: center; }
+    .verificar__insignia-cta { margin-top: 0; display: block; text-align: center; white-space: nowrap; font-size: var(--fs-dos); padding: .55rem .6rem; }
     .verificar__insignia-texto { margin: var(--espacio-uno) 0 0; color: var(--color-seis); line-height: 1.5; font-size: var(--fs-dos); }
     .verificar__cta-llamada { display: flex; gap: var(--espacio-tres); align-items: center; justify-content: space-between; flex-wrap: wrap; margin: 0 0 var(--espacio-cuatro); padding: var(--espacio-tres) var(--espacio-cuatro); background: var(--color-cinco); border-radius: var(--radio-dos); }
     .verificar__cta-llamada p { margin: 0; flex: 1 1 260px; color: var(--color-dos); line-height: 1.5; }
@@ -319,7 +386,7 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
     @media (min-width: 1100px) {
         .verificar__inner--ancho { max-width: 1320px; display: grid; grid-template-columns: 260px minmax(0, 780px) 260px; gap: var(--espacio-cinco); align-items: start; justify-content: center; }
         .verificar__lateral { display: block; position: sticky; top: calc(var(--verificar-header, 0px) + 16px); }
-        .verificar__lateral--izq { grid-column: 1; }
+        .verificar__lateral--izq { grid-column: 1; display: flex; flex-direction: column; gap: var(--espacio-tres); }
         .verificar__centro { grid-column: 2; min-width: 0; }
         .verificar__lateral--der { grid-column: 3; }
         .verificar__lateral .verificar__insignia { flex-direction: column; margin: 0; }
@@ -349,7 +416,7 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
     <?php elseif ($resultado === 'llamada'): ?>
         <h1 class="verificar__titulo">¡Listo! Te llamaremos pronto</h1>
         <div class="verificar__ok">
-            Te llamaremos al <strong class="verificar__telefono"><?= $e($telConfirmado) ?></strong> lo antes posible, de lunes a viernes en horario comercial. No tienes que hacer nada más.
+            Te llamaremos al <strong class="verificar__telefono"><?= $tel($telConfirmado) ?></strong> lo antes posible, de lunes a viernes en horario comercial. No tienes que hacer nada más.
             <?php if ($telNuevoPublicado): ?>
             <br><br>Además, hemos guardado este número como el teléfono de atención al público de la ficha de <?= $e($ficha['nombre']) ?>, para que las familias te localicen rápido.
             <?php endif; ?>
@@ -367,20 +434,49 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
     <?php else:
         $telMostrado = fichaTelefonoMostrado($ficha);
         $abrirOtro   = $valores['telefono_opcion'] === 'otro' || !$telMostrado;
-        $ins = $insignias['verificado_humano'];
-        $htmlInsignia = function (string $clases, string $id = '') use ($ins, $e): string {
-            return '<div class="' . $clases . '"' . ($id !== '' ? ' id="' . $id . '"' : '') . '>'
-                 . '<span class="verificar__insignia-icono" style="color:' . $e($ins['color']) . ';"><i data-lucide="' . $e($ins['icono']) . '" class="icono" style="width:26px;height:26px;"></i></span>'
-                 . '<div><span class="verificar__insignia-nombre">Insignia «' . $e($ins['nombre']) . '», gratis</span>'
-                 . '<p class="verificar__insignia-texto">Al verificar tu ficha por teléfono, esta insignia se muestra en ella: ' . $e($ins['tooltip']) . '</p></div></div>';
+        // Insignias que la ficha ya tiene: esa tarjeta no se muestra
+        $yaTiene = [];
+        try { $yaTiene = array_column(insigniasDeFicha($pdo, $fichaId), 'slug'); } catch (\Throwable $ex) { /* se muestran ambas */ }
+
+        /** Tarjeta lateral de una insignia: réplica grande de la de la ficha pública + texto + botón opcional. */
+        $tarjetaInsignia = function (string $slug, string $titulo, string $texto, string $cta = '', string $extra = '') use ($insignias, $e): string {
+            $i = $insignias[$slug];
+            return '<div class="verificar__insignia verificar__insignia--tarjeta' . $extra . '" id="verificar-insignia-' . $e($slug) . '">'
+                 . '<span class="verificar__insignia-titulo">' . $e($titulo) . '</span>'
+                 . '<div class="verificar__insignia-fila"><div class="insignias insignias--grande"><span class="insignia verificar__insignia-grande" style="--insignia-color:' . $e($i['color']) . ';"><i data-lucide="' . $e($i['icono']) . '" class="icono"></i></span></div>'
+                 . '<span class="verificar__insignia-nombre">' . $e($i['nombre']) . '</span></div>'
+                 . '<p class="verificar__insignia-texto">' . $e($texto) . '</p>' . $cta . '</div>';
+        };
+        $htmlTarjetasIzq = function (bool $movil = false) use ($vista, $yaTiene, $tarjetaInsignia, $urlVista, $e): string {
+            $out = '';
+            $extra = $movil ? ' verificar__insignia--movil' : '';
+            if ($vista === 'llamada') {
+                if (!in_array('verificado_humano', $yaTiene, true)) {
+                    $out .= $tarjetaInsignia('verificado_humano', 'Esta insignia será de tu ficha', 'Cuando hablemos contigo y comprobemos tus datos, tu ficha la mostrará. Es gratis.', '', $extra);
+                }
+                return $out;
+            }
+            if (!in_array('verificado_humano', $yaTiene, true)) {
+                $cta = '<a href="' . $e($urlVista('llamada')) . '" class="boton uno verificar__insignia-cta">Quiero que me llamen</a>';
+                $out .= $tarjetaInsignia('verificado_humano', 'Tu ficha aún no la tiene', 'Consíguela gratis con una llamada de nuestro equipo.', $cta);
+            }
+            if (!in_array('datos_actualizados', $yaTiene, true)) {
+                $out .= $tarjetaInsignia('datos_actualizados', 'Tu ficha aún no la tiene', 'Consíguela gratis rellenando este formulario.');
+            }
+            return $out;
         };
     ?>
-        <aside class="verificar__lateral verificar__lateral--izq"><?= $htmlInsignia('verificar__insignia', 'verificar-insignia') ?></aside>
+        <aside class="verificar__lateral verificar__lateral--izq"><?= $htmlTarjetasIzq() ?></aside>
         <div class="verificar__centro">
-        <h1 class="verificar__titulo">Verifica tu ficha de <?= $e($ficha['nombre']) ?></h1>
-        <p class="verificar__texto">Tu negocio ya aparece en nuestro directorio. Verificar la ficha es <strong>gratis</strong> y sin ningún compromiso: así las familias saben que tus datos son correctos y pueden contactar contigo rápido.<?php if ($vista === 'formulario' && !$actPendiente): ?> Lo que ves en el formulario son <strong>los datos que tenemos ahora publicados</strong> en tu ficha<?php if (!empty($ficha['slug'])): ?> (<a href="<?= $e(BASE_URL . '/' . $ficha['slug']) ?>" target="_blank" rel="noopener">ver mi ficha</a>)<?php endif; ?>. Cambia lo que quieras, incluido el nombre, y completa lo que falte. Nuestro equipo lo revisa antes de publicar nada: <strong>tu ficha no cambia hasta entonces</strong>.<?php endif; ?></p>
+        <?php if ($vista === 'formulario'): ?>
+        <h1 class="verificar__titulo">Completa la ficha de <?php if (!empty($ficha['slug'])): ?><a class="verificar__negocio" href="<?= $e(BASE_URL . '/' . $ficha['slug']) ?>" target="_blank" rel="noopener"><?= $e($ficha['nombre']) ?></a><?php else: ?><span class="verificar__negocio"><?= $e($ficha['nombre']) ?></span><?php endif; ?></h1>
+        <p class="verificar__texto">Esto es lo que mostramos de tu negocio. Corrige lo que esté mal y añade lo que falte. <strong>Es gratis y solo lleva unos minutos.</strong> Una ficha completa ayuda a que las familias te encuentren y te contacten antes.<?php if (!empty($ficha['slug'])): ?> <a href="<?= $e(BASE_URL . '/' . $ficha['slug']) ?>" target="_blank" rel="noopener">Ver mi ficha tal como está ahora</a>.<?php endif; ?></p>
+        <?php else: ?>
+        <h1 class="verificar__titulo">Verifica tu ficha de <span class="verificar__negocio"><?= $e($ficha['nombre']) ?></span></h1>
+        <p class="verificar__texto">Tu negocio ya aparece en nuestro directorio. Verificar la ficha es <strong>gratis</strong> y sin ningún compromiso: así las familias saben que tus datos son correctos y pueden contactar contigo rápido.</p>
+        <?php endif; ?>
 
-        <?php if ($vista === 'llamada') echo $htmlInsignia('verificar__insignia verificar__insignia--movil'); ?>
+        <?php if ($vista === 'llamada') echo $htmlTarjetasIzq(true); ?>
 
         <?php if ($error !== ''): ?>
         <div class="verificar__error" role="alert"><?= $e($error) ?></div>
@@ -403,7 +499,7 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                 <div class="verificar__trampa" aria-hidden="true"><label>No rellenar <input type="text" name="website_url" tabindex="-1" autocomplete="off"></label></div>
 
                 <?php if ($telMostrado): ?>
-                <p class="verificar__pregunta">Te llamaremos al <strong class="verificar__telefono"><?= $e($telMostrado) ?></strong>. ¿Es correcto?</p>
+                <p class="verificar__pregunta">Te llamaremos al <strong class="verificar__telefono"><?= $tel($telMostrado) ?></strong>. ¿Es correcto?</p>
                 <div class="verificar__opciones">
                     <label class="field__opcion"><input type="radio" class="field__radio" name="telefono_opcion" value="correcto" <?= !$abrirOtro ? 'checked' : '' ?>><span>Sí, es correcto</span></label>
                     <label class="field__opcion"><input type="radio" class="field__radio" name="telefono_opcion" value="otro" <?= $abrirOtro ? 'checked' : '' ?>><span>No, usar otro número</span></label>
@@ -415,8 +511,8 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 
                 <div class="field verificar__otro" id="verificar-otro">
                     <label class="field__label" for="verificar-tel-nuevo"><?= $telMostrado ? 'Tu otro número de teléfono' : 'Teléfono de tu negocio' ?></label>
-                    <input class="field__input" type="tel" id="verificar-tel-nuevo" name="telefono_nuevo" inputmode="tel" autocomplete="tel" maxlength="20" value="<?= $e($valores['telefono_nuevo']) ?>" placeholder="612 345 678">
-                    <p class="verificar__ayuda">Escribe un teléfono de España (9 dígitos, por ejemplo 612 345 678).<?= $telMostrado ? ' Pasará a ser el teléfono de atención al público de tu ficha.' : '' ?></p>
+                    <input class="field__input" type="tel" id="verificar-tel-nuevo" name="telefono_nuevo" inputmode="tel" autocomplete="tel" maxlength="20" value="<?= $e($valores['telefono_nuevo']) ?>" placeholder="+34 612 34 56 78">
+                    <p class="verificar__ayuda">Escribe un teléfono de España (por ejemplo, +34 612 34 56 78).<?= $telMostrado ? ' Pasará a ser el teléfono de atención al público de tu ficha.' : '' ?></p>
                 </div>
 
                 <div class="verificar__acciones">
@@ -434,16 +530,13 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
         <?php
         // «¿Mejor una llamada?»: se pinta justo debajo de «Tus datos de contacto» (hueco $ffTrasContacto del formulario)
         // o, si ya hay una actualización en revisión (no hay formulario), en su sitio habitual.
-        $htmlCtaLlamada = function () use ($llamadaPendiente, $insignias, $urlVista, $e): string {
+        $htmlCtaLlamada = function () use ($yaTiene, $urlVista, $e): string {
+            if (in_array('verificado_humano', $yaTiene, true)) return '';   // ya verificada por una persona: no se ofrece otra llamada
             ob_start(); ?>
-        <?php if ($llamadaPendiente): ?>
-        <div class="verificar__ok">Ya tenemos tu solicitud de llamada: te llamaremos al <strong class="verificar__telefono"><?= $e($llamadaPendiente['telefono_confirmado']) ?></strong>. Puedes ir adelantando datos aquí para agilizarla.</div>
-        <?php else: ?>
         <div class="verificar__cta-llamada" id="verificar-cta-llamada">
-            <p><strong>¿Mejor una llamada?</strong> Son unos minutos, y tu ficha recibe gratis la insignia «<?= $e($insignias['verificado_humano']['nombre']) ?>».</p>
+            <p><strong>¿Prefieres que te llamemos?</strong> Rellenaremos esto para ti por teléfono en un par de minutos y obtendrás tu insignia gratis.</p>
             <a href="<?= $e($urlVista('llamada')) ?>" class="boton uno">Quiero que me llamen</a>
         </div>
-        <?php endif; ?>
             <?php return ob_get_clean();
         };
         if ($actPendiente) echo $htmlCtaLlamada();
@@ -478,17 +571,17 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                 <div style="display:flex; flex-direction:column; gap:var(--espacio-dos);">
                     <label class="field__opcion" style="align-items:flex-start; gap:.6rem;">
                         <input type="checkbox" class="field__check" id="consentimiento" name="consentimiento" value="1">
-                        <span>Acepto que revisen la información que envío para actualizar mi ficha y que me escriban sobre esta revisión. *</span>
+                        <span>Acepto que revisen estos datos y me escriban sobre esta revisión *</span>
                     </label>
                     <label class="field__opcion" style="align-items:flex-start; gap:.6rem;">
                         <input type="checkbox" class="field__check" id="consentimiento_comunicaciones" name="consentimiento_comunicaciones" value="1">
-                        <span>Quiero recibir también ofertas comerciales y novedades de servicios para mi negocio (opcional).</span>
+                        <span>Quiero recibir novedades y ofertas para mi negocio (opcional)</span>
                     </label>
                     <p class="verificar__ayuda">Usamos estos datos para revisar y actualizar tu ficha. Más información en nuestra <a href="privacidad.php" target="_blank" rel="noopener">política de privacidad</a>.</p>
                 </div>
 
                 <div class="verificar__acciones">
-                    <button type="submit" class="boton uno">Enviar los datos para revisión</button>
+                    <button type="submit" class="boton uno">Enviar para revisión</button>
                 </div>
             </form>
             <?php endif; ?>
@@ -508,8 +601,8 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
         <?php if ($vista === 'formulario' && !$actPendiente): ?>
         <aside class="verificar__lateral verificar__lateral--der">
             <div class="verificar__nota" id="verificar-nota" aria-live="polite">
-                <i data-lucide="sparkles" class="icono" style="width:22px;height:22px;"></i>
-                <span>Estos campos están precargados con lo que ahora muestra tu ficha. Cambia solo lo que quieras actualizar; nuestro equipo lo revisará antes de publicarlo.</span>
+                <i data-lucide="shield-check" class="icono" style="width:22px;height:22px;"></i>
+                <span>Modifica lo que quieras con tranquilidad: <strong>tu ficha no cambia hasta que lo revisemos y lo aprobemos.</strong></span>
             </div>
         </aside>
         <?php endif; ?>

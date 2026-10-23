@@ -212,6 +212,8 @@ if (empty($codigo_postal)) {
 // Contenido
 if (empty($descripcion)) {
     $errores[] = 'La descripción es requerida';
+} elseif (mb_strlen($descripcion) > 1800) {
+    $errores[] = 'La descripción puede tener como máximo 1800 caracteres.';
 } elseif (mb_strlen($descripcion) < 150) {
     $errores[] = 'La descripción debe tener al menos 150 caracteres';
 }

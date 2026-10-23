@@ -225,9 +225,11 @@ include 'header.php';
                     <?php foreach ($campos as $c):
                         $cat = $CAT[$c['campo']] ?? [$c['campo'], 'directo', ''];
                         $esTexto = $cat[1] === 'texto_original';
+                        $esEtiqueta = $cat[1] === 'etiqueta_propuesta';
                     ?>
                         <tr>
                             <td class="act-tabla__campo"><?php echo $h($cat[0]); ?>
+                                <?php if ($esEtiqueta): ?><div><span class="admin-pill admin-pill--alerta">etiqueta nueva propuesta por usuario</span></div><div style="font-weight:400; font-size:var(--admin-body-sm); color:var(--admin-tinta-suave); white-space:normal; max-width:22ch;">Al aprobar se archivan en la ficha; todavía no entran en filtros ni buscadores</div><?php endif; ?>
                                 <?php if ($esTexto): ?><div style="font-weight:400; font-size:var(--admin-body-sm); color:var(--admin-tinta-suave); white-space:normal; max-width:22ch;">Texto libre: se archiva como texto original y lo estructura la IA en la ficha</div><?php endif; ?>
                             </td>
                             <td><span class="act-valor<?php echo $c['valor_actual'] === null || $c['valor_actual'] === '' ? ' act-valor--vacio' : ''; ?>"><?php echo $c['valor_actual'] !== null && $c['valor_actual'] !== '' ? $h($c['valor_actual']) : '(vacío)'; ?></span></td>
