@@ -130,7 +130,11 @@ $fechaHoy = $dias_es[(int)date('w')] . ', ' . (int)date('j') . ' de ' . $meses_e
             $leadsB2CNuevos        = 0;
             $llamadasPendientes    = 0;
             $actualizacionesPendientes = 0;
+            $telefonosReportados   = 0;
             if ($pdo_header) {
+                try {
+                    $telefonosReportados = (int) $pdo_header->query("SELECT COUNT(*) FROM telefono_reportes WHERE estado = 'pendiente'")->fetchColumn();
+                } catch (PDOException $e) { /* migración sin correr: sin contador */ }
                 try {
                     $pendientesSolicitudes = (int) $pdo_header->query("SELECT COUNT(*) FROM solicitudes_registro WHERE estado = 'pendiente'")->fetchColumn();
                 } catch (PDOException $e) { /* tabla puede no existir */ }
@@ -173,6 +177,10 @@ $fechaHoy = $dias_es[(int)date('w')] . ', ' . (int)date('j') . ' de ' . $meses_e
             <a href="<?php echo $base_url; ?>/admin/llamadas-pendientes.php" class="admin-header__link"
                style="<?php echo $currentPage === 'llamadas-pendientes.php' ? 'opacity:1;font-weight:700;' : ''; ?>">
                 Llamadas<?php echo badgeContador($llamadasPendientes, '#dc2626'); ?>
+            </a>
+            <a href="<?php echo $base_url; ?>/admin/telefonos-reportados.php" class="admin-header__link"
+               style="<?php echo $currentPage === 'telefonos-reportados.php' ? 'opacity:1;font-weight:700;' : ''; ?>">
+                Teléfonos<?php echo badgeContador($telefonosReportados, '#dc2626'); ?>
             </a>
             <a href="<?php echo $base_url; ?>/admin/actualizaciones-pendientes.php" class="admin-header__link"
                style="<?php echo $currentPage === 'actualizaciones-pendientes.php' ? 'opacity:1;font-weight:700;' : ''; ?>">

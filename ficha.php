@@ -501,9 +501,11 @@ include 'includes/header.php';
 
     /* ── Sidebar sticky de contacto ──
        top: ~34px más abajo del header del sitio (header ~72px + 34 = 106). */
-    .ficha-sidebar__sticky {
+    .ficha-sidebar__grupo {
         position: sticky;
         top: 106px;
+    }
+    .ficha-sidebar__sticky {
         background: var(--admin-superficie);
         border: 1px solid var(--admin-linea);
         border-radius: var(--radio-dos);
@@ -636,6 +638,29 @@ include 'includes/header.php';
     .ficha-info__item--clickeable:hover {
         color: var(--color-uno);
     }
+    /* Aviso discreto «¿No funciona este teléfono?» (debajo del teléfono del sidebar) */
+    .ficha-reporte-tel {
+        margin: var(--espacio-dos) 0 0;                    /* fuera de la tarjeta, justo debajo */
+        text-align: center;
+        font-size: 12px;
+        line-height: 1.4;
+        color: var(--color-seis-claro);
+    }
+    .ficha-reporte-tel__enlace {
+        background: none; border: 0; padding: 0; cursor: pointer;
+        font: inherit; color: inherit; opacity: .75;
+    }
+    .ficha-reporte-tel__enlace:hover { color: var(--color-uno); opacity: 1; text-decoration: underline; text-underline-offset: 2px; }
+    .ficha-reporte-tel__form { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 6px; margin-top: 4px; }
+    .ficha-reporte-tel__form[hidden], .ficha-reporte-tel__msg[hidden] { display: none; }
+    .ficha-reporte-tel__chip {
+        font: inherit; padding: 1px 8px; cursor: pointer;
+        color: var(--color-seis); background: transparent;
+        border: 1px solid currentColor; border-radius: 999px; opacity: .8;
+    }
+    .ficha-reporte-tel__chip:hover { color: var(--color-uno); opacity: 1; }
+    .ficha-reporte-tel__chip[disabled] { opacity: .4; cursor: wait; }
+    .ficha-reporte-tel__msg { margin: 2px 0 0; }
     .ficha-info__valor {
         flex: 1;
         min-width: 0;
@@ -683,7 +708,7 @@ include 'includes/header.php';
 
     /* Mobile: el sticky deja de ser sticky abajo, mantiene su lugar */
     @media (max-width: 1024px) {
-        .ficha-sidebar__sticky { position: static; }
+        .ficha-sidebar__grupo { position: static; }
     }
 
     /* En anchos chicos, los 2 CTAs se apilan vertical */
@@ -1883,6 +1908,7 @@ include 'includes/header.php';
                 $cremIdAttr      = (int)$crematorio['id'];
                 $cremNombreAttr  = htmlspecialchars($crematorio_nombre, ENT_QUOTES);
                 ?>
+                <div class="ficha-sidebar__grupo">
                 <div class="ficha-sidebar__sticky">
                     <!-- Header: logo izq + nombre + ciudad -->
                     <div class="ficha-sidebar__header">
@@ -2032,6 +2058,27 @@ include 'includes/header.php';
                         <?php endif; ?>
                     </div>
                     <?php endif; ?>
+                </div>
+                        <?php if ($telPrincipal): ?>
+                        <div class="ficha-reporte-tel" data-reporte-tel>
+                            <button type="button" class="ficha-reporte-tel__enlace" data-reporte-tel-abrir
+                                    title="Avísanos si este número no funciona para actualizar la información. ¡Gracias!">
+                                ¿No funciona este teléfono? Avísanos
+                            </button>
+                            <form class="ficha-reporte-tel__form" data-reporte-tel-form hidden>
+                                <input type="hidden" name="crematorio_id" value="<?php echo $cremIdAttr; ?>">
+                                <input type="hidden" name="form_render_ts" value="<?php echo time(); ?>">
+                                <input type="text" name="website_url" tabindex="-1" autocomplete="off" aria-hidden="true"
+                                       style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;">
+                                <input type="hidden" name="motivo" value="">
+                                <span class="ficha-reporte-tel__label">¿Qué ha pasado?</span>
+                                <button type="submit" class="ficha-reporte-tel__chip" data-motivo="no_contesta">No contesta</button>
+                                <button type="submit" class="ficha-reporte-tel__chip" data-motivo="numero_equivocado">Número equivocado</button>
+                                <button type="submit" class="ficha-reporte-tel__chip" data-motivo="otro">Otro</button>
+                            </form>
+                            <p class="ficha-reporte-tel__msg" data-reporte-tel-msg role="status" hidden></p>
+                        </div>
+                        <?php endif; ?>
                 </div>
 
             </aside>
@@ -2379,6 +2426,34 @@ include 'includes/header.php';
     <p id="lb-caption" style="color:#ddd;margin-top:.9rem;font-size:.9rem;max-width:80vw;text-align:center;line-height:1.4;"></p>
     <p id="lb-counter" style="color:#888;margin-top:.2rem;font-size:.75rem;"></p>
 </div>
+<script>
+// Aviso «¿No funciona este teléfono?»: abre el mini formulario y lo envía a reportar-telefono.php
+document.querySelectorAll('[data-reporte-tel]').forEach(function (caja) {
+    var abrir = caja.querySelector('[data-reporte-tel-abrir]');
+    var form  = caja.querySelector('[data-reporte-tel-form]');
+    var msg   = caja.querySelector('[data-reporte-tel-msg]');
+    abrir.addEventListener('click', function () { form.hidden = !form.hidden; });
+    var chips = form.querySelectorAll('[data-motivo]');
+    chips.forEach(function (c) {
+        c.addEventListener('click', function () { form.elements['motivo'].value = c.dataset.motivo; });
+    });
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        chips.forEach(function (c) { c.disabled = true; });
+        fetch('<?php echo BASE_URL; ?>/reportar-telefono.php', { method: 'POST', body: new FormData(form) })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                msg.textContent = d.mensaje || 'Gracias, lo revisaremos.';
+                msg.hidden = false;
+                if (d.ok) { form.hidden = true; abrir.hidden = true; } else { chips.forEach(function (c) { c.disabled = false; }); }
+            })
+            .catch(function () {
+                msg.textContent = 'No hemos podido enviar el aviso. Inténtalo más tarde.';
+                msg.hidden = false; chips.forEach(function (c) { c.disabled = false; });
+            });
+    });
+});
+</script>
 <script>
 const _lb = <?= $lightbox_json ?>;
 let _lbi = 0;

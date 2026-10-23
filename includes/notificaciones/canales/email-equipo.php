@@ -63,6 +63,17 @@ if (!function_exists('notifCanal_email_equipo')) {
             $ll = $st->fetch(\PDO::FETCH_ASSOC);
             if (!$ll) return ['omitir' => 'llamada_no_existe'];
             $p = notifEquipoDesdeLlamada($ll);
+        } elseif ($evento === 'telefono.reportado') {
+            $st = $pdo->prepare("
+                SELECT t.*, c.nombre AS negocio_nombre, c.slug AS negocio_slug
+                FROM telefono_reportes t
+                JOIN crematorios c ON c.id = t.crematorio_id
+                WHERE t.id = ? LIMIT 1
+            ");
+            $st->execute([(int)($datos['reporte_id'] ?? 0)]);
+            $tr = $st->fetch(\PDO::FETCH_ASSOC);
+            if (!$tr) return ['omitir' => 'reporte_no_existe'];
+            $p = notifEquipoDesdeReporteTelefono($tr);
         } elseif ($evento === 'ficha.actualizacion_recibida') {
             $st = $pdo->prepare("
                 SELECT a.*, c.nombre AS negocio_nombre, c.slug AS negocio_slug
@@ -234,6 +245,28 @@ if (!function_exists('notifCanal_email_equipo')) {
             'bloques' => [],
             'cta'     => ['texto' => 'Ver llamadas por hacer', 'url' => notifUrlPublica('admin/llamadas-pendientes.php')],
             'cta2'    => !empty($l['negocio_slug']) ? ['texto' => 'Ver la ficha', 'url' => notifUrlPublica($l['negocio_slug'])] : null,
+            'origen'  => '',
+            'reply_to' => null,
+        ];
+    }
+
+    /** Aviso de un visitante sobre un teléfono: se construye desde la fila de telefono_reportes. */
+    function notifEquipoDesdeReporteTelefono(array $r): array
+    {
+        $negocio = notifEquipoTxt($r['negocio_nombre'] ?? '');
+        $motivos = ['no_contesta' => 'No contesta', 'numero_equivocado' => 'Número equivocado', 'otro' => 'Otro'];
+        $motivo  = $motivos[$r['motivo'] ?? ''] ?? 'No indicado';
+        return [
+            'tipo'    => 'Un visitante avisa de que un teléfono no funciona',
+            'resumen' => $negocio . ' · ' . ($r['telefono'] ?? '') . ' · ' . $motivo,
+            'filas'   => [
+                'Negocio'  => $negocio,
+                'Teléfono' => (string)($r['telefono'] ?? ''),
+                'Qué pasó' => $motivo,
+            ],
+            'bloques' => [],
+            'cta'     => ['texto' => 'Ver teléfonos reportados', 'url' => notifUrlPublica('admin/telefonos-reportados.php')],
+            'cta2'    => !empty($r['negocio_slug']) ? ['texto' => 'Ver la ficha', 'url' => notifUrlPublica($r['negocio_slug'])] : null,
             'origen'  => '',
             'reply_to' => null,
         ];

@@ -131,6 +131,14 @@ if (!function_exists('notifCatalogoEventos')) {
                 'reactiva_supresion' => false,
                 'webhook'            => ['modo' => 'sobre'],
             ],
+            // ── Calidad de datos: un visitante avisa de que un teléfono no funciona (aviso interno, sin webhook ni email al negocio) ──
+            'telefono.reportado' => [
+                'titulo'             => 'Un visitante avisa de que un teléfono no funciona',
+                'canales'            => ['email_equipo'],
+                'clave'              => fn(array $d) => 'telefono.reportado:' . (int)$d['reporte_id'],
+                'reactiva_supresion' => false,
+                'webhook'            => ['modo' => 'sobre'],
+            ],
             // ── Campaña de prospección: el negocio envía datos para actualizar su ficha (revisión humana) ──
             'ficha.actualizacion_recibida' => [
                 'titulo'             => 'Un negocio envía datos para actualizar su ficha (pendiente de revisar)',
