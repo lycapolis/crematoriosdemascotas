@@ -405,6 +405,29 @@ if (!empty($crematorio['latitud']) && !empty($crematorio['longitud'])) {
     ];
 }
 
+// Zona de cobertura (areaServed): mismas ciudades que el chip público "Ciudades de cobertura"
+$schema_zonas = [];
+foreach (preg_split('/[,;]+/', (string) $ciudades_cobertura) as $zonaCiudad) {
+    $zonaCiudad = trim($zonaCiudad);
+    if ($zonaCiudad !== '' && !isset($schema_zonas[mb_strtolower($zonaCiudad)])) {
+        $schema_zonas[mb_strtolower($zonaCiudad)] = ['@type' => 'City', 'name' => $zonaCiudad];
+    }
+}
+if ($schema_zonas) {
+    $schema_data['areaServed'] = array_values($schema_zonas);
+} elseif ($provincia_nombre) {
+    $schema_data['areaServed'] = ['@type' => 'AdministrativeArea', 'name' => $provincia_nombre];
+}
+
+// Perfiles oficiales (sameAs): web propia + redes visibles (sin enlaces libres 'custom'), sin UTM
+$schema_same_as = [];
+foreach (array_merge([['red' => 'web', 'url' => $web]], $fRedesVis) as $sa) {
+    $saUrl = trim((string) ($sa['url'] ?? ''));
+    if (($sa['red'] ?? '') === 'custom' || !preg_match('#^https?://#i', $saUrl)) continue;
+    $schema_same_as[$saUrl] = $saUrl;
+}
+if ($schema_same_as) $schema_data['sameAs'] = array_values($schema_same_as);
+
 // Valoración agregada
 if (!empty($crematorio['rating']) && $crematorio['rating'] > 0 && !empty($crematorio['reviews_total'])) {
     $schema_data['aggregateRating'] = [
@@ -448,9 +471,6 @@ if (!empty($horarios_json_raw)) {
         if (isset($hPres['d'])) $addSpec('Sunday',   $hPres['d']);
         if ($schemaSpecs) $schema_data['openingHoursSpecification'] = $schemaSpecs;
     }
-}
-if (!isset($schema_data['openingHoursSpecification']) && !empty($schema_horario_txt)) {
-    $schema_data['openingHoursSpecification'] = ['@type' => 'OpeningHoursSpecification', 'description' => $schema_horario_txt];
 }
 
 // Limpiar nulls del schema
