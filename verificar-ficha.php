@@ -55,6 +55,31 @@ if ($firmaOk) {
     }
 }
 
+// Consulta de la maqueta de Google (JSON): el formulario manda lo que el negocio lleva escrito y se devuelve el
+// título y la descripción según la regla de includes/seo-ficha.php (así la regla no se duplica en JavaScript).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (string)($_POST['accion'] ?? '') === 'serp') {
+    header('Content-Type: application/json; charset=utf-8');
+    if (!$ficha) { http_response_code(403); echo '{}'; exit; }
+    require_once __DIR__ . '/includes/seo-ficha.php';
+    $lista = function (string $k): array {
+        $v = $_POST[$k] ?? [];
+        return array_slice(array_values(array_filter(array_map(fn($x) => trim(mb_substr(mb_scrub((string)$x), 0, 120)), is_array($v) ? $v : [])), fn($x) => $x !== ''), 0, 60);
+    };
+    $texto = fn(string $k, int $max) => trim(mb_substr(mb_scrub((string)($_POST[$k] ?? '')), 0, $max));
+    $horarios = array_merge($lista('horarios_sel'), $lista('horarios_extra'));
+    echo json_encode([
+        'titulo'      => seoFichaTitulo($texto('nombre_negocio', 200) ?: (string)$ficha['nombre'], $texto('ciudad', 120)),
+        'descripcion' => seoFichaDescripcion([
+            'ciudad'      => $texto('ciudad', 120),
+            'servicios'   => array_merge($lista('servicios_sel'), $lista('servicios_propios')),
+            'cobertura'   => array_merge($lista('cobertura_zonas'), $lista('cobertura_ciudades')),
+            'horarios'    => $horarios,
+            'descripcion' => $texto('descripcion', 4000),
+        ]),
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // Vista según el botón del email: 'llamada' (por defecto) o 'formulario'. Se conserva en los POST con un campo oculto.
 $vista = (string)($_GET['a'] ?? $_POST['a'] ?? '') === 'formulario' ? 'formulario' : 'llamada';
 $urlVista = fn(string $v) => 'verificar-ficha.php?f=' . $fichaId . '&t=' . rawurlencode($token) . '&a=' . $v;
@@ -374,6 +399,7 @@ $tel = fn($t) => $e(telefonoEspanaNormalizar((string)$t) ?? $t);   // teléfono 
     .verificar__lateral { display: none; }
     .verificar__nota { display: flex; flex-direction: column; gap: var(--espacio-dos); padding: var(--espacio-tres) var(--espacio-cuatro); background: var(--color-dos); color: var(--color-ocho); border-radius: var(--radio-dos); box-shadow: 0 4px 14px rgba(90,62,47,.18); line-height: 1.5; font-size: var(--fs-dos); }
     .verificar__nota .icono { flex: none; color: #F2C9A8; }
+    .verificar__serp { margin-top: var(--espacio-tres); }
     .verificar__nota--destello { animation: verificar-destello 1.1s ease-out; }
     @keyframes verificar-destello {
         0%   { box-shadow: 0 0 0 0 rgba(184,112,79,.8), 0 4px 14px rgba(90,62,47,.18); background: var(--color-uno); }
@@ -604,7 +630,53 @@ $tel = fn($t) => $e(telefonoEspanaNormalizar((string)$t) ?? $t);   // teléfono 
                 <i data-lucide="shield-check" class="icono" style="width:22px;height:22px;"></i>
                 <span>Modifica lo que quieras con tranquilidad: <strong>tu ficha no cambia hasta que lo revisemos y lo aprobemos.</strong></span>
             </div>
+            <?php
+            // Maqueta de Google: parte de los datos actuales y se repinta mientras el negocio escribe (ruta ?accion=serp de este archivo)
+            require_once __DIR__ . '/includes/seo-ficha.php';
+            require_once __DIR__ . '/includes/componentes/serp-preview.php';
+            $serpIni = [
+                'ciudad'      => (string)($ffDatos['ciudad'] ?? ''),
+                'servicios'   => seoFichaLista((string)($ffDatos['servicios'] ?? '')),
+                'cobertura'   => array_merge(seoFichaLista((string)($ffDatos['zona_cobertura'] ?? '')), seoFichaLista((string)($ffDatos['ciudades_cobertura'] ?? ''))),
+                'horarios'    => seoFichaLista((string)($ffDatos['horarios'] ?? '')),
+                'descripcion' => (string)($ffDatos['descripcion'] ?? ''),
+            ];
+            ?>
+            <div class="verificar__serp" id="verificar-serp">
+                <?php serpPreviewRender('verificar-serp-preview',
+                    seoFichaTitulo((string)($ffDatos['nombre_negocio'] ?? $ficha['nombre']), $serpIni['ciudad']),
+                    seoFichaDescripcion($serpIni),
+                    'crematoriosdemascotas.com › ' . ($ficha['slug'] ?? '')); ?>
+            </div>
         </aside>
+        <?php endif; ?>
+
+        <?php if ($vista === 'formulario' && !$actPendiente): ?>
+        <script>
+        (function () {
+            // Maqueta de Google: pregunta al servidor (misma regla que la ficha pública) con lo que el negocio lleva escrito
+            var form = document.querySelector('.verificar__form-ficha');
+            if (!form || !window.serpPreviewActualizar) return;
+            var claves = ['nombre_negocio', 'ciudad', 'servicios_sel[]', 'servicios_propios[]', 'cobertura_zonas[]', 'cobertura_ciudades[]', 'horarios_sel[]', 'horarios_extra[]', 'descripcion'];
+            var espera = null, ultima = 0;
+            function consultar() {
+                var fd = new FormData(form), p = new URLSearchParams();
+                claves.forEach(function (k) { fd.getAll(k).forEach(function (v) { p.append(k, v); }); });
+                p.set('accion', 'serp');
+                p.set('f', <?= (int)$fichaId ?>);
+                p.set('t', <?= json_encode($token) ?>);
+                var n = ++ultima;
+                fetch('verificar-ficha.php', { method: 'POST', body: p })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (j) { if (j && n === ultima) window.serpPreviewActualizar('verificar-serp-preview', j.titulo, j.descripcion); })
+                    .catch(function () { /* la maqueta queda como estaba */ });
+            }
+            function programar() { clearTimeout(espera); espera = setTimeout(consultar, 400); }
+            form.addEventListener('input', programar);
+            form.addEventListener('change', programar);
+            form.addEventListener('click', function (ev) { if (ev.target.closest && ev.target.closest('.ff-chip')) programar(); });
+        })();
+        </script>
         <?php endif; ?>
 
         <script>

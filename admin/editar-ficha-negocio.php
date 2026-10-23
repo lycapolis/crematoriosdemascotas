@@ -1339,6 +1339,23 @@ function selectBool(string $name, $valor): string {
                 <input type="hidden" id="metas-json"           name="metas_json"           value="<?php echo htmlspecialchars($metaJson); ?>">
                 <div id="meta-fuentes-editor"></div>
             </div>
+
+            <?php
+            // Maqueta de Google: sigue la meta activa del editor de arriba; sin meta, muestra lo que armaría la regla (includes/seo-ficha.php)
+            require_once __DIR__ . '/../includes/seo-ficha.php';
+            require_once __DIR__ . '/../includes/componentes/serp-preview.php';
+            $serpDatos = seoFichaDatosDeFila($cr);
+            $serpDatos['meta'] = '';
+            $serpFallback = seoFichaDescripcion($serpDatos);
+            $serpMetaActiva = trim((string)($cr['meta_description_seo'] ?? ''));
+            $serpTitulo = seoFichaTitulo((string)($cr['nombre'] ?? ''), (string)($cr['ciudad'] ?? ''));
+            ?>
+            <div class="field" style="margin-top:var(--admin-espacio-3, 16px); margin-bottom:0;" id="meta-serp"
+                 data-titulo="<?php echo htmlspecialchars($serpTitulo); ?>" data-fallback="<?php echo htmlspecialchars($serpFallback); ?>">
+                <?php serpPreviewRender('meta-serp-preview', $serpTitulo, $serpMetaActiva !== '' ? $serpMetaActiva : $serpFallback,
+                    'crematoriosdemascotas.com › ' . ($cr['slug'] ?? ''),
+                    ['contadores' => true, 'aviso' => 'Maqueta aproximada: sigue la meta activa de arriba. Si no hay ninguna, Google verá la frase que arma la regla con los datos de la ficha.']); ?>
+            </div>
         </section>
 
         <?php
@@ -2300,7 +2317,10 @@ function toggleResenasResueltas() {
             document.getElementById(opts.jsonInputId).value = JSON.stringify(data);
             const activo = data.find(d => d.activo);
             const flatEl = document.getElementById(opts.flatInputId);
-            if (flatEl) flatEl.value = activo ? (activo.valor || '') : '';
+            if (flatEl) {
+                flatEl.value = activo ? (activo.valor || '') : '';
+                flatEl.dispatchEvent(new CustomEvent('fuente-activa'));   // la maqueta de Google (#meta-serp) se repinta con este aviso
+            }
         }
 
         function setActivo(id) {
@@ -2513,6 +2533,13 @@ function toggleResenasResueltas() {
     document.addEventListener('DOMContentLoaded', function() {
         initFuentesEditor({ jsonInputId:'descripciones-json', flatInputId:'descripcion',       editorDivId:'desc-fuentes-editor', tipo:'desc' });
         initFuentesEditor({ jsonInputId:'metas-json',         flatInputId:'meta_description_seo', editorDivId:'meta-fuentes-editor', tipo:'meta', maxLen:220 });
+        (function () {   // Maqueta de Google de la meta: sigue la versión activa (o la frase de la regla si no hay ninguna)
+            const flat = document.getElementById('meta_description_seo'), serp = document.getElementById('meta-serp');
+            if (!flat || !serp || !window.serpPreviewActualizar) return;
+            const repintar = () => window.serpPreviewActualizar('meta-serp-preview', serp.dataset.titulo, flat.value.trim() || serp.dataset.fallback);
+            flat.addEventListener('fuente-activa', repintar);
+            repintar();
+        })();
         initFuentesEditor({ jsonInputId:'mensajes-whatsapp-json', flatInputId:'mensaje-whatsapp-flat', editorDivId:'whatsapp-fuentes-editor', tipo:'whatsapp', maxLen:500 });
     });
 })();

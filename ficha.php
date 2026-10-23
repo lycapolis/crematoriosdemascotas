@@ -365,10 +365,11 @@ foreach ($clientes_display as $img) {
 $lightbox_json = json_encode($lightbox_images, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
 
 // Título de página y header
-$titulo_pagina    = $crematorio_nombre . ' - Crematorios de Mascotas';
-$meta_descripcion = !empty($crematorio['meta_description_seo'])
-    ? $crematorio['meta_description_seo']
-    : ($crematorio['descripcion_google'] ?? SITIO_DESCRIPCION);
+// Regla única en includes/seo-ficha.php (la misma que usan las maquetas de Google del admin y de verificar-ficha.php)
+require_once __DIR__ . '/includes/seo-ficha.php';
+$titulo_pagina    = seoFichaTitulo($crematorio_nombre, $ciudad_nombre);
+$meta_descripcion = seoFichaDescripcion(seoFichaDatosDeFila($crematorio))
+    ?: ($crematorio['descripcion_google'] ?? SITIO_DESCRIPCION);
 $og_image = $portada_url ?: SEO_DEFAULT_IMAGE;
 $pagina_actual = 'directorio';
 
