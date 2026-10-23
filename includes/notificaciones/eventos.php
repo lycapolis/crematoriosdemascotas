@@ -126,7 +126,7 @@ if (!function_exists('notifCatalogoEventos')) {
             // ── Campaña de prospección: un negocio pide que le llamemos (aviso interno, sin webhook) ──
             'llamada.solicitada' => [
                 'titulo'             => 'Un negocio pide que le llamemos (campaña de verificación)',
-                'canales'            => ['email_equipo'],
+                'canales'            => ['email_equipo', 'email_llamada'],   // aviso interno + «hemos recibido tu solicitud» al negocio
                 'clave'              => fn(array $d) => 'llamada.solicitada:' . (int)$d['llamada_id'],
                 'reactiva_supresion' => false,
                 'webhook'            => ['modo' => 'sobre'],
@@ -143,6 +143,29 @@ if (!function_exists('notifCatalogoEventos')) {
                 'titulo'             => 'Actualización de ficha revisada (aviso al negocio)',
                 'canales'            => ['email_actualizacion'],
                 'clave'              => fn(array $d) => 'ficha.actualizacion_revisada:' . (int)$d['actualizacion_id'],
+                'reactiva_supresion' => false,
+                'webhook'            => ['modo' => 'sobre'],
+            ],
+            // ── Campaña de prospección: emails 1-3 al negocio (los lanza cron/enviar-campana-prospeccion.php) ──
+            // La clave lleva el paso y la ficha: cada paso se envía UNA sola vez por ficha (las pruebas añaden una marca).
+            'campana.invitacion' => [
+                'titulo'             => 'Campaña: invitación a verificar la ficha (email 1)',
+                'canales'            => ['email_campana'],
+                'clave'              => fn(array $d) => 'campana:1:' . (int)$d['crematorio_id'] . (isset($d['marca']) ? ':prueba:' . $d['marca'] : ''),
+                'reactiva_supresion' => false,
+                'webhook'            => ['modo' => 'sobre'],
+            ],
+            'campana.recordatorio' => [
+                'titulo'             => 'Campaña: recordatorio (email 2)',
+                'canales'            => ['email_campana'],
+                'clave'              => fn(array $d) => 'campana:2:' . (int)$d['crematorio_id'] . (isset($d['marca']) ? ':prueba:' . $d['marca'] : ''),
+                'reactiva_supresion' => false,
+                'webhook'            => ['modo' => 'sobre'],
+            ],
+            'campana.ultimo_aviso' => [
+                'titulo'             => 'Campaña: último aviso (email 3)',
+                'canales'            => ['email_campana'],
+                'clave'              => fn(array $d) => 'campana:3:' . (int)$d['crematorio_id'] . (isset($d['marca']) ? ':prueba:' . $d['marca'] : ''),
                 'reactiva_supresion' => false,
                 'webhook'            => ['modo' => 'sobre'],
             ],

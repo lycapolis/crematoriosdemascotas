@@ -286,6 +286,27 @@ include 'header.php';
         <div class="notif-bloque__envio"><?php filaEnvio($admin['email'] ?? ''); ?></div>
       <?php cerrarBloque(); ?>
 
+      <?php abrirBloque('campana', 'campana_invitacion', 'Campaña de prospección (al negocio)', '4 emails'); ?>
+        <p class="notif-card__nota">
+          Los tres emails que escribe el motor de la campaña a los negocios: invitación, recordatorio (~7 días después, solo a quien no respondió)
+          y último aviso (~14 días después). Máximo 10 al día. Cada uno lleva el enlace de baja y los dos botones hacia verificar-ficha.php.
+          El estado de la campaña está en <a href="campana-prospeccion.php" class="admin-link">Campaña</a>.
+        </p>
+        <div class="notif-bloque__fila">
+          <div class="field">
+            <label class="field__label" for="camp_tipo">Email</label>
+            <select id="camp_tipo" data-campo="tipo" class="field__select">
+              <option value="campana_invitacion">1) Invitación a verificar la ficha</option>
+              <option value="campana_recordatorio">2) Recordatorio</option>
+              <option value="campana_ultimo_aviso">3) Último aviso</option>
+              <option value="llamada_recibida">4) «Hemos recibido tu solicitud de llamada» (tras pedirla)</option>
+            </select>
+          </div>
+          <?php filaNegocio('camp_neg'); ?>
+        </div>
+        <div class="notif-bloque__envio"><?php filaEnvio($admin['email'] ?? ''); ?></div>
+      <?php cerrarBloque(); ?>
+
       <?php abrirBloque('actualizacion', 'actualizacion_recibida', 'Actualización de ficha por el negocio (al negocio)', '4 variantes'); ?>
         <p class="notif-card__nota">
           Los dos momentos del formulario de verificar-ficha.php: recibida (al enviar los datos) y revisada (al terminar la revisión en Actualizaciones),

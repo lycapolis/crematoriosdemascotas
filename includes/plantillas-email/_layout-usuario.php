@@ -101,6 +101,7 @@ if (!function_exists('renderEmailLayoutUsuario')) {
           <?= $e($p['pie_motivo']) ?><br>
           <a href="<?= $e($p['url_baja']) ?>" style="color:#5A3E2F;"><?= $e($textoBaja) ?></a>
           <?php if ($urlPriv): ?> · <a href="<?= $e($urlPriv) ?>" style="color:#5A3E2F;">Política de privacidad</a><?php endif; ?>
+          <?php if (!empty($p['enlace_terminos']) && function_exists('notifUrlPublica')): ?> · <a href="<?= $e(notifUrlPublica('terminos.php')) ?>" style="color:#5A3E2F;">Términos</a><?php endif; ?>
         </p>
       </td></tr>
     </table>
@@ -133,6 +134,7 @@ if (!function_exists('renderEmailLayoutUsuario')) {
         $texto .= $p['pie_motivo'] . "\n";
         $texto .= $textoBaja . ': ' . $p['url_baja'] . "\n";
         if ($urlPriv) $texto .= 'Política de privacidad: ' . $urlPriv . "\n";
+        if (!empty($p['enlace_terminos']) && function_exists('notifUrlPublica')) $texto .= 'Términos: ' . notifUrlPublica('terminos.php') . "\n";
 
         return ['html' => $html, 'texto' => $texto];
     }

@@ -13,6 +13,7 @@
  *   $ffModo   'alta' | 'actualizacion'
  *   $ffDatos  array clave => valor con lo que se precarga (puede estar vacío)
  *   $GEO_ES   cascada comunidad → provincias (includes/geo_es.php)
+ *   $ffTrasContacto  (opcional) HTML que se pinta justo debajo del panel de datos de contacto
  *
  * Clases/ids principales: .ff-honeypot, .ff-grid, .ff-chip, #servicios-chips, #formulario-registro (lo pone la página).
  * No incluye el <form>, los consentimientos ni el botón de envío: eso lo decide cada página.
@@ -91,27 +92,25 @@ $ffServiciosSugeridos = array_keys(actFichaServiciosFlags());
     </div>
 </div>
 
+<?php if (!empty($ffTrasContacto)) echo $ffTrasContacto;   // hueco opcional bajo «Tus datos de contacto» (lo usa verificar-ficha.php) ?>
+
 <!-- SECCIÓN 2: Datos del negocio -->
 <div class="panel">
     <h3 class="panel__title">
         <i data-lucide="home" class="icono"></i>
         Datos del negocio
     </h3>
-    <?php if (!$ffEsAlta): ?>
-    <p class="panel__intro">Están precargados con lo que ahora muestra tu ficha. Cambia solo lo que quieras actualizar; nuestro equipo lo revisará antes de publicarlo.</p>
-    <?php endif; ?>
 
     <div class="field">
         <label class="field__label" for="nombre_negocio">Nombre del negocio<?php echo $ffAst; ?></label>
         <input type="text" id="nombre_negocio" name="nombre_negocio" class="field__input" <?php echo $ffReq; ?>
-               <?php echo $ffEsAlta ? '' : 'readonly'; ?>
                placeholder="Nombre comercial de tu negocio" value="<?php echo $ffV('nombre_negocio'); ?>">
         <?php if ($ffEsAlta): ?>
         <small class="field__hint">
             Solo el nombre comercial, <strong>sin la ciudad</strong>. Ej: «Crematorio Huella Amiga» (no «Crematorio Huella Amiga Madrid»). La URL no se puede cambiar luego.
         </small>
         <?php else: ?>
-        <small class="field__hint">El nombre y la dirección web de la ficha no se cambian desde aquí. Si necesitas cambiarlos, escríbenos.</small>
+        <small class="field__hint">Es el título de tu ficha (lo que se ve en la pestaña del navegador y en Google). Escribe solo el nombre comercial, sin la ciudad. La dirección web de la ficha no cambia aunque cambies el nombre.</small>
         <?php endif; ?>
     </div>
 

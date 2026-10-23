@@ -27,6 +27,7 @@ if (!function_exists('actFichaCatalogo')) {
     function actFichaCatalogo(): array
     {
         return [
+            'nombre_negocio'     => ['Nombre del negocio (título de la ficha)', 'directo', 'Datos básicos'],
             'telefono_clientes'  => ['Teléfono para clientes',   'directo',        'Contacto'],
             'email_clientes'     => ['Email para clientes',      'directo',        'Contacto'],
             'direccion'          => ['Dirección',                'directo',        'Ubicación'],
@@ -151,6 +152,7 @@ if (!function_exists('actFichaCatalogo')) {
         }
 
         $valores = [
+            'nombre_negocio'     => (string)($c['nombre'] ?? ''),
             'telefono_clientes'  => (string)(fichaTelefonoMostrado($c) ?? ''),
             'email_clientes'     => $email,
             'direccion'          => (string)($c['direccion_completa'] ?? ''),
@@ -201,6 +203,9 @@ if (!function_exists('actFichaCatalogo')) {
         foreach ($cambios as $campo => $c) {
             $v = $c['propuesto'];
             switch ($campo) {
+                case 'nombre_negocio':
+                    if (mb_strlen($v) < 3 || mb_strlen($v) > 150) $err[] = 'El nombre del negocio debe tener entre 3 y 150 caracteres.';
+                    break;
                 case 'telefono_clientes':
                     if (telefonoEspanaNormalizar($v) === null) $err[] = 'El teléfono para clientes no parece un teléfono de España (9 dígitos, por ejemplo 612 345 678).';
                     break;
@@ -271,6 +276,7 @@ if (!function_exists('actFichaCatalogo')) {
                 sincronizarCamposFlat($pdo, $fichaId);
                 return '';
 
+            case 'nombre_negocio': $upd('nombre', $valor); return 'el nombre es el título de la ficha; la dirección web (slug) no cambia';
             case 'direccion':     $upd('direccion_completa', $valor); return '';
             case 'ciudad':        $upd('ciudad', $valor); return '';
             case 'codigo_postal': $upd('codigo_postal', $valor); return '';

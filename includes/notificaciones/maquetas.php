@@ -41,6 +41,10 @@ if (!function_exists('notifMaqueta')) {
             'actualizacion_revisada'       => 'Actualización de ficha: «Tu ficha está revisada» (todo aprobado)',
             'actualizacion_revisada_parcial' => 'Actualización de ficha: revisada, con algo sin aprobar',
             'actualizacion_revisada_nada'  => 'Actualización de ficha: revisada, nada aprobado',
+            'llamada_recibida'             => 'Campaña: «Hemos recibido tu solicitud de llamada» (al negocio)',
+            'campana_invitacion'           => 'Campaña de prospección: email 1, invitación a verificar la ficha',
+            'campana_recordatorio'         => 'Campaña de prospección: email 2, recordatorio (~7 días)',
+            'campana_ultimo_aviso'         => 'Campaña de prospección: email 3, último aviso (~14 días después)',
             // Avisos internos al equipo
             'equipo_resena'        => 'Equipo: nueva reseña',
             'equipo_respuesta'     => 'Equipo: respuesta de un negocio a una reseña',
@@ -353,6 +357,24 @@ if (!function_exists('notifMaqueta')) {
                     $tpl = renderEmailSolicitudRechazada($sol, $motivo, $emailSol);
                     if ($motivo === null) $avisos[] = 'El motivo es opcional: si el admin no lo escribe al rechazar, el email no incluye ese párrafo.';
                 }
+                return ['ok' => true, 'tpl' => $tpl, 'avisos' => $avisos];
+
+            case 'llamada_recibida':
+                $avisos[] = 'Se envía al pedir la llamada en verificar-ficha.php, al primer email válido de la ficha (en ese paso el negocio no deja email). Una vez por solicitud; lleva enlace de baja.';
+                $tpl = renderEmailLlamadaRecibida(
+                    ['negocio_nombre' => $neg['nombre'], 'negocio_slug' => $neg['slug'], 'telefono' => '+34 612 34 56 78'],
+                    filter_var($emailDestino, FILTER_VALIDATE_EMAIL) ? $emailDestino : 'negocio@example.com'
+                );
+                return ['ok' => true, 'tpl' => $tpl, 'avisos' => $avisos];
+
+            case 'campana_invitacion':
+            case 'campana_recordatorio':
+            case 'campana_ultimo_aviso':
+                $pasoCamp = ['campana_invitacion' => 1, 'campana_recordatorio' => 2, 'campana_ultimo_aviso' => 3][$tipo];
+                $avisos[] = 'Lo envía cron/enviar-campana-prospeccion.php (máx. 10 al día, lunes a viernes de 9 a 14 h España) al primer email válido de la ficha. Los botones llevan a verificar-ficha.php con la firma de ESTA ficha; el enlace de baja es real para el email de destino.';
+                if ($neg['ficticio']) $avisos[] = 'Con el negocio de ejemplo los botones llevan a «Enlace no válido». Elige un negocio real para probarlos.';
+                $tpl = renderEmailCampana($pasoCamp, ['id' => (int)$neg['id'], 'nombre' => $neg['nombre']],
+                    filter_var($emailDestino, FILTER_VALIDATE_EMAIL) ? $emailDestino : 'negocio@example.com');
                 return ['ok' => true, 'tpl' => $tpl, 'avisos' => $avisos];
 
             case 'actualizacion_recibida':

@@ -44,7 +44,7 @@ $ficha = null;
 if ($firmaOk) {
     try {
         $pdo = obtenerConexion();
-        $st = $pdo->prepare("SELECT id, nombre, estado, telefono, telefono_clientes, telefonos_json, email, email_clientes, emails_json
+        $st = $pdo->prepare("SELECT id, nombre, slug, estado, telefono, telefono_clientes, telefonos_json, email, email_clientes, emails_json
                              FROM crematorios WHERE id = ? AND estado IN ('activa','demo') LIMIT 1");
         $st->execute([$fichaId]);
         $ficha = $st->fetch(PDO::FETCH_ASSOC) ?: null;
@@ -53,6 +53,10 @@ if ($firmaOk) {
         $ficha = null;
     }
 }
+
+// Vista según el botón del email: 'llamada' (por defecto) o 'formulario'. Se conserva en los POST con un campo oculto.
+$vista = (string)($_GET['a'] ?? $_POST['a'] ?? '') === 'formulario' ? 'formulario' : 'llamada';
+$urlVista = fn(string $v) => 'verificar-ficha.php?f=' . $fichaId . '&t=' . rawurlencode($token) . '&a=' . $v;
 
 $error     = '';
 $resultado = '';          // '' | 'llamada' | 'baja' | 'actualizacion'
@@ -82,13 +86,26 @@ function verificarMarcarCampana(PDO $pdo, int $fichaId, string $estado): void
         ->execute([$fichaId, $estado]);
 }
 
+// Insignias que se muestran como incentivo (datos reales del catálogo, con respaldo por si falta la tabla)
+$insignias = [
+    'verificado_humano'  => ['nombre' => 'Verificado por humano', 'icono' => 'badge-check', 'color' => '#16A34A',
+                             'tooltip' => 'Una persona de nuestro equipo habló por teléfono con este negocio y comprobó que sus datos son correctos.'],
+    'datos_actualizados' => ['nombre' => 'Datos actualizados por el negocio', 'icono' => 'file-check', 'color' => '#0EA5E9',
+                             'tooltip' => 'El propio negocio ha revisado y confirmado los datos de esta ficha.'],
+];
+if ($ficha) {
+    try {
+        $qi = $pdo->query("SELECT slug, nombre, tooltip, icono, color FROM insignias WHERE slug IN ('verificado_humano','datos_actualizados')");
+        foreach ($qi->fetchAll(PDO::FETCH_ASSOC) as $r) $insignias[$r['slug']] = array_filter($r, fn($v) => $v !== null && $v !== '') + $insignias[$r['slug']];
+    } catch (\Throwable $ex) { /* se usan los textos por defecto */ }
+}
+
 if ($ficha) {
     $telMostrado = fichaTelefonoMostrado($ficha);
 
     // Datos actuales de la ficha (para precargar el formulario y detectar qué cambia)
     $valoresActuales = actFichaValoresActuales($pdo, $fichaId)['valores'] ?? [];
     $ffDatos = $valoresActuales + ['pais' => 'España'];
-    $ffDatos['nombre_negocio'] = (string)$ficha['nombre'];
 
     $q = $pdo->prepare("SELECT id FROM actualizaciones_ficha WHERE crematorio_id = ? AND estado = 'pendiente' ORDER BY id DESC LIMIT 1");
     $q->execute([$fichaId]);
@@ -98,6 +115,15 @@ if ($ficha) {
                         WHERE crematorio_id = ? AND estado IN ('pendiente','reagendar') ORDER BY id DESC LIMIT 1");
     $q->execute([$fichaId]);
     $llamadaPendiente = $q->fetch(PDO::FETCH_ASSOC) ?: null;
+
+    // Clic en un botón del email de campaña (?c=<paso 1-3>&a=llamada|formulario): solo se cuenta
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && in_array((string)($_GET['c'] ?? ''), ['1', '2', '3'], true)
+        && in_array((string)($_GET['a'] ?? ''), ['llamada', 'formulario'], true)) {
+        try {
+            $pdo->prepare("INSERT INTO campana_clics (crematorio_id, paso, boton) VALUES (?, ?, ?)")
+                ->execute([$fichaId, (int)$_GET['c'], (string)$_GET['a']]);
+        } catch (\Throwable $ex) { /* migración sin correr: no se cuenta, la página funciona igual */ }
+    }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $accion = (string)($_POST['accion'] ?? '');
@@ -125,7 +151,6 @@ if ($ficha) {
                 foreach (array_merge(array_keys(actFichaCatalogo()), ['contacto_nombre', 'contacto_email', 'contacto_telefono', 'comunidad', 'pais', 'comentarios_admin']) as $k) {
                     $posted[$k] = trim(mb_scrub((string)($_POST[$k] ?? '')));   // mb_scrub: descarta bytes que no sean UTF-8 válido
                 }
-                $posted['nombre_negocio'] = (string)$ficha['nombre'];
                 $ffDatos = $posted;   // si hay errores, el formulario conserva lo escrito
 
                 $cNombre = mb_substr($posted['contacto_nombre'], 0, 150);
@@ -267,15 +292,54 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
     .verificar__acciones { display: flex; gap: var(--espacio-tres); flex-wrap: wrap; }
     .verificar__baja { margin-top: var(--espacio-cuatro); padding-top: var(--espacio-cuatro); border-top: 1px solid var(--color-cinco); }
     .verificar [hidden] { display: none !important; }
+    .verificar__invalido { text-align: center; padding: var(--espacio-seis) var(--espacio-cuatro); background: var(--color-cinco); border-radius: var(--radio-dos); }
+    .verificar__invalido-icono { display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 50%; background: var(--color-ocho); color: var(--color-uno); margin-bottom: var(--espacio-tres); }
+    .verificar__invalido .verificar__texto { max-width: 46ch; margin-left: auto; margin-right: auto; }
+    .verificar__insignia { display: flex; gap: var(--espacio-tres); align-items: flex-start; margin: 0 0 var(--espacio-cuatro); padding: var(--espacio-tres) var(--espacio-cuatro); background: var(--color-ocho); border: 1px solid var(--color-cinco); border-radius: var(--radio-dos); }
+    .verificar__insignia-icono { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; background: var(--color-cinco); }
+    .verificar__insignia-nombre { display: block; color: var(--color-dos); font-weight: var(--peso-negrita); }
+    .verificar__insignia-texto { margin: var(--espacio-uno) 0 0; color: var(--color-seis); line-height: 1.5; font-size: var(--fs-dos); }
+    .verificar__cta-llamada { display: flex; gap: var(--espacio-tres); align-items: center; justify-content: space-between; flex-wrap: wrap; margin: 0 0 var(--espacio-cuatro); padding: var(--espacio-tres) var(--espacio-cuatro); background: var(--color-cinco); border-radius: var(--radio-dos); }
+    .verificar__cta-llamada p { margin: 0; flex: 1 1 260px; color: var(--color-dos); line-height: 1.5; }
+    /* Dentro del formulario el ritmo lo da el gap del contenedor: sin margen propio (si no, abajo se duplica) */
+    .verificar__form-ficha .verificar__cta-llamada, .verificar__form-ficha .verificar__ok { margin: 0; }
+    .verificar__alternativa { margin: var(--espacio-cuatro) 0 0; color: var(--color-seis); line-height: 1.6; font-size: var(--fs-dos); }
+    .verificar__lateral { display: none; }
+    .verificar__nota { display: flex; flex-direction: column; gap: var(--espacio-dos); padding: var(--espacio-tres) var(--espacio-cuatro); background: var(--color-dos); color: var(--color-ocho); border-radius: var(--radio-dos); box-shadow: 0 4px 14px rgba(90,62,47,.18); line-height: 1.5; font-size: var(--fs-dos); }
+    .verificar__nota .icono { flex: none; color: #F2C9A8; }
+    .verificar__nota--destello { animation: verificar-destello 1.1s ease-out; }
+    @keyframes verificar-destello {
+        0%   { box-shadow: 0 0 0 0 rgba(184,112,79,.8), 0 4px 14px rgba(90,62,47,.18); background: var(--color-uno); }
+        60%  { box-shadow: 0 0 0 14px rgba(184,112,79,0), 0 4px 14px rgba(90,62,47,.18); }
+        100% { box-shadow: 0 0 0 0 rgba(184,112,79,0), 0 4px 14px rgba(90,62,47,.18); background: var(--color-dos); }
+    }
+    @media (prefers-reduced-motion: reduce) { .verificar__nota--destello { animation: none; } }
+    /* Escritorio: tres columnas (insignia | contenido | nota). En móvil/tablet todo en una columna y la nota se omite */
+    .verificar__inner--ancho { max-width: 640px; }
+    @media (min-width: 1100px) {
+        .verificar__inner--ancho { max-width: 1320px; display: grid; grid-template-columns: 260px minmax(0, 780px) 260px; gap: var(--espacio-cinco); align-items: start; justify-content: center; }
+        .verificar__lateral { display: block; position: sticky; top: calc(var(--verificar-header, 0px) + 16px); }
+        .verificar__lateral--izq { grid-column: 1; }
+        .verificar__centro { grid-column: 2; min-width: 0; }
+        .verificar__lateral--der { grid-column: 3; }
+        .verificar__lateral .verificar__insignia { flex-direction: column; margin: 0; }
+        .verificar__insignia--movil { display: none; }
+    }
     .verificar__trampa { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
     @media (max-width: 600px) { .verificar__acciones .boton { width: 100%; } }
 </style>
 
+<?php $principal = $ficha && !in_array($resultado, ['baja', 'llamada', 'actualizacion'], true); ?>
 <main class="verificar">
-    <div class="verificar__inner">
+    <div class="verificar__inner<?= $principal ? ' verificar__inner--ancho' : '' ?>">
     <?php if (!$ficha): ?>
-        <h1 class="verificar__titulo">Enlace no válido</h1>
-        <p class="verificar__texto">Este enlace no es válido o está incompleto. Si quieres verificar la ficha de tu negocio, escríbenos a <a href="mailto:info@crematoriosdemascotas.com">info@crematoriosdemascotas.com</a> y lo gestionamos contigo.</p>
+        <div class="verificar__invalido">
+            <span class="verificar__invalido-icono"><i data-lucide="link-2-off" class="icono" style="width:30px;height:30px;"></i></span>
+            <h1 class="verificar__titulo">Este enlace no funciona</h1>
+            <p class="verificar__texto">Puede que esté incompleto (algunos programas de correo lo cortan) o que ya no esté activo. Abre de nuevo el email que te enviamos y pulsa el botón desde ahí.</p>
+            <p class="verificar__texto">Si no lo encuentras, escríbenos y verificamos la ficha de tu negocio contigo, sin coste.</p>
+            <a href="mailto:info@crematoriosdemascotas.com?subject=Quiero%20verificar%20la%20ficha%20de%20mi%20negocio" class="boton uno">Escribirnos</a>
+        </div>
 
     <?php elseif ($resultado === 'baja'): ?>
         <h1 class="verificar__titulo">De acuerdo, no volveremos a escribirte</h1>
@@ -290,26 +354,39 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
             <br><br>Además, hemos guardado este número como el teléfono de atención al público de la ficha de <?= $e($ficha['nombre']) ?>, para que las familias te localicen rápido.
             <?php endif; ?>
         </div>
-        <p class="verificar__texto">La llamada es gratuita y solo sirve para comprobar que los datos de tu ficha son correctos.</p>
+        <p class="verificar__texto">La llamada es gratuita y solo sirve para comprobar que los datos de tu ficha son correctos. Al terminar, tu ficha recibe gratis la insignia «<?= $e($insignias['verificado_humano']['nombre']) ?>». Te hemos enviado un email de confirmación.</p>
+        <p class="verificar__texto">¿Quieres ir adelantando datos para agilizar la llamada? Vuelve al email que te enviamos y pulsa «Prefiero completarlo yo».</p>
 
     <?php elseif ($resultado === 'actualizacion'): ?>
         <h1 class="verificar__titulo">¡Gracias! Hemos recibido tus datos</h1>
         <div class="verificar__ok">
             Hemos recibido la actualización de la ficha de <strong><?= $e($ficha['nombre']) ?></strong>. Nuestro equipo la revisará y, hasta entonces, tu ficha sigue mostrando los datos de siempre: <strong>no se publica nada sin revisar</strong>.
         </div>
-        <p class="verificar__texto">Te escribiremos por email en cuanto esté revisada. No tienes que hacer nada más.</p>
+        <p class="verificar__texto">Te escribiremos por email en cuanto esté revisada y, si todo es correcto, tu ficha recibirá la insignia «<?= $e($insignias['datos_actualizados']['nombre']) ?>». No tienes que hacer nada más.</p>
 
     <?php else:
         $telMostrado = fichaTelefonoMostrado($ficha);
         $abrirOtro   = $valores['telefono_opcion'] === 'otro' || !$telMostrado;
+        $ins = $insignias['verificado_humano'];
+        $htmlInsignia = function (string $clases, string $id = '') use ($ins, $e): string {
+            return '<div class="' . $clases . '"' . ($id !== '' ? ' id="' . $id . '"' : '') . '>'
+                 . '<span class="verificar__insignia-icono" style="color:' . $e($ins['color']) . ';"><i data-lucide="' . $e($ins['icono']) . '" class="icono" style="width:26px;height:26px;"></i></span>'
+                 . '<div><span class="verificar__insignia-nombre">Insignia «' . $e($ins['nombre']) . '», gratis</span>'
+                 . '<p class="verificar__insignia-texto">Al verificar tu ficha por teléfono, esta insignia se muestra en ella: ' . $e($ins['tooltip']) . '</p></div></div>';
+        };
     ?>
+        <aside class="verificar__lateral verificar__lateral--izq"><?= $htmlInsignia('verificar__insignia', 'verificar-insignia') ?></aside>
+        <div class="verificar__centro">
         <h1 class="verificar__titulo">Verifica tu ficha de <?= $e($ficha['nombre']) ?></h1>
-        <p class="verificar__texto">Tu negocio ya aparece en nuestro directorio. Verificar la ficha es <strong>gratis</strong> y sin ningún compromiso: así las familias saben que tus datos son correctos y pueden contactar contigo rápido.</p>
+        <p class="verificar__texto">Tu negocio ya aparece en nuestro directorio. Verificar la ficha es <strong>gratis</strong> y sin ningún compromiso: así las familias saben que tus datos son correctos y pueden contactar contigo rápido.<?php if ($vista === 'formulario' && !$actPendiente): ?> Lo que ves en el formulario son <strong>los datos que tenemos ahora publicados</strong> en tu ficha<?php if (!empty($ficha['slug'])): ?> (<a href="<?= $e(BASE_URL . '/' . $ficha['slug']) ?>" target="_blank" rel="noopener">ver mi ficha</a>)<?php endif; ?>. Cambia lo que quieras, incluido el nombre, y completa lo que falte. Nuestro equipo lo revisa antes de publicar nada: <strong>tu ficha no cambia hasta entonces</strong>.<?php endif; ?></p>
+
+        <?php if ($vista === 'llamada') echo $htmlInsignia('verificar__insignia verificar__insignia--movil'); ?>
 
         <?php if ($error !== ''): ?>
         <div class="verificar__error" role="alert"><?= $e($error) ?></div>
         <?php endif; ?>
 
+        <?php if ($vista === 'llamada'): ?>
         <?php if ($llamadaPendiente): ?>
         <div class="verificar__ok">Ya tenemos tu solicitud. Te llamaremos al <strong class="verificar__telefono"><?= $e($llamadaPendiente['telefono_confirmado']) ?></strong> lo antes posible, de lunes a viernes en horario comercial.</div>
         <?php else: ?>
@@ -321,6 +398,7 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                 <input type="hidden" name="f" value="<?= (int)$fichaId ?>">
                 <input type="hidden" name="t" value="<?= $e($token) ?>">
                 <input type="hidden" name="accion" value="llamada">
+                <input type="hidden" name="a" value="llamada">
                 <input type="hidden" name="form_render_ts" value="<?= time() ?>">
                 <div class="verificar__trampa" aria-hidden="true"><label>No rellenar <input type="text" name="website_url" tabindex="-1" autocomplete="off"></label></div>
 
@@ -348,14 +426,33 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
         </section>
         <?php endif; ?>
 
+        <p class="verificar__alternativa">¿Prefieres completar tú los datos de tu ficha, sin llamada? Vuelve al email que te enviamos y pulsa «Prefiero completarlo yo».</p>
+        <?php else: /* vista formulario */ ?>
+
         <!-- Formulario completo para actualizar los datos de la ficha. Quien pide la llamada puede adelantar datos aquí;
              quien no, simplemente lo completa. Nada se publica sin revisión humana. -->
+        <?php
+        // «¿Mejor una llamada?»: se pinta justo debajo de «Tus datos de contacto» (hueco $ffTrasContacto del formulario)
+        // o, si ya hay una actualización en revisión (no hay formulario), en su sitio habitual.
+        $htmlCtaLlamada = function () use ($llamadaPendiente, $insignias, $urlVista, $e): string {
+            ob_start(); ?>
+        <?php if ($llamadaPendiente): ?>
+        <div class="verificar__ok">Ya tenemos tu solicitud de llamada: te llamaremos al <strong class="verificar__telefono"><?= $e($llamadaPendiente['telefono_confirmado']) ?></strong>. Puedes ir adelantando datos aquí para agilizarla.</div>
+        <?php else: ?>
+        <div class="verificar__cta-llamada" id="verificar-cta-llamada">
+            <p><strong>¿Mejor una llamada?</strong> Son unos minutos, y tu ficha recibe gratis la insignia «<?= $e($insignias['verificado_humano']['nombre']) ?>».</p>
+            <a href="<?= $e($urlVista('llamada')) ?>" class="boton uno">Quiero que me llamen</a>
+        </div>
+        <?php endif; ?>
+            <?php return ob_get_clean();
+        };
+        if ($actPendiente) echo $htmlCtaLlamada();
+        ?>
+
         <section class="verificar__formulario" id="verificar-formulario">
-            <h2 class="verificar__tarjeta-titulo">Prefiero completarlo yo</h2>
             <?php if ($actPendiente): ?>
             <div class="verificar__ok">Ya tenemos tu actualización y la estamos revisando. Te escribiremos por email en cuanto esté lista. Si quieres añadir algo más, respóndenos a ese email.</div>
             <?php else: ?>
-            <p class="verificar__texto">Revisa los datos de tu ficha, corrige o completa lo que quieras y envíalos. Nuestro equipo los revisará antes de publicarlos: <strong>tu ficha no cambia hasta entonces</strong>.</p>
 
             <?php if ($erroresForm): ?>
             <div class="verificar__error" role="alert">
@@ -370,8 +467,10 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
                 <input type="hidden" name="f" value="<?= (int)$fichaId ?>">
                 <input type="hidden" name="t" value="<?= $e($token) ?>">
                 <input type="hidden" name="accion" value="actualizar">
+                <input type="hidden" name="a" value="formulario">
                 <?php
                 $ffModo   = 'actualizacion';
+                $ffTrasContacto = $htmlCtaLlamada();
                 $GEO_ES   = include __DIR__ . '/includes/geo_es.php';
                 include __DIR__ . '/includes/form-ficha-campos.php';
                 ?>
@@ -394,6 +493,7 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
             </form>
             <?php endif; ?>
         </section>
+        <?php endif; /* vista */ ?>
 
         <form method="post" action="verificar-ficha.php" class="verificar__baja">
             <input type="hidden" name="f" value="<?= (int)$fichaId ?>">
@@ -403,8 +503,38 @@ $e = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
             <p class="verificar__texto" style="margin-bottom:var(--espacio-tres);">¿Prefieres no hacer nada? No pasa nada: no te volveremos a escribir sobre esto.</p>
             <button type="submit" class="boton dos">No me interesa</button>
         </form>
+        </div><!-- /.verificar__centro -->
+
+        <?php if ($vista === 'formulario' && !$actPendiente): ?>
+        <aside class="verificar__lateral verificar__lateral--der">
+            <div class="verificar__nota" id="verificar-nota" aria-live="polite">
+                <i data-lucide="sparkles" class="icono" style="width:22px;height:22px;"></i>
+                <span>Estos campos están precargados con lo que ahora muestra tu ficha. Cambia solo lo que quieras actualizar; nuestro equipo lo revisará antes de publicarlo.</span>
+            </div>
+        </aside>
+        <?php endif; ?>
 
         <script>
+        (function () {
+            // Altura del header sticky del sitio, para que los laterales queden justo debajo
+            var cab0 = document.querySelector('.header');
+            if (cab0) document.documentElement.style.setProperty('--verificar-header', cab0.offsetHeight + 'px');
+        })();
+        (function () {
+            // Tarjeta sticky del formulario: destella cada vez que el cursor entra en un campo de escritura
+            var nota = document.getElementById('verificar-nota');
+            if (nota) {
+                var form = document.querySelector('.verificar__form-ficha');
+                if (!form) return;
+                form.addEventListener('focusin', function (ev) {
+                    var t = ev.target;
+                    if (!t || !t.matches || !t.matches('input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]), textarea')) return;
+                    nota.classList.remove('verificar__nota--destello');
+                    void nota.offsetWidth;   // reinicia la animación
+                    nota.classList.add('verificar__nota--destello');
+                });
+            }
+        })();
         (function () {
             var radios = document.querySelectorAll('input[name="telefono_opcion"][type="radio"]');
             var otro = document.getElementById('verificar-otro');

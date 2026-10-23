@@ -178,6 +178,10 @@ $fechaHoy = $dias_es[(int)date('w')] . ', ' . (int)date('j') . ' de ' . $meses_e
                style="<?php echo $currentPage === 'actualizaciones-pendientes.php' ? 'opacity:1;font-weight:700;' : ''; ?>">
                 Actualizaciones<?php echo badgeContador($actualizacionesPendientes, '#dc2626'); ?>
             </a>
+            <a href="<?php echo $base_url; ?>/admin/campana-prospeccion.php" class="admin-header__link"
+               style="<?php echo $currentPage === 'campana-prospeccion.php' ? 'opacity:1;font-weight:700;' : ''; ?>">
+                Campaña
+            </a>
             <?php endif; ?>
 
             <?php if (tienePermiso($admin, 'tiers')) echo navLink("$base_url/admin/tiers.php", 'Planes', $currentPage); ?>

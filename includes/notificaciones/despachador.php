@@ -31,6 +31,8 @@ require_once __DIR__ . '/canales/email-usuario.php';
 require_once __DIR__ . '/canales/email-negocio.php';
 require_once __DIR__ . '/canales/email-solicitante.php';
 require_once __DIR__ . '/canales/email-actualizacion.php';
+require_once __DIR__ . '/canales/email-campana.php';
+require_once __DIR__ . '/canales/email-llamada.php';
 require_once __DIR__ . '/canales/email-equipo.php';
 require_once __DIR__ . '/canales/webhook.php';
 
