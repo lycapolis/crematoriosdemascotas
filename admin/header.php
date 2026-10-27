@@ -130,6 +130,7 @@ $fechaHoy = $dias_es[(int)date('w')] . ', ' . (int)date('j') . ' de ' . $meses_e
             $leadsB2CNuevos        = 0;
             $llamadasPendientes    = 0;
             $actualizacionesPendientes = 0;
+            $ciudadesPendientes    = 0;
             $telefonosReportados   = 0;
             if ($pdo_header) {
                 try {
@@ -149,6 +150,9 @@ $fechaHoy = $dias_es[(int)date('w')] . ', ' . (int)date('j') . ' de ' . $meses_e
                 } catch (PDOException $e) { /* idem */ }
                 try {
                     $llamadasPendientes = (int) $pdo_header->query("SELECT COUNT(*) FROM solicitudes_llamada WHERE estado IN ('pendiente','reagendar')")->fetchColumn();
+                } catch (PDOException $e) { /* migración sin correr: sin contador */ }
+                try {
+                    $ciudadesPendientes = (int) $pdo_header->query("SELECT COUNT(*) FROM ciudades WHERE estado_revision = 'pendiente'")->fetchColumn();
                 } catch (PDOException $e) { /* migración sin correr: sin contador */ }
                 try {
                     $actualizacionesPendientes = (int) $pdo_header->query("SELECT COUNT(*) FROM actualizaciones_ficha WHERE estado = 'pendiente'")->fetchColumn();
@@ -185,6 +189,10 @@ $fechaHoy = $dias_es[(int)date('w')] . ', ' . (int)date('j') . ' de ' . $meses_e
             <a href="<?php echo $base_url; ?>/admin/actualizaciones-pendientes.php" class="admin-header__link"
                style="<?php echo $currentPage === 'actualizaciones-pendientes.php' ? 'opacity:1;font-weight:700;' : ''; ?>">
                 Actualizaciones<?php echo badgeContador($actualizacionesPendientes, '#dc2626'); ?>
+            </a>
+            <a href="<?php echo $base_url; ?>/admin/ciudades.php" class="admin-header__link"
+               style="<?php echo $currentPage === 'ciudades.php' ? 'opacity:1;font-weight:700;' : ''; ?>">
+                Ciudades<?php echo badgeContador($ciudadesPendientes, '#dc2626'); ?>
             </a>
             <a href="<?php echo $base_url; ?>/admin/campana-prospeccion.php" class="admin-header__link"
                style="<?php echo $currentPage === 'campana-prospeccion.php' ? 'opacity:1;font-weight:700;' : ''; ?>">

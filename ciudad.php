@@ -41,7 +41,15 @@ if (!$provincia) {
     exit;
 }
 
-$crematorios = obtenerCrematoriosCiudad($ciudad_slug, $provincia_slug);
+$ciudadCat = obtenerCiudadPagina($ciudad_slug, $provincia_slug);
+
+// Slug antiguo, alternativo (alias) o con otra escritura (acentos, mayúsculas) → 301 a la URL canónica
+if ($ciudadCat && (!empty($ciudadCat['via_alias']) || $ciudad_slug !== $ciudadCat['slug'])) {
+    header('Location: ' . generarUrl('ciudad', $ciudadCat['slug'], $provincia_slug), true, 301);
+    exit;
+}
+
+$crematorios = $ciudadCat ? obtenerCrematoriosCiudad($ciudad_slug, $provincia_slug) : [];
 
 if (empty($crematorios)) {
     http_response_code(404);
@@ -62,11 +70,14 @@ if (empty($crematorios)) {
     exit;
 }
 
-$ciudad_nombre    = $crematorios[0]['ciudad'];
-$provincia_nombre = $crematorios[0]['provincia_nombre'];
-$comunidad_nombre = $crematorios[0]['comunidad_nombre'] ?? '';
-$comunidad_slug   = $crematorios[0]['comunidad_slug'] ?? '';
+$ciudad_nombre    = $ciudadCat['nombre'];
+$provincia_nombre = $provincia['nombre'];
+$comunidad_nombre = $provincia['comunidad_nombre'] ?? '';
+$comunidad_slug   = $provincia['comunidad_slug'] ?? '';
 $total_crematorios = count($crematorios);
+$hayEnLaZona = count(array_filter($crematorios, fn($c) => empty($c['en_ciudad']))) > 0;
+foreach ($crematorios as &$_crem) { if (empty($_crem['en_ciudad'])) $_crem['zona_ciudad'] = $ciudad_nombre; }
+unset($_crem);
 
 // Coordenadas para el mapa (debe estar ANTES del include header para que se cargue Leaflet)
 $coords_mapa       = obtenerCoordenadasCiudad($ciudad_slug, $provincia_slug);
@@ -88,7 +99,8 @@ $migas[] = [$ciudad_nombre, null];
 
 $tituloH1   = 'Crematorios de mascotas en ' . $ciudad_nombre;
 $badgeTotal = $total_crematorios . ' crematorio' . ($total_crematorios !== 1 ? 's' : '') . ' encontrado' . ($total_crematorios !== 1 ? 's' : '');
-$descripcion = 'Provincia de ' . $provincia_nombre . '. Compara servicios y contacta directamente con el crematorio que necesites.';
+$descripcion = 'Provincia de ' . $provincia_nombre . '. Compara servicios y contacta directamente con el crematorio que necesites.'
+    . ($hayEnLaZona ? ' Incluye crematorios de mascotas de la zona que también dan servicio aquí.' : '');
 $mapaRegionUrl = $usar_leaflet_mapa
     ? BASE_URL . '/mapa/' . urlencode($provincia_slug) . '/' . urlencode($ciudad_slug) . '?volver=' . urlencode($_SERVER['REQUEST_URI'] ?? '')
     : null;

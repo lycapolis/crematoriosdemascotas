@@ -42,16 +42,16 @@ $titulo = $nubeTitulo ?? ($titulosPorScope[$scope] ?? 'Ciudades');
 $pdo = obtenerConexion();
 if (!$pdo) return;
 
-// El slug se calcula en PHP (vía slugificar()) para normalizar acentos/ñ
-// — MySQL LOWER(REPLACE(...)) no remueve acentos y producía links rotos
-// como /barcelona/polinyà en vez de /barcelona/polinya.
-$sql = "SELECT DISTINCT
-            c.ciudad AS nombre,
+// El slug sale del catálogo `ciudades` (ASCII, único por provincia): ya no se arma desde el texto de la ficha.
+$sql = "SELECT
+            ci.nombre AS nombre,
+            ci.slug AS slug,
             p.slug AS provincia_slug,
             COUNT(*) AS total
         FROM crematorios c
-        LEFT JOIN provincias p ON c.provincia_id = p.id
-        WHERE c.ciudad IS NOT NULL AND c.ciudad != ''
+        JOIN ciudades ci ON ci.id = c.ciudad_id
+        LEFT JOIN provincias p ON ci.provincia_id = p.id
+        WHERE ci.activo = 1 AND ci.estado_revision <> 'pendiente'
           AND c.estado = 'activa'";
 
 $params = [];
@@ -77,19 +77,13 @@ switch ($scope) {
         break;
 }
 
-$sql .= " GROUP BY c.ciudad, p.slug
-          ORDER BY total DESC, c.ciudad ASC
+$sql .= " GROUP BY ci.id, ci.nombre, ci.slug, p.slug
+          ORDER BY total DESC, ci.nombre ASC
           LIMIT " . $limite;
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $_nubeCiudades = $stmt->fetchAll();
-
-// Calcular slug ASCII en PHP (acentos/ñ normalizados)
-foreach ($_nubeCiudades as &$_nubeCiu) {
-    $_nubeCiu['slug'] = slugificar($_nubeCiu['nombre']);
-}
-unset($_nubeCiu);
 
 if (empty($_nubeCiudades)) return;
 

@@ -29,6 +29,7 @@ $rating       = (float) ($crem['rating'] ?? 0);
 $nReviews     = (int)   ($crem['reviews_total'] ?? 0);
 $esDestacado  = !empty($crem['destacado']);
 $distanciaKm  = $crem['distancia_km'] ?? null;
+$zonaCiudad   = $crem['zona_ciudad'] ?? '';   // ciudad a la que NO pertenece pero cuya zona sirve (listados por ciudad)
 
 // Ubicación: dirección completa si existe; si no, "Ciudad, Provincia"
 $ubicacion = $crem['direccion_completa'] ?? '';
@@ -97,6 +98,9 @@ $insFila = array_values(array_filter($insTodas, fn($i) => !in_array($i['slug'], 
             <i data-lucide="map-pin" class="icono"></i>
             <span><?php echo limpiar($ubicacion); ?></span>
         </div>
+        <?php if ($zonaCiudad !== ''): ?>
+        <p class="tarjeta__zona"><i data-lucide="map-pinned" class="icono"></i> También da servicio en <?php echo limpiar($zonaCiudad); ?></p>
+        <?php endif; ?>
 
         <p class="tarjeta__descripcion">
             <?php echo limpiar($descMostrar); ?>

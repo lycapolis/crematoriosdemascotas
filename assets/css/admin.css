@@ -1302,3 +1302,29 @@ body {
     overflow: hidden;
 }
 .img-card__divider { border: none; border-top: 1px solid var(--admin-linea); margin: .25rem 0; }
+
+/* ─────────────────────────────────────────────────────────
+   Ficha · sección «Ubicación» (3 bloques: Zona / Dirección / Google)
+   ───────────────────────────────────────────────────────── */
+.ubicacion-bloque { margin-top: var(--espacio-cuatro); padding-top: var(--espacio-cuatro); border-top: 1px solid var(--admin-linea); }
+.ubicacion-bloque:first-of-type { margin-top: 0; padding-top: 0; border-top: 0; }
+.ubicacion-bloque__titulo { font-weight: 700; color: var(--admin-tinta-fuerte); margin-bottom: var(--espacio-tres); }
+.ubicacion-bloque__titulo small { font-weight: 400; color: var(--admin-tinta-suave); }
+.ubicacion-bloque__info { margin-top: var(--espacio-tres); font-size: var(--admin-body-sm); color: var(--admin-tinta-suave); }
+.ubicacion-bloque__info:empty { display: none; }
+.ubicacion-bloque__aviso { margin-top: var(--espacio-tres); padding: .6rem .8rem; border-radius: var(--admin-r-sm); background: var(--admin-tone-alerta-bg); color: var(--admin-tone-alerta-fg); font-size: var(--admin-body-sm); }
+.ubicacion-bloque__aviso[hidden] { display: none; }
+
+.ubicacion-nueva-chk { display: flex; align-items: flex-start; gap: .5rem; margin-top: var(--espacio-tres); font-size: var(--admin-body-sm); color: var(--admin-tinta-fuerte); cursor: pointer; }
+.ubicacion-nueva-chk input { margin-top: .2rem; }
+.ubicacion-nueva-box { margin-top: var(--espacio-tres); padding: var(--espacio-tres); border: 1px dashed var(--admin-linea-fuerte); border-radius: var(--admin-r-sm); background: var(--admin-papel-alt); }
+.ubicacion-nueva-box[hidden] { display: none; }
+
+/* Ficha · caja única «¿Dónde da servicio este negocio?» + lista automática de 20 km */
+.zona-auto { margin-top: var(--espacio-tres); padding: var(--espacio-tres); border: 1px dashed var(--admin-linea-fuerte); border-radius: var(--admin-r-sm); background: var(--admin-papel-alt); }
+.zona-auto__titulo { display: flex; align-items: center; gap: .4rem; font-weight: 600; font-size: var(--admin-body-sm); color: var(--admin-tinta-fuerte); }
+.zona-auto__titulo small { font-weight: 400; color: var(--admin-tinta-suave); }
+.zona-auto__titulo .icono { width: 16px; height: 16px; }
+.zona-auto__chips { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: var(--espacio-dos); }
+.zona-auto__chip { padding: .15rem .55rem; border-radius: 999px; background: var(--admin-superficie); border: 1px solid var(--admin-linea); font-size: var(--admin-caption); color: var(--admin-tinta-suave); }
+.zona-auto__vacio { margin: var(--espacio-dos) 0 0; font-size: var(--admin-body-sm); color: var(--admin-tinta-suave); }

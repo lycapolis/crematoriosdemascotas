@@ -94,6 +94,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // descripcion, meta_description_seo) NO se escriben en este UPDATE.
     // Las deriva sincronizarCamposFlat() del JSON tras el UPDATE, dentro de la misma
     // transacción. JSON = source of truth, flat = cache.
+    // Ciudad y provincia van atadas: si se elige una ciudad que ya existe, su provincia manda;
+    // si se escribe una ciudad nueva, se usa la provincia elegida (la ciudad queda «pendiente»).
+    $ciudadSel = trim($_POST['ciudad_sel'] ?? '');
+    $ciudadGuardar = $ciudadSel;
+    $provinciaGuardar = (int) ($_POST['provincia_id'] ?? 0) ?: (int) $cr['provincia_id'];
+    $ciudadNuevaTxt = trim(preg_replace('/\s+/u', ' ', $_POST['ciudad_nueva'] ?? ''));
+    $esCiudadNueva  = !empty($_POST['ciudad_nueva_chk']) && $ciudadNuevaTxt !== '';
+    if ($esCiudadNueva) {
+        $ciudadGuardar = mb_substr($ciudadNuevaTxt, 0, 100);   // la provincia es la elegida; la ciudad queda «pendiente»
+    } elseif ($ciudadSel !== '' && ctype_digit($ciudadSel)) {
+        $qCiu = $pdo->prepare("SELECT nombre, provincia_id FROM ciudades WHERE id = :id");
+        $qCiu->execute([':id' => (int) $ciudadSel]);
+        if ($filaCiu = $qCiu->fetch(PDO::FETCH_ASSOC)) {
+            $ciudadGuardar    = $filaCiu['nombre'];
+            $provinciaGuardar = (int) $filaCiu['provincia_id'];
+        } else {
+            $ciudadGuardar = (string) $cr['ciudad'];
+        }
+    }
+    $qProv = $pdo->prepare("SELECT COUNT(*) FROM provincias WHERE id = :id");
+    $qProv->execute([':id' => $provinciaGuardar]);
+    if (!$qProv->fetchColumn()) $provinciaGuardar = (int) $cr['provincia_id'];
+
     $datos = [
         ':id'                   => $id,
         ':nombre'               => trim($_POST['nombre'] ?? $cr['nombre']),
@@ -115,7 +138,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ':google_maps_url'      => trim($_POST['google_maps_url'] ?? ''),
         ':google_place_id'      => trim($_POST['google_place_id'] ?? '') ?: null,
         ':direccion_completa'   => trim($_POST['direccion_completa'] ?? ''),
-        ':ciudad'               => trim($_POST['ciudad'] ?? ''),
+        ':ciudad'               => $ciudadGuardar,
+        ':provincia_id'         => $provinciaGuardar,
         ':codigo_postal'        => trim($_POST['codigo_postal'] ?? ''),
         ':latitud'              => trim($_POST['latitud'] ?? '') ?: null,
         ':longitud'             => trim($_POST['longitud'] ?? '') ?: null,
@@ -160,6 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     google_place_id      = :google_place_id,
                     direccion_completa   = :direccion_completa,
                     ciudad               = :ciudad,
+                    provincia_id         = :provincia_id,
                     codigo_postal        = :codigo_postal,
                     latitud              = :latitud,
                     longitud             = :longitud,
@@ -187,6 +212,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Sincronizar las 6 flats desde el JSON recién guardado.
         sincronizarCamposFlat($pdo, $id);
+
+        // Enlazar la ficha con su ciudad del catálogo (si es nueva queda «pendiente»).
+        asignarCiudadFicha($pdo, $id);
 
         // Si la versión activa del mensaje WhatsApp es "auto", regenerarla con
         // los datos recién guardados (teléfono, precio, rating, etc. pueden
@@ -1014,118 +1042,262 @@ function selectBool(string $name, $valor): string {
         </section>
 
         <!-- ── Ubicación ── -->
+        <?php
+        // Datos para la zona: ciudades del catálogo (todas, también pendientes) y provincias con su región.
+        $zonaCiudades = []; $zonaProvincias = [];
+        try {
+            $zonaCiudades = $pdo->query("SELECT ci.id, ci.nombre, ci.provincia_id, ci.estado_revision AS estado, ci.lat, ci.lng, p.nombre AS provincia
+                                           FROM ciudades ci JOIN provincias p ON p.id = ci.provincia_id
+                                          WHERE ci.activo = 1 ORDER BY ci.nombre")->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) { /* migración sin correr */ }
+        $zonaProvincias = $pdo->query("SELECT p.id, p.nombre, COALESCE(ca.nombre, '') AS region
+                                         FROM provincias p LEFT JOIN comunidades_autonomas ca ON ca.id = p.comunidad_id
+                                        WHERE p.activo = 1 ORDER BY ca.nombre, p.nombre")->fetchAll(PDO::FETCH_ASSOC);
+        $zonaCiudadId  = (int) ($cr['ciudad_id'] ?? 0);
+        $zonaTextoOrfano = ($zonaCiudadId === 0 && trim((string) ($cr['ciudad'] ?? '')) !== '') ? trim($cr['ciudad']) : '';
+        $ubicCompleta = $checks['direccion'] && $checks['coordenadas'] && ($zonaCiudadId > 0);
+        ?>
         <section class="ficha-card">
             <h2 class="ficha-card__title">
                 <i data-lucide="map-pin" class="icono"></i>
                 Ubicación
-                <?php if (!$checks['direccion'] || !$checks['coordenadas']): ?>
+                <?php if (!$ubicCompleta): ?>
                 <span class="completitud-badge falta" style="margin-left:auto;">○ Incompleto</span>
                 <?php else: ?>
                 <span class="completitud-badge ok" style="margin-left:auto;">✓ Completo</span>
                 <?php endif; ?>
             </h2>
-            <div class="field" style="margin-bottom:var(--espacio-tres);">
-                <label class="field__label" for="direccion_completa">Dirección completa <?php echo !$checks['direccion'] ? '<span style="color:var(--admin-tone-error-fg)">○</span>' : '<span style="color:var(--admin-tone-exito-fg)">✓</span>'; ?></label>
-                <input type="text" id="direccion_completa" name="direccion_completa" class="field__input"
-                       value="<?php echo htmlspecialchars($cr['direccion_completa'] ?? ''); ?>">
+
+            <!-- ── 1. Ciudad y provincia ── -->
+            <div class="ubicacion-bloque">
+                <div class="ubicacion-bloque__titulo">1. Ciudad y provincia</div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:var(--espacio-tres);">
+                    <div class="field" style="margin-bottom:0;">
+                        <label class="field__label" for="ciudad">Ciudad <?php echo $zonaCiudadId > 0 ? '<span style="color:var(--admin-tone-exito-fg)">✓</span>' : '<span style="color:var(--admin-tone-error-fg)">○</span>'; ?></label>
+                        <select id="ciudad" name="ciudad_sel" data-placeholder="Busca y elige la ciudad">
+                            <option value=""></option>
+                            <?php foreach ($zonaCiudades as $zc): ?>
+                            <option value="<?php echo (int) $zc['id']; ?>"<?php echo (int) $zc['id'] === $zonaCiudadId ? ' selected' : ''; ?>><?php echo htmlspecialchars($zc['nombre'] . ' (' . $zc['provincia'] . ')' . ($zc['estado'] === 'pendiente' ? ' · pendiente' : '')); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small class="field__hint">Al elegir una ciudad de la lista, la provincia se pone sola.</small>
+                    </div>
+                    <div class="field" style="margin-bottom:0;">
+                        <label class="field__label" for="provincia_id">Provincia</label>
+                        <select id="provincia_id" name="provincia_id" class="field__select field__select--enhanced" data-placeholder="Elige la provincia">
+                            <?php $regionActual = null; foreach ($zonaProvincias as $zp):
+                                if ($zp['region'] !== $regionActual) { if ($regionActual !== null) echo '</optgroup>'; $regionActual = $zp['region']; echo '<optgroup label="' . htmlspecialchars($zp['region'] ?: 'Sin región') . '">'; } ?>
+                            <option value="<?php echo (int) $zp['id']; ?>"<?php echo (int) $zp['id'] === (int) $cr['provincia_id'] ? ' selected' : ''; ?>><?php echo htmlspecialchars($zp['nombre']); ?></option>
+                            <?php endforeach; if ($regionActual !== null) echo '</optgroup>'; ?>
+                        </select>
+                        <small class="field__hint" id="provincia-hint">Va atada a la ciudad.</small>
+                    </div>
+                </div>
+                <label class="ubicacion-nueva-chk">
+                    <input type="checkbox" id="ciudad-nueva-chk" name="ciudad_nueva_chk" value="1"<?php echo $zonaTextoOrfano !== '' ? ' checked' : ''; ?>>
+                    Mi ciudad no está en la lista: quiero añadirla (la revisará el equipo)
+                </label>
+                <div id="ciudad-nueva-box" class="ubicacion-nueva-box" hidden>
+                    <div class="field" style="margin-bottom:0;">
+                        <label class="field__label" for="ciudad-nueva">Nombre de la ciudad nueva</label>
+                        <input type="text" id="ciudad-nueva" name="ciudad_nueva" class="field__input" maxlength="100" value="<?php echo htmlspecialchars($zonaTextoOrfano); ?>" placeholder="Ej.: Villajoyosa">
+                        <small class="field__hint">Elige su provincia en el desplegable de arriba (la región se completa sola). Hasta que se apruebe en <a href="ciudades.php?ver=pendiente" class="admin-link">Ciudades</a>, no tendrá página propia.</small>
+                    </div>
+                </div>
+                <div id="zona-info" class="ubicacion-bloque__info"></div>
             </div>
-            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:var(--espacio-tres);">
-                <div class="field" style="margin-bottom:0;">
-                    <label class="field__label" for="ciudad">Ciudad</label>
-                    <input type="text" id="ciudad" name="ciudad" class="field__input"
-                           value="<?php echo htmlspecialchars($cr['ciudad'] ?? ''); ?>">
+
+            <!-- ── 2. Dirección del negocio ── -->
+            <div class="ubicacion-bloque">
+                <div class="ubicacion-bloque__titulo">2. Dirección del negocio <small>(el local concreto)</small></div>
+                <div class="field" style="margin-bottom:var(--espacio-tres);">
+                    <label class="field__label" for="direccion_completa">Dirección completa <?php echo !$checks['direccion'] ? '<span style="color:var(--admin-tone-error-fg)">○</span>' : '<span style="color:var(--admin-tone-exito-fg)">✓</span>'; ?></label>
+                    <input type="text" id="direccion_completa" name="direccion_completa" class="field__input"
+                           value="<?php echo htmlspecialchars($cr['direccion_completa'] ?? ''); ?>">
+                    <small class="field__hint">Calle, número y, si hace falta, polígono o nave. Al salir de la caja, si faltan las coordenadas, se buscan solas.</small>
                 </div>
-                <div class="field" style="margin-bottom:0;">
-                    <label class="field__label" for="codigo_postal">Código postal</label>
-                    <input type="text" id="codigo_postal" name="codigo_postal" class="field__input"
-                           value="<?php echo htmlspecialchars($cr['codigo_postal'] ?? ''); ?>">
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:var(--espacio-tres);">
+                    <div class="field" style="margin-bottom:0;">
+                        <label class="field__label" for="codigo_postal">Código postal</label>
+                        <input type="text" id="codigo_postal" name="codigo_postal" class="field__input"
+                               value="<?php echo htmlspecialchars($cr['codigo_postal'] ?? ''); ?>">
+                    </div>
+                    <div class="field" style="margin-bottom:0;">
+                        <label class="field__label" for="latitud">Latitud <?php echo !$checks['coordenadas'] ? '<span style="color:var(--admin-tone-error-fg)">○</span>' : '<span style="color:var(--admin-tone-exito-fg)">✓</span>'; ?></label>
+                        <input type="text" id="latitud" name="latitud" class="field__input"
+                               value="<?php echo htmlspecialchars($cr['latitud'] ?? ''); ?>">
+                    </div>
+                    <div class="field" style="margin-bottom:0;">
+                        <label class="field__label" for="longitud">Longitud</label>
+                        <input type="text" id="longitud" name="longitud" class="field__input"
+                               value="<?php echo htmlspecialchars($cr['longitud'] ?? ''); ?>">
+                    </div>
                 </div>
-                <div class="field" style="margin-bottom:0;">
-                    <label class="field__label" for="latitud">Latitud <?php echo !$checks['coordenadas'] ? '<span style="color:var(--admin-tone-error-fg)">○</span>' : '<span style="color:var(--admin-tone-exito-fg)">✓</span>'; ?></label>
-                    <input type="text" id="latitud" name="latitud" class="field__input"
-                           value="<?php echo htmlspecialchars($cr['latitud'] ?? ''); ?>">
-                </div>
-                <div class="field" style="margin-bottom:0;">
-                    <label class="field__label" for="longitud">Longitud</label>
-                    <input type="text" id="longitud" name="longitud" class="field__input"
-                           value="<?php echo htmlspecialchars($cr['longitud'] ?? ''); ?>">
-                </div>
-                <div class="field" style="grid-column:1/-1; margin-bottom:0;">
+                <div id="coords-aviso" class="ubicacion-bloque__aviso" hidden></div>
+                <div style="margin-top:var(--espacio-tres);">
                     <button type="button" id="btn-geocodificar" class="boton dos pequeno"
-                            onclick="geocodificarFicha(<?php echo (int)$id; ?>)"
                             style="display:inline-flex; align-items:center; gap:.4rem;">
                         <i data-lucide="map-pin" class="icono" style="width:14px;height:14px;"></i>
-                        Geocodificar dirección con Google
+                        Obtener coordenadas y código postal desde la dirección
                     </button>
                     <span id="geocod-resultado" style="margin-left:.6rem; font-size:var(--admin-body-sm); color:var(--admin-tinta-suave);"></span>
                     <div style="font-size:var(--admin-caption); color:var(--admin-tinta-tenue); margin-top:.3rem;">
-                        Toma la dirección + código postal + ciudad y obtiene lat/lng automáticamente.
-                        Útil si la ficha llegó sin coordenadas o si cambiaste la dirección.
+                        Usa la dirección y la ciudad elegida arriba. Rellena los campos; recuerda pulsar «Guardar».
                     </div>
                 </div>
-                <script>
-                function geocodificarFicha(id) {
-                    var btn = document.getElementById('btn-geocodificar');
-                    var msg = document.getElementById('geocod-resultado');
-                    btn.disabled = true;
-                    msg.textContent = 'Buscando…';
-                    msg.style.color = 'var(--admin-tinta-suave)';
-                    var fd = new FormData();
-                    fd.append('id', id);
-                    fetch('geocodificar-ajax.php', { method: 'POST', body: fd })
-                        .then(function(r) { return r.json(); })
-                        .then(function(data) {
-                            btn.disabled = false;
-                            if (data.ok) {
-                                document.getElementById('latitud').value  = data.lat;
-                                document.getElementById('longitud').value = data.lng;
-                                msg.textContent = '✓ Coordenadas actualizadas (' + data.formatted + ')';
-                                msg.style.color = 'var(--admin-tone-exito-fg)';
-                                if (data.place_id) {
-                                    var pidInput = document.getElementById('google_place_id');
-                                    if (pidInput && !pidInput.value.trim()) pidInput.value = data.place_id;
-                                }
-                            } else {
-                                msg.textContent = '✗ ' + (data.error || 'Sin resultados');
-                                msg.style.color = 'var(--admin-tone-error-fg)';
-                            }
-                        })
-                        .catch(function(e) {
-                            btn.disabled = false;
-                            msg.textContent = '✗ Error de red: ' + e.message;
-                            msg.style.color = 'var(--admin-tone-error-fg)';
-                        });
-                }
-                </script>
-                <div class="field" style="grid-column:1/-1; margin-bottom:0;">
-                    <label class="field__label" for="google_maps_url">URL Google Maps</label>
-                    <input type="url" id="google_maps_url" name="google_maps_url" class="field__input"
-                           value="<?php echo htmlspecialchars($cr['google_maps_url'] ?? ''); ?>">
-                </div>
-                <?php
-                    $gpid    = trim((string)($cr['google_place_id'] ?? ''));
-                    $pidImp  = trim((string)($cr['place_id'] ?? ''));
-                    $gpidVal = $gpid !== '' ? $gpid : $pidImp;        // autocopia desde el import si está vacío
-                    $gpidSugerido = ($gpid === '' && $pidImp !== ''); // se está proponiendo el del CSV
-                ?>
-                <div class="field" style="grid-column:1/-1; margin-bottom:0;">
-                    <label class="field__label" for="google_place_id">
-                        Google Place ID
-                        <span style="font-weight:400; color:var(--admin-tinta-tenue);">(habilita el mapa real de Google en Plan 03+)</span>
-                    </label>
-                    <input type="text" id="google_place_id" name="google_place_id" class="field__input"
-                           placeholder="ChIJ..." value="<?php echo htmlspecialchars($gpidVal); ?>">
-                    <span class="field__hint" style="display:block; margin-top:.25rem; font-size:var(--admin-caption); color:var(--admin-tinta-tenue);">
-                        <?php if ($gpidSugerido): ?>
-                        <i data-lucide="info" style="width:12px;height:12px;vertical-align:-2px;"></i>
-                        Sugerido desde el importador (<code><?php echo htmlspecialchars($pidImp); ?></code>). Revisalo y guardá para confirmarlo.
-                        <?php else: ?>
-                        El ID del lugar en Google Maps. Lo usa la ficha pública para el mapa embebido.
-                        <?php endif; ?>
-                    </span>
+            </div>
+
+            <!-- ── 3. Google ── -->
+            <div class="ubicacion-bloque">
+                <div class="ubicacion-bloque__titulo">3. Google Maps <small>(opcional, pero muy útil)</small></div>
+                <div style="display:grid; gap:var(--espacio-tres);">
+                    <div class="field" style="margin-bottom:0;">
+                        <label class="field__label" for="google_maps_url">URL de Google Maps</label>
+                        <input type="url" id="google_maps_url" name="google_maps_url" class="field__input"
+                               value="<?php echo htmlspecialchars($cr['google_maps_url'] ?? ''); ?>">
+                        <small class="field__hint">El enlace público de la ficha del negocio en Google Maps (el que se abre al pulsar «Compartir» en Maps). Sirve para que el visitante abra el negocio en Maps.</small>
+                    </div>
+                    <?php
+                        $gpid    = trim((string)($cr['google_place_id'] ?? ''));
+                        $pidImp  = trim((string)($cr['place_id'] ?? ''));
+                        $gpidVal = $gpid !== '' ? $gpid : $pidImp;        // autocopia desde el import si está vacío
+                        $gpidSugerido = ($gpid === '' && $pidImp !== ''); // se está proponiendo el del CSV
+                    ?>
+                    <div class="field" style="margin-bottom:0;">
+                        <label class="field__label" for="google_place_id">
+                            Google Place ID
+                            <span style="font-weight:400; color:var(--admin-tinta-tenue);">(habilita el mapa real de Google en Plan 03+)</span>
+                        </label>
+                        <input type="text" id="google_place_id" name="google_place_id" class="field__input"
+                               placeholder="ChIJ..." value="<?php echo htmlspecialchars($gpidVal); ?>">
+                        <small class="field__hint">
+                            <?php if ($gpidSugerido): ?>
+                            <i data-lucide="info" style="width:12px;height:12px;vertical-align:-2px;"></i>
+                            Sugerido desde el importador (<code><?php echo htmlspecialchars($pidImp); ?></code>). Revísalo y guarda para confirmarlo.<br>
+                            <?php endif; ?>
+                            Es el «DNI» del negocio en Google (empieza por <code>ChIJ</code>). Con él se pinta el mapa de la ficha y se generan los enlaces de reseñas y de «Cómo llegar». Si falta, búscalo con la
+                            <a href="https://developers.google.com/maps/documentation/places/web-service/place-id" target="_blank" rel="noopener" class="admin-link">herramienta oficial de Google</a>.
+                        </small>
+                    </div>
                 </div>
             </div>
         </section>
+
+        <script>
+        // Zona (ciudad + provincia atadas) y dirección del negocio
+        (function () {
+            var CIUDADES = <?php echo json_encode(array_map(fn($c) => [
+                'id' => (int) $c['id'], 'nombre' => $c['nombre'], 'prov' => (int) $c['provincia_id'], 'estado' => $c['estado'],
+                'lat' => $c['lat'] !== null ? (float) $c['lat'] : null, 'lng' => $c['lng'] !== null ? (float) $c['lng'] : null,
+            ], $zonaCiudades), JSON_UNESCAPED_UNICODE); ?>;
+            var PROVS = <?php echo json_encode(array_column(array_map(fn($p) => ['id' => (int) $p['id'], 'nombre' => $p['nombre'], 'region' => $p['region']], $zonaProvincias), null, 'id'), JSON_UNESCAPED_UNICODE); ?>;
+            var FICHA_ID = <?php echo (int) $id; ?>;
+            var selCiudad = document.getElementById('ciudad'), selProv = document.getElementById('provincia_id');
+            var info = document.getElementById('zona-info'), hint = document.getElementById('provincia-hint');
+            var aviso = document.getElementById('coords-aviso'), msg = document.getElementById('geocod-resultado');
+            var inDir = document.getElementById('direccion_completa'), inCp = document.getElementById('codigo_postal');
+            var inLat = document.getElementById('latitud'), inLng = document.getElementById('longitud');
+            var btn = document.getElementById('btn-geocodificar');
+            var tsCiudad = null, tsProv = null, ciudadActual = null, nombreNuevo = '';
+            var chkNueva = document.getElementById('ciudad-nueva-chk'), cajaNueva = document.getElementById('ciudad-nueva-box'), inNueva = document.getElementById('ciudad-nueva');
+
+            function esc(t) { var d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
+            function porId(v) { for (var i = 0; i < CIUDADES.length; i++) if (String(CIUDADES[i].id) === String(v)) return CIUDADES[i]; return null; }
+            function km(a, b, c, d) {
+                var r = Math.PI / 180, x = Math.sin((c - a) * r / 2), y = Math.sin((d - b) * r / 2);
+                var h = x * x + Math.cos(a * r) * Math.cos(c * r) * y * y;
+                return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
+            }
+            function pintarInfo() {
+                if (ciudadActual) {
+                    var p = PROVS[ciudadActual.prov] || {};
+                    var t = ciudadActual.lat !== null
+                        ? 'Centro de la ciudad: ' + ciudadActual.lat.toFixed(4) + ', ' + ciudadActual.lng.toFixed(4)
+                        : 'Esta ciudad aún no tiene coordenadas (se obtienen en Ciudades)';
+                    t += (p.region ? ' · Región: ' + esc(p.region) : '') + ' · Radio mínimo de servicio: 20&nbsp;km';
+                    if (ciudadActual.estado === 'pendiente') t += ' · <strong>Pendiente de revisión</strong>';
+                    t += ' · <a class="admin-link" href="ciudades.php?ver=todas&q=' + encodeURIComponent(ciudadActual.nombre) + '">Editar en Ciudades</a>';
+                    info.innerHTML = t;
+                } else if (nombreNuevo || chkNueva.checked) {
+                    var pn = PROVS[selProv.value] || {};
+                    info.innerHTML = 'Ciudad nueva' + (nombreNuevo ? ' «' + esc(nombreNuevo) + '»' : '') + ': quedará <strong>pendiente de revisión</strong> hasta que se apruebe en Ciudades.'
+                        + (pn.region ? ' Región: ' + esc(pn.region) + '.' : '');
+                } else {
+                    info.innerHTML = '';
+                }
+            }
+            function pintarAviso() {
+                var la = parseFloat((inLat.value || '').replace(',', '.')), lo = parseFloat((inLng.value || '').replace(',', '.'));
+                if (!ciudadActual || ciudadActual.lat === null || isNaN(la) || isNaN(lo)) { aviso.hidden = true; return; }
+                var d = km(ciudadActual.lat, ciudadActual.lng, la, lo);
+                if (d > 30) {
+                    aviso.hidden = false;
+                    aviso.textContent = 'Estas coordenadas quedan a ' + Math.round(d) + ' km del centro de ' + ciudadActual.nombre + '. ¿Es correcto? Revisa la dirección o la ciudad.';
+                } else aviso.hidden = true;
+            }
+            function aplicar(v) {
+                var c = (!chkNueva.checked && /^\d+$/.test(v || '')) ? porId(v) : null;
+                ciudadActual = c; nombreNuevo = chkNueva.checked ? inNueva.value.trim() : '';
+                if (c) {
+                    tsProv.setValue(String(c.prov), true);
+                    tsProv.lock();
+                    hint.textContent = 'Fijada por la ciudad elegida.';
+                } else {
+                    tsProv.unlock();
+                    hint.textContent = chkNueva.checked ? 'Ciudad nueva: elige su provincia.' : 'Va atada a la ciudad.';
+                }
+                pintarInfo(); pintarAviso();
+            }
+
+            function geocodificar(auto) {
+                var dir = (inDir.value || '').trim();
+                if (!dir) { if (!auto) { msg.textContent = '✗ Escribe primero la dirección'; msg.style.color = 'var(--admin-tone-error-fg)'; } return; }
+                btn.disabled = true; msg.textContent = 'Buscando…'; msg.style.color = 'var(--admin-tinta-suave)';
+                var fd = new FormData();
+                fd.append('id', FICHA_ID); fd.append('solo_consulta', '1'); fd.append('direccion', dir);
+                fd.append('codigo_postal', inCp.value || '');
+                fd.append('ciudad', ciudadActual ? ciudadActual.nombre : nombreNuevo);
+                fd.append('provincia', (PROVS[selProv.value] || {}).nombre || '');
+                fetch('geocodificar-ajax.php', { method: 'POST', body: fd })
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        btn.disabled = false;
+                        if (!data.ok) { msg.textContent = '✗ ' + (data.error || 'Sin resultados'); msg.style.color = 'var(--admin-tone-error-fg)'; return; }
+                        inLat.value = data.lat; inLng.value = data.lng;
+                        if (data.codigo_postal && !inCp.value.trim()) inCp.value = data.codigo_postal;
+                        var pid = document.getElementById('google_place_id');
+                        if (data.place_id && pid && !pid.value.trim()) pid.value = data.place_id;
+                        msg.textContent = '✓ Rellenado (' + (data.formatted || '') + '). Recuerda guardar.'; msg.style.color = 'var(--admin-tone-exito-fg)';
+                        pintarAviso();
+                    })
+                    .catch(function (e) { btn.disabled = false; msg.textContent = '✗ Error de red: ' + e.message; msg.style.color = 'var(--admin-tone-error-fg)'; });
+            }
+
+            window.addEventListener('load', function () {
+                if (typeof TomSelect === 'undefined') return;
+                tsProv = selProv.tomselect || new TomSelect(selProv, { dropdownParent: 'body' });
+                tsProv.on('change', function () { pintarInfo(); });
+                tsCiudad = new TomSelect(selCiudad, {
+                    create: false, maxOptions: 300, allowEmptyOption: true,
+                    dropdownParent: 'body', plugins: ['clear_button'],
+                    placeholder: selCiudad.dataset.placeholder || '',
+                    onChange: aplicar
+                });
+                // Casilla «Mi ciudad no está en la lista»: desactiva el desplegable y pide el nombre de la ciudad nueva
+                function modoCiudadNueva() {
+                    cajaNueva.hidden = !chkNueva.checked;
+                    if (chkNueva.checked) { tsCiudad.clear(true); tsCiudad.disable(); } else { tsCiudad.enable(); }
+                    aplicar(tsCiudad.getValue());
+                }
+                chkNueva.addEventListener('change', modoCiudadNueva);
+                inNueva.addEventListener('input', function () { nombreNuevo = inNueva.value.trim(); pintarInfo(); });
+                modoCiudadNueva();
+                [inLat, inLng].forEach(function (i) { i.addEventListener('input', pintarAviso); });
+                btn.addEventListener('click', function () { geocodificar(false); });
+                inDir.addEventListener('blur', function () { if (!(inLat.value || '').trim()) geocodificar(true); });
+            });
+        })();
+        </script>
 
         <!-- ── Descripción ── -->
         <section class="ficha-card">
@@ -1202,24 +1374,119 @@ function selectBool(string $name, $valor): string {
             <!-- Asistente IA para zona + ciudades de cobertura -->
             <?php renderBotonIA('cobertura', $iaLog, 'Detectar zonas y ciudades con IA'); ?>
 
-            <!-- Lista de provincias/CCAA para autocomplete custom (ver JS) -->
-            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:var(--espacio-tres);">
-                <div class="field" style="margin-bottom:0;">
-                    <label class="field__label">
-                        Zona de cobertura (provincias / CCAA)
-                        <?php echo !$checks['zona'] ? '<span style="color:var(--admin-tone-error-fg)">○</span>' : '<span style="color:var(--admin-tone-exito-fg)">✓</span>'; ?>
-                    </label>
-                    <input type="hidden" id="zona_cobertura" name="zona_cobertura"
-                           value="<?php echo htmlspecialchars($cr['zona_cobertura'] ?? ''); ?>">
-                    <div class="tag-input-wrap" data-target="zona_cobertura" data-autocomplete="zonas"></div>
-                </div>
-                <div class="field" style="margin-bottom:0;">
-                    <label class="field__label">Ciudades de cobertura</label>
-                    <input type="hidden" id="ciudades_cobertura" name="ciudades_cobertura"
-                           value="<?php echo htmlspecialchars($cr['ciudades_cobertura'] ?? ''); ?>">
-                    <div class="tag-input-wrap" data-target="ciudades_cobertura"></div>
-                </div>
+            <?php
+            // ¿Qué tiene indicado la ficha? Se reparte lo escrito en las dos columnas históricas (zona_cobertura /
+            // ciudades_cobertura) en: ciudad (c), provincia (p), región (r), texto sin página (t) o dato sucio (d).
+            $zsGeo = catalogoGeoZonas(); $zsCat = catalogoCiudadesVisibles();
+            $zsSel = [];
+            foreach ([['zona_cobertura', 'zona'], ['ciudades_cobertura', 'ciudad']] as [$zsCol, $zsPref]) {
+                foreach (preg_split('/[,;]+/', (string) ($cr[$zsCol] ?? '')) as $zsTok) {
+                    $zsC = clasificarZonaToken($zsTok, (int) ($cr['provincia_id'] ?? 0), $zsPref);
+                    if ($zsC['tipo'] === 'vacio') continue;
+                    $zsK = ['ciudad' => 'c', 'provincia' => 'p', 'region' => 'r', 'descartado' => 'd'][$zsC['tipo']] ?? 't';
+                    $zsSel[$zsK . ':' . $zsC['nombre']] = $zsK;
+                }
+            }
+            $zsTieneSucios = in_array('d', $zsSel, true);
+            // Mapas nombre→valor para que el botón de IA clasifique lo que sugiere
+            $zsMapas = ['c' => [], 'p' => [], 'r' => []];
+            foreach ($zsCat as $zc) $zsMapas['c'][$zc['slug']] = 'c:' . $zc['nombre'];
+            foreach ($zsGeo['prov'] as $zk => $zp) $zsMapas['p'][$zk] = 'p:' . $zp['nombre'];
+            foreach ($zsGeo['reg']  as $zk => $zr) $zsMapas['r'][$zk] = 'r:' . $zr['nombre'];
+            $zsLat = (float) ($cr['latitud'] ?? 0); $zsLng = (float) ($cr['longitud'] ?? 0);
+            $zsAuto = ($zsLat != 0 && $zsLng != 0) ? ciudadesEnRadio($zsLat, $zsLng, 20) : [];
+            ?>
+            <div class="field" style="margin-bottom:var(--espacio-tres);">
+                <label class="field__label" for="zona-servicio">
+                    ¿Dónde da servicio este negocio?
+                    <?php echo !$checks['zona'] ? '<span style="color:var(--admin-tone-error-fg)">○</span>' : '<span style="color:var(--admin-tone-exito-fg)">✓</span>'; ?>
+                </label>
+                <input type="hidden" id="zona_cobertura" name="zona_cobertura" value="<?php echo htmlspecialchars($cr['zona_cobertura'] ?? ''); ?>">
+                <input type="hidden" id="ciudades_cobertura" name="ciudades_cobertura" value="<?php echo htmlspecialchars($cr['ciudades_cobertura'] ?? ''); ?>">
+                <select id="zona-servicio" multiple data-placeholder="Busca ciudades, provincias o regiones…">
+                    <optgroup label="Ciudades">
+                        <?php foreach ($zsCat as $zc): $zv = 'c:' . $zc['nombre']; ?>
+                        <option value="<?php echo htmlspecialchars($zv); ?>"<?php echo isset($zsSel[$zv]) ? ' selected' : ''; ?>><?php echo htmlspecialchars($zc['nombre'] . ' (' . $zc['provincia_nombre'] . ')'); ?></option>
+                        <?php endforeach; ?>
+                    </optgroup>
+                    <optgroup label="Provincias">
+                        <?php $zsVistas = []; foreach ($zsGeo['prov'] as $zp): if (isset($zsVistas[$zp['id']])) continue; $zsVistas[$zp['id']] = 1; $zv = 'p:' . $zp['nombre']; ?>
+                        <option value="<?php echo htmlspecialchars($zv); ?>"<?php echo isset($zsSel[$zv]) ? ' selected' : ''; ?>><?php echo htmlspecialchars($zp['nombre'] . ' (provincia)'); ?></option>
+                        <?php endforeach; ?>
+                    </optgroup>
+                    <optgroup label="Regiones">
+                        <?php $zsVistas = []; foreach ($zsGeo['reg'] as $zr): if (isset($zsVistas[$zr['id']])) continue; $zsVistas[$zr['id']] = 1; $zv = 'r:' . $zr['nombre']; ?>
+                        <option value="<?php echo htmlspecialchars($zv); ?>"<?php echo isset($zsSel[$zv]) ? ' selected' : ''; ?>><?php echo htmlspecialchars($zr['nombre'] . ' (región)'); ?></option>
+                        <?php endforeach; ?>
+                    </optgroup>
+                    <optgroup label="Otros textos">
+                        <?php foreach ($zsSel as $zv => $zk): if ($zk !== 't' && $zk !== 'd') continue; $zn = substr($zv, 2); ?>
+                        <option value="<?php echo htmlspecialchars($zv); ?>" selected><?php echo htmlspecialchars($zk === 'd' ? '⚠ ' . $zn . ' (no se mostrará)' : $zn . ' (sin página)'); ?></option>
+                        <?php endforeach; ?>
+                    </optgroup>
+                </select>
+                <small class="field__hint">Elige de la lista: ciudades, provincias o regiones. Cada una tendrá su enlace en la ficha pública. Si escribes algo que no está, se muestra sin enlace.</small>
+                <?php if ($zsTieneSucios): ?>
+                <div class="ubicacion-bloque__aviso" style="margin-top:var(--espacio-dos);">Hay textos marcados con ⚠ (frases o datos mezclados) que <strong>no se muestran al público</strong>. Quítalos y añade en su lugar la ciudad, provincia o región que corresponda.</div>
+                <?php endif; ?>
             </div>
+            <div class="zona-auto">
+                <div class="zona-auto__titulo"><i data-lucide="radar" class="icono"></i> Se incluyen automáticamente <small>(ciudades a menos de 20&nbsp;km de la dirección guardada)</small></div>
+                <?php if ($zsAuto): ?>
+                <div class="zona-auto__chips">
+                    <?php foreach ($zsAuto as $za): ?><span class="zona-auto__chip"><?php echo htmlspecialchars($za['nombre']); ?></span><?php endforeach; ?>
+                </div>
+                <?php else: ?>
+                <p class="zona-auto__vacio">Guarda las coordenadas de la dirección para calcular las ciudades cercanas.</p>
+                <?php endif; ?>
+            </div>
+            <script>
+            (function () {
+                var sel = document.getElementById('zona-servicio');
+                if (!sel) return;
+                var MAPAS = <?php echo json_encode($zsMapas, JSON_UNESCAPED_UNICODE | JSON_FORCE_OBJECT); ?>;
+                var hZona = document.getElementById('zona_cobertura'), hCiu = document.getElementById('ciudades_cobertura');
+                var ts = null;
+                function slug(t) { return String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
+                // Provincias y regiones → zona_cobertura; ciudades y textos → ciudades_cobertura (formato histórico, no se rompe nada)
+                function sync() {
+                    var z = [], c = [];
+                    (ts ? ts.getValue() : []).forEach(function (v) {
+                        var k = v.charAt(0), n = v.slice(2);
+                        if (k === 'p' || k === 'r') z.push(n); else if (k !== 'd') c.push(n);
+                    });
+                    hZona.value = z.join(', '); hCiu.value = c.join(', ');
+                }
+                window.addEventListener('load', function () {
+                    if (typeof TomSelect === 'undefined') return;
+                    ts = new TomSelect(sel, {
+                        plugins: ['remove_button'], persist: false, maxOptions: 500, dropdownParent: 'body',
+                        placeholder: sel.dataset.placeholder || '',
+                        create: function (input) { input = input.trim(); return input.length < 2 ? false : { value: 't:' + input, text: input + ' (sin página)' }; },
+                        render: { option_create: function (d, e) { return '<div class="create">Añadir «' + e(d.input) + '» (sin página)</div>'; } },
+                        onChange: sync
+                    });
+                    sync();
+                });
+                // Botón de IA: clasifica cada nombre sugerido (ciudad / provincia / región / texto) y lo añade a la caja
+                window.zonaServicioAplicarIA = function (zonaArr, ciudadesArr) {
+                    if (!ts) return false;
+                    var ok = false;
+                    function poner(nombre, orden) {
+                        var k = slug(nombre); if (!k) return;
+                        var v = null;
+                        for (var i = 0; i < orden.length && !v; i++) v = MAPAS[orden[i]][k] || null;
+                        if (!v) v = 't:' + String(nombre).trim();
+                        if (!ts.options[v]) ts.addOption({ value: v, text: v.slice(2) + ' (sin página)' });
+                        ts.addItem(v, true); ok = true;
+                    }
+                    (zonaArr || []).forEach(function (n) { poner(n, ['p', 'r', 'c']); });
+                    (ciudadesArr || []).forEach(function (n) { poner(n, ['c', 'p', 'r']); });
+                    sync();
+                    return ok;
+                };
+            })();
+            </script>
         </section>
 
         <!-- ── Servicios ── -->
@@ -4311,19 +4578,16 @@ function iaAplicarMensajeWhatsapp(sug) {
 
 function iaAplicarCobertura(sug) {
     let aplicado = false;
-    if (Array.isArray(sug.zona_cobertura) && typeof window.iaSetTags === 'function') {
-        if (window.iaSetTags('zona_cobertura', sug.zona_cobertura)) aplicado = true;
-    }
-    if (Array.isArray(sug.ciudades_cobertura) && typeof window.iaSetTags === 'function') {
-        if (window.iaSetTags('ciudades_cobertura', sug.ciudades_cobertura)) aplicado = true;
+    if (typeof window.zonaServicioAplicarIA === 'function') {
+        aplicado = window.zonaServicioAplicarIA(Array.isArray(sug.zona_cobertura) ? sug.zona_cobertura : [], Array.isArray(sug.ciudades_cobertura) ? sug.ciudades_cobertura : []);
     }
     if (aplicado) {
-        // Highlight visual sobre los dos tag inputs
-        document.querySelectorAll('.tag-input-wrap[data-target="zona_cobertura"], .tag-input-wrap[data-target="ciudades_cobertura"]')
-            .forEach(el => {
-                el.classList.add('sugerido-ia');
-                setTimeout(() => el.classList.remove('sugerido-ia'), 4000);
-            });
+        // Highlight visual sobre la caja única
+        const caja = document.querySelector('#zona-servicio')?.closest('.field')?.querySelector('.ts-wrapper');
+        if (caja) {
+            caja.classList.add('sugerido-ia');
+            setTimeout(() => caja.classList.remove('sugerido-ia'), 4000);
+        }
     }
     return aplicado;
 }

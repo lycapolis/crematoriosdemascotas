@@ -337,6 +337,7 @@ $resultado = obtenerCrematorios($filtros, $pagina, ITEMS_POR_PAGINA);
 $crematorios = $resultado['datos'];
 $totalCrematorios = $resultado['total'];
 $totalPaginas = $resultado['paginas'];
+$zonaCiudadNombre = $resultado['zona_ciudad'] ?? '';
 
 // ¿Hay filtros activos? (para mostrar "Borrar filtros")
 $hayFiltros = !empty($filtros) || !empty($_GET['orden']);
@@ -361,6 +362,9 @@ $hayFiltros = !empty($filtros) || !empty($_GET['orden']);
                 <span class="directorio-encabezado__badge"><?php echo $totalCrematorios; ?> crematorio<?php echo $totalCrematorios !== 1 ? 's' : ''; ?> encontrado<?php echo $totalCrematorios !== 1 ? 's' : ''; ?></span>
             </div>
             <p class="directorio-encabezado__descripcion">Encuentra el crematorio ideal para despedir a tu mascota con dignidad.</p>
+            <?php if ($zonaCiudadNombre !== ''): ?>
+            <p class="directorio-zona-aviso"><i data-lucide="map-pin" class="icono"></i> Mostramos los crematorios de <strong><?php echo limpiar($zonaCiudadNombre); ?></strong> y los que también dan servicio en la zona.</p>
+            <?php endif; ?>
         </div>
 
         <div class="directorio-orden">

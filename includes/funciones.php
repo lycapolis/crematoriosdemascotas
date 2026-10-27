@@ -332,13 +332,19 @@ function geocodificarDireccion(string $direccion, string $ciudad = '', string $p
         return ['ok' => false, 'error' => 'Google solo reconoció el país, no la dirección/ciudad (' . $query . ')'];
     }
 
+    $cp = null;
+    foreach ($r['address_components'] ?? [] as $comp) {
+        if (in_array('postal_code', $comp['types'] ?? [], true)) { $cp = $comp['long_name'] ?? null; break; }
+    }
+
     return [
-        'ok'        => true,
-        'lat'       => (float)$loc['lat'],
-        'lng'       => (float)$loc['lng'],
-        'place_id'  => $r['place_id']         ?? null,
-        'formatted' => $r['formatted_address'] ?? null,
-        'error'     => null,
+        'ok'            => true,
+        'lat'           => (float)$loc['lat'],
+        'lng'           => (float)$loc['lng'],
+        'place_id'      => $r['place_id']         ?? null,
+        'formatted'     => $r['formatted_address'] ?? null,
+        'codigo_postal' => $cp,
+        'error'         => null,
     ];
 }
 
@@ -502,22 +508,44 @@ function obtenerCrematorios($filtros = [], $pagina = 1, $porPagina = ITEMS_POR_P
         $where[] = "c.estado = 'activa'";
     }
 
-    // Filtro por provincia
+    // Filtro por provincia / comunidad: los negocios de esa zona + los que la tienen en su zona de servicio
+    $zonaGeoNivel = ''; $zonaGeoId = 0;
     if (!empty($filtros['provincia_id'])) {
-        $where[] = 'c.provincia_id = :provincia_id';
+        $idsX = negociosQueSirvenGeo('provincia', (int) $filtros['provincia_id']);
+        $where[] = $idsX ? '(c.provincia_id = :provincia_id OR c.id IN (' . implode(',', $idsX) . '))' : 'c.provincia_id = :provincia_id';
         $params[':provincia_id'] = $filtros['provincia_id'];
+        $zonaGeoNivel = 'provincia'; $zonaGeoId = (int) $filtros['provincia_id'];
     }
-
-    // Filtro por comunidad
     if (!empty($filtros['comunidad_id'])) {
-        $where[] = 'p.comunidad_id = :comunidad_id';
+        $idsX = negociosQueSirvenGeo('comunidad', (int) $filtros['comunidad_id']);
+        $where[] = $idsX ? '(p.comunidad_id = :comunidad_id OR c.id IN (' . implode(',', $idsX) . '))' : 'p.comunidad_id = :comunidad_id';
         $params[':comunidad_id'] = $filtros['comunidad_id'];
+        if ($zonaGeoNivel === '') { $zonaGeoNivel = 'comunidad'; $zonaGeoId = (int) $filtros['comunidad_id']; }
     }
 
-    // Filtro por ciudad (texto libre — match case-insensitive)
+    // Filtro por ciudad. Si es una ciudad del catálogo → todos los negocios que la sirven
+    // (los de la ciudad + cobertura + 20 km), igual que su página. Si no → texto exacto, como antes.
+    $zonaCiudadId = 0; $zonaCiudadNombre = '';
     if (!empty($filtros['ciudad'])) {
-        $where[] = 'LOWER(c.ciudad) = LOWER(:ciudad)';
-        $params[':ciudad'] = $filtros['ciudad'];
+        $slugFiltro = slugificar((string) $filtros['ciudad']);
+        $cands = array_values(array_filter(catalogoCiudadesVisibles(), fn($c) => $c['slug'] === $slugFiltro || in_array($slugFiltro, $c['alias'], true)));
+        if (!empty($filtros['provincia_id'])) {
+            $enProv = array_values(array_filter($cands, fn($c) => $c['provincia_id'] === (int) $filtros['provincia_id']));
+            if ($enProv) $cands = $enProv;
+        }
+        if ($cands) {
+            $zonaCiudadId     = $cands[0]['id'];
+            $zonaCiudadNombre = $cands[0]['nombre'];
+            $ids = array_map('intval', array_column(negociosQueSirvenCiudad($cands[0]), 'id'));
+            $where[] = $ids ? 'c.id IN (' . implode(',', $ids) . ')' : '0';
+            // la provincia/comunidad elegidas en otro filtro no deben esconder a los de la zona
+            $where = array_values(array_filter($where, fn($w) => strpos($w, 'c.provincia_id = :provincia_id') === false && strpos($w, 'p.comunidad_id = :comunidad_id') === false));
+            unset($params[':provincia_id'], $params[':comunidad_id']);
+            $zonaGeoNivel = ''; $zonaGeoId = 0;
+        } else {
+            $where[] = 'LOWER(c.ciudad) = LOWER(:ciudad)';
+            $params[':ciudad'] = $filtros['ciudad'];
+        }
     }
 
     // Filtro por valoración mínima
@@ -549,6 +577,29 @@ function obtenerCrematorios($filtros = [], $pagina = 1, $porPagina = ITEMS_POR_P
     // Filtro por búsqueda flexible (múltiples campos)
     if (!empty($filtros['busqueda'])) {
         $termino = '%' . $filtros['busqueda'] . '%';
+        // Si lo escrito coincide (entero o por el comienzo de una palabra, mínimo 3 letras) con ciudades del
+        // catálogo, también entran los negocios que las sirven (zona): «getaf» → Getafe, «polin» → Polinyà.
+        $busqZonaSql = '';
+        $slugBusq = slugificar((string) $filtros['busqueda']);
+        if (strlen($slugBusq) >= 3) {
+            $patron = '/(^|-)' . preg_quote($slugBusq, '/') . '/';
+            $candsBusq = [];
+            foreach (catalogoCiudadesVisibles() as $cc) {
+                foreach (array_merge([$cc['slug']], $cc['alias']) as $sl) {
+                    if ($sl === $slugBusq || preg_match($patron, $sl)) { $candsBusq[] = $cc; break; }
+                }
+            }
+            $candsBusq = array_slice($candsBusq, 0, 5);
+            foreach ($candsBusq as $cc) {
+                $idsB = array_map('intval', array_column(negociosQueSirvenCiudad($cc), 'id'));
+                if ($idsB) $busqZonaSql .= ' OR c.id IN (' . implode(',', $idsB) . ')';
+            }
+            // Con una sola ciudad coincidente se comporta como el filtro de ciudad (orden y etiqueta de zona)
+            if (count($candsBusq) === 1 && !$zonaCiudadId) {
+                $zonaCiudadId     = $candsBusq[0]['id'];
+                $zonaCiudadNombre = $candsBusq[0]['nombre'];
+            }
+        }
         $where[] = '(c.nombre LIKE :busq_nombre
                     OR c.ciudad LIKE :busq_ciudad
                     OR c.descripcion LIKE :busq_desc
@@ -561,7 +612,7 @@ function obtenerCrematorios($filtros = [], $pagina = 1, $porPagina = ITEMS_POR_P
                     OR c.calle LIKE :busq_calle
                     OR c.distrito LIKE :busq_dist
                     OR c.subtypes LIKE :busq_sub
-                    OR p.nombre LIKE :busq_prov)';
+                    OR p.nombre LIKE :busq_prov' . $busqZonaSql . ')';
         $params[':busq_nombre'] = $termino;
         $params[':busq_ciudad'] = $termino;
         $params[':busq_desc'] = $termino;
@@ -590,7 +641,16 @@ function obtenerCrematorios($filtros = [], $pagina = 1, $porPagina = ITEMS_POR_P
         case 'mas_resenas':  $ordenSql = "c.reviews_total DESC, c.rating DESC"; break;
     }
 
+    // Con una ciudad filtrada y orden por defecto: primero los negocios de la ciudad, luego los de la zona.
+    if ($zonaCiudadId && empty($filtros['orden'])) {
+        $ordenSql = "(c.ciudad_id = " . (int) $zonaCiudadId . ") DESC, " . $ordenSql;
+    } elseif ($zonaGeoNivel && empty($filtros['orden'])) {
+        // Provincia/región elegida: primero los negocios de esa zona, luego los que la tienen en su zona de servicio
+        $ordenSql = ($zonaGeoNivel === 'provincia' ? "(c.provincia_id = " : "(p.comunidad_id = ") . $zonaGeoId . ") DESC, " . $ordenSql;
+    }
+
     $selectBase = "SELECT c.*,
+                          p.comunidad_id AS geo_comunidad_id,
                           p.nombre AS provincia_nombre,
                           p.slug AS provincia_slug,
                           ca.nombre AS comunidad_nombre,
@@ -615,7 +675,9 @@ function obtenerCrematorios($filtros = [], $pagina = 1, $porPagina = ITEMS_POR_P
         $offset = ($pagina - 1) * $porPagina;
         $datos = array_slice($filtrados, $offset, $porPagina);
         enriquecerConFotoLocal($datos);
-        return ['datos' => $datos, 'total' => $total, 'paginas' => $paginas];
+        if ($zonaCiudadId) marcarNegociosDeZona($datos, $zonaCiudadId, $zonaCiudadNombre);
+        elseif ($zonaGeoNivel) marcarNegociosDeZonaGeo($datos, $zonaGeoNivel, $zonaGeoId);
+        return ['datos' => $datos, 'total' => $total, 'paginas' => $paginas, 'zona_ciudad' => $zonaCiudadNombre];
     }
 
     // Camino B (default): count + LIMIT/OFFSET en SQL.
@@ -639,12 +701,40 @@ function obtenerCrematorios($filtros = [], $pagina = 1, $porPagina = ITEMS_POR_P
 
     $datos = $stmt->fetchAll();
     enriquecerConFotoLocal($datos);
+    if ($zonaCiudadId) marcarNegociosDeZona($datos, $zonaCiudadId, $zonaCiudadNombre);
+    elseif ($zonaGeoNivel) marcarNegociosDeZonaGeo($datos, $zonaGeoNivel, $zonaGeoId);
 
     return [
         'datos' => $datos,
         'total' => $total,
         'paginas' => $paginas,
+        'zona_ciudad' => $zonaCiudadNombre,
     ];
+}
+
+/** Marca los negocios que no están en la provincia/región filtrada pero la tienen en su zona de servicio. */
+function marcarNegociosDeZonaGeo(array &$datos, string $nivel, int $id): void
+{
+    $pdo = obtenerConexion();
+    if (!$pdo) return;
+    $q = $pdo->prepare($nivel === 'provincia' ? "SELECT nombre FROM provincias WHERE id = ?" : "SELECT nombre FROM comunidades_autonomas WHERE id = ?");
+    $q->execute([$id]);
+    $nombre = (string) $q->fetchColumn();
+    if ($nombre === '') return;
+    foreach ($datos as &$d) {
+        $propio = $nivel === 'provincia' ? ((int) ($d['provincia_id'] ?? 0) === $id) : ((int) ($d['geo_comunidad_id'] ?? 0) === $id);
+        if (!$propio) $d['zona_ciudad'] = $nombre;
+    }
+    unset($d);
+}
+
+/** Marca los negocios que no están en la ciudad filtrada pero la sirven (para la etiqueta «También da servicio en…»). */
+function marcarNegociosDeZona(array &$datos, int $ciudadId, string $ciudadNombre): void
+{
+    foreach ($datos as &$d) {
+        if ((int) ($d['ciudad_id'] ?? 0) !== $ciudadId) $d['zona_ciudad'] = $ciudadNombre;
+    }
+    unset($d);
 }
 
 /**
@@ -802,21 +892,33 @@ function obtenerDestacados($limite = DESTACADOS_HOME) {
 }
 
 /**
- * Obtiene crematorios por ciudad
+ * Negocios (fichas activas) que sirven a una ciudad del catálogo: los que están en ella, los que
+ * la tienen en su cobertura y los que quedan a menos de 20 km. Primero los de la ciudad.
+ * Cada fila trae `en_ciudad` (bool). Sin fotos enriquecidas (eso lo hace el que pinta).
  *
- * @param string $ciudadSlug
- * @param string $provinciaSlug
- * @return array
+ * @param array $ciudad fila del catálogo (ver catalogoCiudadesVisibles / obtenerCiudadPagina)
  */
-function obtenerCrematoriosCiudad($ciudadSlug, $provinciaSlug) {
+function negociosQueSirvenCiudad(array $ciudad): array
+{
     $pdo = obtenerConexion();
     if (!$pdo) return [];
 
-    // Traemos TODOS los crematorios de la provincia y filtramos por slug en PHP.
-    // Motivo: MySQL no normaliza acentos en LOWER(REPLACE(...)), entonces "Polinyà"
-    // queda como "polinyà" en BD pero la URL viene como "polinya" (ASCII) — mismatch.
-    // Filtrar en PHP con slugificar() resuelve el problema definitivamente.
-    $sql = "SELECT c.*,
+    // El prefiltro SQL es una caja holgada; la distancia exacta y la cobertura se comprueban en PHP.
+    $where  = ['c.ciudad_id = :cid'];
+    $params = [':cid' => $ciudad['id']];
+    $nombres = array_unique(array_merge([$ciudad['nombre']], $ciudad['alias'] ?? []));
+    foreach (array_values($nombres) as $i => $n) {
+        $where[] = "c.ciudades_cobertura LIKE :cob$i";
+        $params[":cob$i"] = '%' . $n . '%';
+    }
+    $tieneCoords = $ciudad['lat'] !== null && $ciudad['lng'] !== null;
+    if ($tieneCoords) {
+        $where[] = '(c.latitud BETWEEN :la1 AND :la2 AND c.longitud BETWEEN :lo1 AND :lo2)';
+        $params[':la1'] = $ciudad['lat'] - 0.3; $params[':la2'] = $ciudad['lat'] + 0.3;
+        $params[':lo1'] = $ciudad['lng'] - 0.4; $params[':lo2'] = $ciudad['lng'] + 0.4;
+    }
+
+    $stmt = $pdo->prepare("SELECT c.*,
                    p.nombre AS provincia_nombre,
                    p.slug AS provincia_slug,
                    ca.nombre AS comunidad_nombre,
@@ -824,19 +926,39 @@ function obtenerCrematoriosCiudad($ciudadSlug, $provinciaSlug) {
             FROM crematorios c
             LEFT JOIN provincias p ON c.provincia_id = p.id
             LEFT JOIN comunidades_autonomas ca ON p.comunidad_id = ca.id
-            WHERE p.slug = :provincia_slug
-              AND c.estado = 'activa'
-              AND c.ciudad IS NOT NULL AND c.ciudad != ''
-            ORDER BY c.puntaje_ranking DESC, c.rating DESC";
+            WHERE c.estado = 'activa' AND (" . implode(' OR ', $where) . ")
+            ORDER BY c.puntaje_ranking DESC, c.rating DESC");
+    $stmt->execute($params);
 
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([':provincia_slug' => $provinciaSlug]);
-    $todos = $stmt->fetchAll();
+    $slugsCiudad = array_merge([$ciudad['slug']], $ciudad['alias'] ?? []);
+    $propias = []; $zona = [];
+    foreach ($stmt->fetchAll() as $c) {
+        if ((int) $c['ciudad_id'] === (int) $ciudad['id']) { $c['en_ciudad'] = true; $propias[] = $c; continue; }
 
-    $crematorios = array_values(array_filter($todos, function ($c) use ($ciudadSlug) {
-        return slugificar($c['ciudad']) === slugificar($ciudadSlug);
-    }));
+        $sirve = false;
+        foreach (preg_split('/[,;]+/', (string) $c['ciudades_cobertura']) as $tok) {
+            if (in_array(slugificar($tok), $slugsCiudad, true)) { $sirve = true; break; }
+        }
+        if (!$sirve && $tieneCoords && (float) $c['latitud'] != 0 && (float) $c['longitud'] != 0) {
+            $sirve = distanciaKmEntre((float) $ciudad['lat'], (float) $ciudad['lng'], (float) $c['latitud'], (float) $c['longitud']) <= 20.0;
+        }
+        if ($sirve) {
+            $c['en_ciudad'] = false;
+            $c['distancia_ciudad_km'] = ($tieneCoords && (float) $c['latitud'] != 0)
+                ? distanciaKmEntre((float) $ciudad['lat'], (float) $ciudad['lng'], (float) $c['latitud'], (float) $c['longitud']) : 9999;
+            $zona[] = $c;
+        }
+    }
+    // En la zona: mismo ranking de siempre; a igualdad, la más cercana primero (el orden previo se conserva por ser estable)
+    usort($zona, fn($x, $y) => [$y['puntaje_ranking'], $y['rating'], $x['distancia_ciudad_km']] <=> [$x['puntaje_ranking'], $x['rating'], $y['distancia_ciudad_km']]);
 
+    return array_merge($propias, $zona);
+}
+
+function obtenerCrematoriosCiudad($ciudadSlug, $provinciaSlug) {
+    $ciudad = obtenerCiudadPagina((string) $ciudadSlug, (string) $provinciaSlug);
+    if (!$ciudad) return [];
+    $crematorios = negociosQueSirvenCiudad($ciudad);
     enriquecerConFotoLocal($crematorios);
     return $crematorios;
 }
@@ -941,64 +1063,44 @@ function obtenerProvinciaSlug($slug) {
     return $stmt->fetch() ?: null;
 }
 
-/**
- * Obtiene TODAS las ciudades del directorio con al menos 1 crematorio.
- * Devuelve provincia_id + comunidad_id de cada una → permite cascade JS
- * (data-attrs en cada <option>) sin queries extra.
- *
- * @return array de filas {nombre, provincia_id, comunidad_id, total_crematorios}
- */
 function obtenerCiudadesGlobal() {
     $pdo = obtenerConexion();
     if (!$pdo) return [];
 
     $sql = "SELECT
-                c.ciudad AS nombre,
-                c.provincia_id,
+                ci.nombre AS nombre,
+                ci.slug AS slug,
+                ci.provincia_id,
                 p.comunidad_id,
                 COUNT(*) AS total_crematorios
             FROM crematorios c
-            LEFT JOIN provincias p ON c.provincia_id = p.id
-            WHERE c.ciudad IS NOT NULL AND c.ciudad != ''
+            JOIN ciudades ci ON ci.id = c.ciudad_id
+            LEFT JOIN provincias p ON ci.provincia_id = p.id
+            WHERE ci.activo = 1 AND ci.estado_revision <> 'pendiente'
               AND c.estado = 'activa'
-            GROUP BY c.ciudad, c.provincia_id, p.comunidad_id
-            ORDER BY c.ciudad";
+            GROUP BY ci.id, ci.nombre, ci.slug, ci.provincia_id, p.comunidad_id
+            ORDER BY ci.nombre";
 
     $stmt = $pdo->query($sql);
     return $stmt ? $stmt->fetchAll() : [];
 }
 
-/**
- * Obtiene ciudades únicas de una provincia (desde crematorios)
- *
- * @param int $provinciaId
- * @return array
- */
 function obtenerCiudadesProvincia($provinciaId) {
     $pdo = obtenerConexion();
     if (!$pdo) return [];
 
-    $sql = "SELECT DISTINCT
-                ciudad AS nombre,
-                COUNT(*) AS total_crematorios
-            FROM crematorios
-            WHERE provincia_id = :provincia_id
-              AND estado = 'activa'
-              AND ciudad IS NOT NULL
-              AND ciudad != ''
-            GROUP BY ciudad
-            ORDER BY ciudad";
+    $sql = "SELECT ci.nombre AS nombre, ci.slug AS slug, COUNT(*) AS total_crematorios
+            FROM crematorios c
+            JOIN ciudades ci ON ci.id = c.ciudad_id
+            WHERE ci.provincia_id = :provincia_id
+              AND ci.activo = 1 AND ci.estado_revision <> 'pendiente'
+              AND c.estado = 'activa'
+            GROUP BY ci.id, ci.nombre, ci.slug
+            ORDER BY ci.nombre";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([':provincia_id' => $provinciaId]);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Slug calculado en PHP — normaliza acentos/ñ para que URLs sean ASCII puro
-    // (evita mismatches utf-8 cuando navegador encodea %C3%A0 etc.)
-    foreach ($rows as &$r) {
-        $r['slug'] = slugificar($r['nombre']);
-    }
-    return $rows;
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 /**
@@ -1048,6 +1150,319 @@ function slugificar(string $texto): string
     $texto = preg_replace('/[^a-z0-9]+/i', '-', $texto);
     $texto = trim($texto, '-');
     return strtolower($texto);
+}
+
+/**
+ * Busca una ciudad del catálogo por nombre (o slug, o alias) dentro de una provincia.
+ * No crea nada. Devuelve la fila de `ciudades` o null.
+ */
+function obtenerCiudadPorNombre(string $nombre, int $provinciaId): ?array
+{
+    $slug = slugificar($nombre);
+    $pdo  = obtenerConexion();
+    if (!$pdo || $slug === '' || $provinciaId <= 0) return null;
+
+    $st = $pdo->prepare("SELECT * FROM ciudades WHERE provincia_id = :p AND slug = :s LIMIT 1");
+    $st->execute([':p' => $provinciaId, ':s' => $slug]);
+    $fila = $st->fetch(PDO::FETCH_ASSOC);
+    if ($fila) return $fila;
+
+    // Alias (escrituras antiguas o alternativas: «elche» → Elx)
+    $st = $pdo->prepare("SELECT * FROM ciudades WHERE provincia_id = :p AND slug_alias_json LIKE :a LIMIT 1");
+    $st->execute([':p' => $provinciaId, ':a' => '%"' . $slug . '"%']);
+    return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+/**
+ * Dado el texto de ciudad que escribió un negocio, devuelve el id de la ciudad del catálogo.
+ * Si no la conocemos, la crea como «pendiente» (sin coordenadas) para que el admin la revise;
+ * una ciudad pendiente no genera página pública. Devuelve null si falta texto o provincia.
+ */
+function resolverCiudadFicha(string $texto, int $provinciaId): ?int
+{
+    $texto = trim(preg_replace('/\s+/u', ' ', $texto));
+    if ($texto === '' || $provinciaId <= 0) return null;
+
+    $existente = obtenerCiudadPorNombre($texto, $provinciaId);
+    if ($existente) return (int) $existente['id'];
+
+    $pdo = obtenerConexion();
+    if (!$pdo) return null;
+    $slug = slugificar($texto);
+    if ($slug === '') return null;
+
+    $st = $pdo->prepare("INSERT INTO ciudades (provincia_id, nombre, slug, estado_revision, nota)
+                         VALUES (:p, :n, :s, 'pendiente', 'Propuesta por un negocio; revisar.')");
+    $st->execute([':p' => $provinciaId, ':n' => mb_substr($texto, 0, 100), ':s' => $slug]);
+    return (int) $pdo->lastInsertId();
+}
+
+/**
+ * Enlaza una ficha con su ciudad del catálogo a partir del texto `crematorios.ciudad`
+ * y su provincia. Se llama después de cualquier alta/edición que toque la ciudad.
+ *  - Ciudad conocida → guarda ciudad_id y deja `ciudad` con el nombre canónico.
+ *  - Ciudad desconocida → se crea «pendiente» (el admin la revisa); `ciudad` queda como se escribió.
+ * `ciudad_original` guarda la primera escritura. Nunca lanza: si falta la migración, solo registra.
+ */
+function asignarCiudadFicha(PDO $pdo, int $fichaId): void
+{
+    try {
+        $st = $pdo->prepare("SELECT ciudad, provincia_id, ciudad_original FROM crematorios WHERE id = :id");
+        $st->execute([':id' => $fichaId]);
+        $f = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$f) return;
+
+        $texto = trim((string) $f['ciudad']);
+        $cid   = resolverCiudadFicha($texto, (int) $f['provincia_id']);
+
+        $nombre = null;
+        if ($cid) {
+            $q = $pdo->prepare("SELECT nombre, estado_revision FROM ciudades WHERE id = :id");
+            $q->execute([':id' => $cid]);
+            $c = $q->fetch(PDO::FETCH_ASSOC);
+            if ($c && $c['estado_revision'] !== 'pendiente') $nombre = $c['nombre'];
+        }
+
+        $pdo->prepare("UPDATE crematorios
+                          SET ciudad_id = :cid,
+                              ciudad_original = COALESCE(ciudad_original, NULLIF(:orig, '')),
+                              ciudad = COALESCE(:nombre, ciudad)
+                        WHERE id = :id")
+            ->execute([':cid' => $cid, ':orig' => $texto, ':nombre' => $nombre, ':id' => $fichaId]);
+    } catch (Throwable $e) {
+        error_log('[asignarCiudadFicha] ' . $e->getMessage());
+    }
+}
+
+/**
+ * Catálogo de ciudades visibles (aprobadas o dudosas, activas), cargado una vez por petición.
+ * Cada fila trae provincia_slug/provincia_nombre y `alias` (array de slugs alternativos).
+ * Las ciudades «pendientes» no se incluyen: no generan página ni enlaces públicos.
+ */
+function catalogoCiudadesVisibles(): array
+{
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $cache = [];
+    $pdo = obtenerConexion();
+    if (!$pdo) return $cache;
+    try {
+        $filas = $pdo->query("SELECT ci.id, ci.provincia_id, ci.nombre, ci.slug, ci.slug_alias_json, ci.lat, ci.lng, ci.estado_revision,
+                                     p.slug AS provincia_slug, p.nombre AS provincia_nombre
+                                FROM ciudades ci
+                                JOIN provincias p ON p.id = ci.provincia_id
+                               WHERE ci.activo = 1 AND ci.estado_revision <> 'pendiente'
+                               ORDER BY ci.nombre")->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        return $cache; // migración sin correr: sin catálogo
+    }
+    foreach ($filas as $c) {
+        $c['id']    = (int) $c['id'];
+        $c['alias'] = json_decode((string) $c['slug_alias_json'], true) ?: [];
+        $cache[]    = $c;
+    }
+    return $cache;
+}
+
+/** Distancia en km entre dos puntos (fórmula de Haversine). */
+function distanciaKmEntre(float $lat1, float $lng1, float $lat2, float $lng2): float
+{
+    $a = sin(deg2rad($lat2 - $lat1) / 2) ** 2
+       + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin(deg2rad($lng2 - $lng1) / 2) ** 2;
+    return 2 * 6371 * asin(min(1, sqrt($a)));
+}
+
+/**
+ * Ciudades visibles del catálogo a menos de $km de un punto (por defecto 20 km, la zona de
+ * servicio mínima de una ficha). Devuelve filas del catálogo + distancia_ciudad_km, de menor a mayor.
+ */
+function ciudadesEnRadio(float $lat, float $lng, float $km = 20.0): array
+{
+    $res = [];
+    foreach (catalogoCiudadesVisibles() as $c) {
+        if ($c['lat'] === null || $c['lng'] === null) continue;
+        $d = distanciaKmEntre($lat, $lng, (float) $c['lat'], (float) $c['lng']);
+        if ($d <= $km) { $c['distancia_ciudad_km'] = $d; $res[] = $c; }
+    }
+    usort($res, fn($a, $b) => $a['distancia_ciudad_km'] <=> $b['distancia_ciudad_km']);
+    return $res;
+}
+
+/**
+ * Busca la ciudad de una página pública (/espana/{provincia}/{ciudad}) por slug o alias.
+ * Devuelve la fila del catálogo (+ via_alias=true si el slug pedido era un alias → hay que
+ * redirigir al canónico) o null si no existe o está pendiente.
+ */
+function obtenerCiudadPagina(string $ciudadSlug, string $provinciaSlug): ?array
+{
+    $slug = slugificar($ciudadSlug);
+    if ($slug === '') return null;
+    foreach (catalogoCiudadesVisibles() as $c) {
+        if ($c['provincia_slug'] !== $provinciaSlug) continue;
+        if ($c['slug'] === $slug)                     return $c + ['via_alias' => false];
+        if (in_array($slug, $c['alias'], true))       return $c + ['via_alias' => true];
+    }
+    return null;
+}
+
+/**
+ * Provincias y regiones (con alias de nombres antiguos) para reconocer lo que escribe un negocio.
+ * Jerarquía: país → región (comunidades_autonomas) → provincia → ciudad.
+ */
+function catalogoGeoZonas(): array
+{
+    static $geo = null;
+    if ($geo !== null) return $geo;
+    $geo = ['prov' => [], 'reg' => [], 'regPorId' => []];
+    $pdo = obtenerConexion();
+    if (!$pdo) return $geo;
+
+    // Nombres antiguos o alternativos (slug → slug canónico). Ampliable.
+    $aliasProv = ['gerona' => 'girona', 'orense' => 'ourense', 'la-coruna' => 'a-coruna', 'coruna' => 'a-coruna',
+                  'vizcaya' => 'bizkaia', 'guipuzcoa' => 'gipuzkoa', 'lerida' => 'lleida', 'araba' => 'alava',
+                  'baleares' => 'illes-balears', 'islas-baleares' => 'illes-balears'];
+    $aliasReg  = ['catalunya' => 'cataluna', 'euskadi' => 'pais-vasco', 'asturias' => 'principado-de-asturias',
+                  'murcia' => 'region-de-murcia', 'navarra' => 'comunidad-foral-de-navarra', 'valencia' => 'comunidad-valenciana'];
+    try {
+        foreach ($pdo->query("SELECT id, nombre, slug, comunidad_id FROM provincias WHERE activo = 1")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $geo['prov'][$r['slug']] = ['id' => (int) $r['id'], 'nombre' => $r['nombre'], 'slug' => $r['slug'], 'region_id' => (int) $r['comunidad_id']];
+        }
+        foreach ($pdo->query("SELECT id, nombre, slug FROM comunidades_autonomas WHERE activo = 1")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $geo['reg'][$r['slug']] = ['id' => (int) $r['id'], 'nombre' => $r['nombre'], 'slug' => $r['slug']];
+            $geo['regPorId'][(int) $r['id']] = $r['slug'];
+        }
+    } catch (PDOException $e) { return $geo; }
+    foreach ($aliasProv as $viejo => $canon) if (isset($geo['prov'][$canon]) && !isset($geo['prov'][$viejo])) $geo['prov'][$viejo] = $geo['prov'][$canon];
+    foreach ($aliasReg  as $viejo => $canon) if (isset($geo['reg'][$canon])  && !isset($geo['reg'][$viejo]))  $geo['reg'][$viejo]  = $geo['reg'][$canon];
+    return $geo;
+}
+
+/**
+ * Clasifica un texto de cobertura escrito por el negocio.
+ * Devuelve ['tipo' => ciudad|provincia|region|pais|texto|descartado|vacio, 'nombre' => canónico, 'url' => ..., 'id' => ...].
+ *  - $prefer: 'ciudad' (texto de la caja de ciudades) o 'zona' (texto de la caja de provincias/regiones): decide qué se
+ *    prueba primero cuando un nombre es ciudad y provincia a la vez («Barcelona»).
+ *  - 'texto' = nombre limpio que no está en el catálogo (se muestra sin enlace). 'descartado' = frase o dato sucio
+ *    («Madrid y comunidades limítrofes», «Sopelana (Bizkaia)»): no se muestra al público.
+ */
+function clasificarZonaToken(string $tok, int $provId = 0, string $prefer = 'ciudad'): array
+{
+    $tok = trim($tok);
+    $s   = slugificar($tok);
+    if ($s === '') return ['tipo' => 'vacio'];
+
+    $geo = catalogoGeoZonas();
+    $cat = catalogoCiudadesVisibles();
+
+    $buscaCiudad = function () use ($s, $provId, $cat) {
+        $hall = null;
+        foreach ($cat as $c) {
+            if ($c['provincia_id'] === $provId && ($c['slug'] === $s || in_array($s, $c['alias'], true))) { $hall = $c; break; }
+        }
+        if (!$hall) {
+            $cand = array_values(array_filter($cat, fn($c) => $c['slug'] === $s || in_array($s, $c['alias'], true)));
+            if (count($cand) === 1) $hall = $cand[0];
+        }
+        return $hall ? ['tipo' => 'ciudad', 'id' => $hall['id'], 'nombre' => $hall['nombre'], 'provincia_id' => $hall['provincia_id'],
+                        'url' => generarUrl('ciudad', $hall['slug'], $hall['provincia_slug'])] : null;
+    };
+    $buscaProv = fn() => isset($geo['prov'][$s]) ? ['tipo' => 'provincia', 'id' => $geo['prov'][$s]['id'], 'nombre' => $geo['prov'][$s]['nombre'],
+                        'region_id' => $geo['prov'][$s]['region_id'], 'url' => generarUrl('provincia', $geo['prov'][$s]['slug'])] : null;
+    $buscaReg  = fn() => isset($geo['reg'][$s]) ? ['tipo' => 'region', 'id' => $geo['reg'][$s]['id'], 'nombre' => $geo['reg'][$s]['nombre'],
+                        'url' => generarUrl('comunidad', $geo['reg'][$s]['slug'])] : null;
+
+    $orden = $prefer === 'zona' ? [$buscaProv, $buscaReg, $buscaCiudad] : [$buscaCiudad, $buscaProv, $buscaReg];
+    foreach ($orden as $fn) { if ($r = $fn()) return $r; }
+
+    if (in_array($s, ['espana', 'portugal', 'francia', 'andorra'], true)) return ['tipo' => 'pais', 'nombre' => $tok, 'url' => null];
+
+    $sucio = mb_strlen($tok) > 40 || preg_match('/[()\/]|\by\b|limitrof|principales|alrededores|areas?\b|mas de|nivel|servicio/i', $s . ' ' . $tok);
+    return ['tipo' => $sucio ? 'descartado' : 'texto', 'nombre' => $tok, 'url' => null];
+}
+
+/**
+ * Zona de servicio de una ficha para la ficha pública y el admin: su ciudad + lo que el negocio indicó
+ * (ciudades, provincias, regiones) + todas las ciudades del catálogo a menos de $km de su dirección.
+ * Cada elemento: ['nombre', 'url' (o null), 'tipo' => ciudad|provincia|region|pais|texto|descartado]. Orden alfabético, sin
+ * duplicados. Los «descartados» (frases sucias) solo salen si $incluirDescartados (para que el admin los vea).
+ * La provincia y la región propias de la ficha no se repiten: ya se muestran en su tarjeta.
+ */
+function zonaServicioFicha(array $ficha, float $km = 20.0, bool $incluirDescartados = false): array
+{
+    $geo    = catalogoGeoZonas();
+    $provId = (int) ($ficha['provincia_id'] ?? 0);
+    $propiaProv = null; $propiaReg = null;
+    foreach ($geo['prov'] as $pv) if ($pv['id'] === $provId) { $propiaProv = $pv['id']; $propiaReg = $pv['region_id']; break; }
+
+    $out = [];
+    $poner = function (array $c, string $k) use (&$out) { if (!isset($out[$k])) $out[$k] = ['nombre' => $c['nombre'], 'url' => $c['url'] ?? null, 'tipo' => $c['tipo']]; };
+
+    // 1) La ciudad de la ficha
+    $cidFicha = (int) ($ficha['ciudad_id'] ?? 0);
+    foreach (catalogoCiudadesVisibles() as $c) {
+        if ($c['id'] === $cidFicha) { $poner(['tipo' => 'ciudad', 'nombre' => $c['nombre'], 'url' => generarUrl('ciudad', $c['slug'], $c['provincia_slug'])], 'c' . $c['id']); break; }
+    }
+
+    // 2) Lo que indicó el negocio (las dos cajas históricas)
+    foreach ([['zona_cobertura', 'zona'], ['ciudades_cobertura', 'ciudad']] as [$col, $pref]) {
+        foreach (preg_split('/[,;]+/', (string) ($ficha[$col] ?? '')) as $tok) {
+            $c = clasificarZonaToken($tok, $provId, $pref);
+            switch ($c['tipo']) {
+                case 'vacio': break;
+                case 'ciudad':    $poner($c, 'c' . $c['id']); break;
+                case 'provincia': if ($c['id'] !== $propiaProv) $poner($c, 'p' . $c['id']); break;
+                case 'region':    if ($c['id'] !== $propiaReg)  $poner($c, 'r' . $c['id']); break;
+                case 'descartado': if ($incluirDescartados) $poner($c, 'd' . slugificar($c['nombre'])); break;
+                default:          $poner($c, 'x' . slugificar($c['nombre']));
+            }
+        }
+    }
+
+    // 3) Mínimo garantizado: todo lo que esté a menos de $km de la ficha
+    $lat = (float) ($ficha['latitud'] ?? 0);
+    $lng = (float) ($ficha['longitud'] ?? 0);
+    if ($lat != 0 && $lng != 0) {
+        foreach (ciudadesEnRadio($lat, $lng, $km) as $c) {
+            $poner(['tipo' => 'ciudad', 'nombre' => $c['nombre'], 'url' => generarUrl('ciudad', $c['slug'], $c['provincia_slug'])], 'c' . $c['id']);
+        }
+    }
+
+    $lista = array_values($out);
+    usort($lista, fn($a, $b) => strcoll(mb_strtolower($a['nombre']), mb_strtolower($b['nombre'])));
+    return $lista;
+}
+
+/**
+ * IDs de negocios (activos) que NO están en una provincia/región pero la tienen en su zona de servicio.
+ * $nivel = 'provincia' | 'comunidad' (región). Una provincia indicada también cuenta para su región.
+ */
+function negociosQueSirvenGeo(string $nivel, int $id): array
+{
+    static $filas = null;
+    $pdo = obtenerConexion();
+    if (!$pdo) return [];
+    if ($filas === null) {
+        $filas = $pdo->query("SELECT c.id, c.provincia_id, c.zona_cobertura, c.ciudades_cobertura, p.comunidad_id
+                                FROM crematorios c LEFT JOIN provincias p ON p.id = c.provincia_id
+                               WHERE c.estado = 'activa'
+                                 AND ((c.zona_cobertura IS NOT NULL AND c.zona_cobertura <> '')
+                                   OR (c.ciudades_cobertura IS NOT NULL AND c.ciudades_cobertura <> ''))")->fetchAll(PDO::FETCH_ASSOC);
+    }
+    $ids = [];
+    foreach ($filas as $fila) {
+        if ($nivel === 'provincia' && (int) $fila['provincia_id'] === $id) continue;
+        if ($nivel === 'comunidad' && (int) $fila['comunidad_id'] === $id) continue;
+        foreach ([['zona_cobertura', 'zona'], ['ciudades_cobertura', 'ciudad']] as [$col, $pref]) {
+            foreach (preg_split('/[,;]+/', (string) $fila[$col]) as $tok) {
+                $c = clasificarZonaToken($tok, (int) $fila['provincia_id'], $pref);
+                $ok = $nivel === 'provincia'
+                    ? ($c['tipo'] === 'provincia' && $c['id'] === $id)
+                    : (($c['tipo'] === 'region' && $c['id'] === $id) || ($c['tipo'] === 'provincia' && (int) $c['region_id'] === $id));
+                if ($ok) { $ids[] = (int) $fila['id']; break 2; }
+            }
+        }
+    }
+    return array_values(array_unique($ids));
 }
 
 /**
@@ -1531,33 +1946,12 @@ function obtenerCoordenadasEspana() {
     return $rows;
 }
 
-/**
- * Coordenadas + datos para mapa a nivel ciudad.
- * Filtra por slug normalizado (slugificar) para manejar acentos.
- */
 function obtenerCoordenadasCiudad($ciudadSlug, $provinciaSlug) {
-    $pdo = obtenerConexion();
-    if (!$pdo) return [];
-    $sql = "SELECT c.id, c.nombre, c.slug, c.latitud, c.longitud, c.rating, c.reviews_total,
-                   c.ciudad, c.foto_principal, c.verificado, c.destacado, c.origen,
-                   p.nombre AS provincia_nombre
-            FROM crematorios c
-            INNER JOIN provincias p ON c.provincia_id = p.id
-            WHERE c.estado = 'activa'
-              AND c.latitud IS NOT NULL AND c.longitud IS NOT NULL
-              AND c.latitud != 0 AND c.longitud != 0
-              AND p.slug = :prov
-              AND c.ciudad IS NOT NULL AND c.ciudad != ''";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([':prov' => $provinciaSlug]);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    // Filtro por ciudad en PHP — slug normalizado (acentos, ñ)
-    $slugCiu = slugificar($ciudadSlug);
-    $rows = array_values(array_filter($rows, function ($r) use ($slugCiu) {
-        return slugificar((string)$r['ciudad']) === $slugCiu;
-    }));
-    enriquecerConFotoLocal($rows);
-    return $rows;
+    // Mismas fichas que muestra la página de la ciudad (la suya + las que la cubren), con coordenadas.
+    return array_values(array_filter(
+        obtenerCrematoriosCiudad($ciudadSlug, $provinciaSlug),
+        fn($c) => (float) ($c['latitud'] ?? 0) != 0 && (float) ($c['longitud'] ?? 0) != 0
+    ));
 }
 
 function obtenerCoordenadasComunidad($comunidadId) {

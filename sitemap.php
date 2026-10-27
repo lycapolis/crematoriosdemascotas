@@ -103,22 +103,23 @@ if ($pdo) {
     // El slug se calcula con slugificar() en PHP (normaliza acentos);
     // el viejo REPLACE SQL generaba URLs rotas como /barcelona/polinyà.
     // -----------------------------------------------------------
-    $sql = "SELECT DISTINCT
-                c.ciudad,
+    $sql = "SELECT
+                ci.slug AS ciudad_slug,
                 p.slug AS provincia_slug,
                 MAX(c.updated_at) AS updated_at
             FROM crematorios c
-            INNER JOIN provincias p ON c.provincia_id = p.id
-            WHERE c.ciudad IS NOT NULL AND c.ciudad != ''
+            INNER JOIN ciudades ci ON ci.id = c.ciudad_id
+            INNER JOIN provincias p ON ci.provincia_id = p.id
+            WHERE ci.activo = 1 AND ci.estado_revision <> 'pendiente'
               AND c.estado = 'activa'
-            GROUP BY c.ciudad, p.slug
-            ORDER BY p.slug, c.ciudad";
+            GROUP BY ci.id, ci.slug, p.slug
+            ORDER BY p.slug, ci.slug";
     $stmt = $pdo->query($sql);
     $ciudades = $stmt->fetchAll();
 
     foreach ($ciudades as $ciudad) {
         $lastmod    = !empty($ciudad['updated_at']) ? date('Y-m-d', strtotime($ciudad['updated_at'])) : $hoy;
-        $ciudadSlug = slugificar($ciudad['ciudad']);
+        $ciudadSlug = $ciudad['ciudad_slug'];
         if ($ciudadSlug === '') continue;
         echo '  <url>' . PHP_EOL;
         echo '    <loc>' . htmlspecialchars($baseUrl . '/espana/' . $ciudad['provincia_slug'] . '/' . $ciudadSlug) . '</loc>' . PHP_EOL;

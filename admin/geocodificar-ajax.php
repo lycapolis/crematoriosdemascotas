@@ -45,15 +45,36 @@ if (!$ficha) {
     exit;
 }
 
-$direccion = trim(($ficha['direccion_completa'] ?? '') . ' ' . ($ficha['codigo_postal'] ?? ''));
+// Modo consulta (desde el formulario): usa lo escrito en pantalla (aún sin guardar) y NO escribe en la BD;
+// el formulario rellena los campos y se guarda con el botón «Guardar».
+$soloConsulta = !empty($_POST['solo_consulta']);
+if ($soloConsulta) {
+    $direccion = trim(trim((string) ($_POST['direccion'] ?? '')) . ' ' . trim((string) ($_POST['codigo_postal'] ?? '')));
+    $ciudadGeo = trim(trim((string) ($_POST['ciudad'] ?? '')) . ', ' . trim((string) ($_POST['provincia'] ?? '')), ', ');
+} else {
+    $direccion = trim(($ficha['direccion_completa'] ?? '') . ' ' . ($ficha['codigo_postal'] ?? ''));
+    $ciudadGeo = $ficha['ciudad'] ?? '';
+}
 if ($direccion === '') {
     echo json_encode(['ok' => false, 'error' => 'La ficha no tiene dirección cargada']);
     exit;
 }
 
-$geo = geocodificarDireccion($direccion, $ficha['ciudad'] ?? '', 'ES');
+$geo = geocodificarDireccion($direccion, $ciudadGeo, 'ES');
 if (empty($geo['ok'])) {
     echo json_encode(['ok' => false, 'error' => $geo['error'] ?? 'No se pudieron obtener coordenadas']);
+    exit;
+}
+
+if ($soloConsulta) {
+    echo json_encode([
+        'ok'            => true,
+        'lat'           => $geo['lat'],
+        'lng'           => $geo['lng'],
+        'place_id'      => $geo['place_id'] ?? null,
+        'formatted'     => $geo['formatted'] ?? null,
+        'codigo_postal' => $geo['codigo_postal'] ?? null,
+    ]);
     exit;
 }
 

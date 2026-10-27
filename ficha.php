@@ -90,7 +90,12 @@ if (in_array($estadoFicha, ['pausada', 'archivada'], true)) {
 $crematorio_nombre = $crematorio['nombre'];
 $crematorio_slug = $crematorio['slug'];
 $ciudad_nombre = $crematorio['ciudad'] ?? '';
-$ciudad_slug = strtolower(str_replace([' ', ','], ['-', ''], $ciudad_nombre));
+// Ciudad del catálogo (solo si es visible: las «pendientes» no tienen página a la que enlazar)
+$ciudadCat = null;
+foreach (catalogoCiudadesVisibles() as $_cc) {
+    if ((int) $_cc['id'] === (int) ($crematorio['ciudad_id'] ?? 0)) { $ciudadCat = $_cc; break; }
+}
+$ciudad_slug = $ciudadCat['slug'] ?? slugificar($ciudad_nombre);
 $provincia_nombre = $crematorio['provincia_nombre'] ?? '';
 $provincia_slug = $crematorio['provincia_slug'] ?? '';
 $comunidad_nombre = $crematorio['comunidad_nombre'] ?? '';
@@ -139,6 +144,9 @@ $lat_mapa        = !empty($crematorio['latitud'])  ? (float) $crematorio['latitu
 $lng_mapa        = !empty($crematorio['longitud']) ? (float) $crematorio['longitud'] : null;
 $google_place_id = $crematorio['google_place_id'] ?? '';
 $usar_leaflet    = ($lat_mapa !== null && $lng_mapa !== null && in_array($tier, ['00', '01'], true));
+
+// Zona de servicio: su ciudad + cobertura indicada por el negocio + todo lo que esté a menos de 20 km
+$zonaServicio = zonaServicioFicha($crematorio);
 
 // Servicios y extras desde booleanos DB
 $servicios_lista = [];
@@ -407,10 +415,11 @@ if (!empty($crematorio['latitud']) && !empty($crematorio['longitud'])) {
 
 // Zona de cobertura (areaServed): mismas ciudades que el chip público "Ciudades de cobertura"
 $schema_zonas = [];
-foreach (preg_split('/[,;]+/', (string) $ciudades_cobertura) as $zonaCiudad) {
-    $zonaCiudad = trim($zonaCiudad);
+$schema_tipos = ['ciudad' => 'City', 'texto' => 'City', 'provincia' => 'AdministrativeArea', 'region' => 'AdministrativeArea', 'pais' => 'Country'];
+foreach ($zonaServicio as $zonaItem) {
+    $zonaCiudad = trim($zonaItem['nombre']);
     if ($zonaCiudad !== '' && !isset($schema_zonas[mb_strtolower($zonaCiudad)])) {
-        $schema_zonas[mb_strtolower($zonaCiudad)] = ['@type' => 'City', 'name' => $zonaCiudad];
+        $schema_zonas[mb_strtolower($zonaCiudad)] = ['@type' => $schema_tipos[$zonaItem['tipo']] ?? 'City', 'name' => $zonaCiudad];
     }
 }
 if ($schema_zonas) {
@@ -957,7 +966,7 @@ include 'includes/header.php';
             $migas[] = [$provincia_nombre, generarUrl('provincia', $provincia_slug)];
         }
         if ($ciudad_nombre) {
-            $migas[] = [$ciudad_nombre, generarUrl('ciudad', $ciudad_slug, $provincia_slug)];
+            $migas[] = [$ciudad_nombre, $ciudadCat ? generarUrl('ciudad', $ciudad_slug, $ciudadCat['provincia_slug']) : null];
         }
         $migas[] = [$crematorio_nombre, null];
         include ROOT_PATH . '/includes/componentes/breadcrumb.php';
@@ -1099,7 +1108,7 @@ include 'includes/header.php';
                 <?php
                 $ciudades_cob = trim($ciudades_cobertura);
                 $zona_cob     = trim($crematorio['zona_cobertura'] ?? '');
-                $mostrar_bloque = ($horario_texto || !empty($horarios_json_raw)) || $zona_cob || $ciudades_cob || $provincia_nombre || $comunidad_nombre;
+                $mostrar_bloque = ($horario_texto || !empty($horarios_json_raw)) || $zona_cob || !empty($zonaServicio) || $provincia_nombre || $comunidad_nombre;
                 ?>
                 <?php if ($mostrar_bloque): ?>
                 <section class="ficha-meta-grid">
@@ -1220,26 +1229,46 @@ include 'includes/header.php';
                         <?php endif; ?>
                     </div>
 
+                    <?php
+                    // Lo que el negocio indicó, repartido en su tarjeta: ciudades (y textos) / provincias, regiones y países
+                    $zonaCiu = array_values(array_filter($zonaServicio, fn($z) => in_array($z['tipo'], ['ciudad', 'texto'], true)));
+                    $zonaExtraGeo = array_values(array_filter($zonaServicio, fn($z) => in_array($z['tipo'], ['region', 'provincia', 'pais'], true)));
+                    $ordenTipoGeo = ['region' => 0, 'provincia' => 1, 'pais' => 2];
+                    usort($zonaExtraGeo, fn($a, $b) => [$ordenTipoGeo[$a['tipo']], mb_strtolower($a['nombre'])] <=> [$ordenTipoGeo[$b['tipo']], mb_strtolower($b['nombre'])]);
+                    ?>
                     <!-- Provincia / Comunidad (chips diferenciados, clickeables a SEO geo) -->
                     <div class="ficha-meta-card">
                         <h3 class="ficha-meta-card__titulo">
                             <i data-lucide="map" class="icono"></i>
                             <span>Provincia / Comunidad</span>
                         </h3>
-                        <?php if ($comunidad_nombre || $provincia_nombre): ?>
+                        <?php if ($comunidad_nombre || $provincia_nombre || $zonaExtraGeo): ?>
                         <div class="ficha-chips">
                             <?php if ($comunidad_nombre): ?>
                             <a href="<?php echo generarUrl('comunidad', $comunidad_slug); ?>" class="ficha-chip-geo ficha-chip-geo--ccaa" title="Ver crematorios en <?php echo limpiar($comunidad_nombre); ?>">
-                                <i data-lucide="map" class="icono"></i>
+                                <i data-lucide="landmark" class="icono"></i>
                                 <?php echo limpiar($comunidad_nombre); ?>
                             </a>
                             <?php endif; ?>
                             <?php if ($provincia_nombre): ?>
                             <a href="<?php echo generarUrl('provincia', $provincia_slug); ?>" class="ficha-chip-geo ficha-chip-geo--prov" title="Ver crematorios en <?php echo limpiar($provincia_nombre); ?>">
-                                <i data-lucide="map" class="icono"></i>
+                                <i data-lucide="signpost" class="icono"></i>
                                 <?php echo limpiar($provincia_nombre); ?>
                             </a>
                             <?php endif; ?>
+                            <?php foreach ($zonaExtraGeo as $zg): $claseGeo = $zg['tipo'] === 'provincia' ? 'ficha-chip-geo--prov' : 'ficha-chip-geo--ccaa'; $iconoGeo = ['provincia' => 'signpost', 'region' => 'landmark', 'pais' => 'globe'][$zg['tipo']] ?? 'map'; ?>
+                            <?php if ($zg['url']): ?>
+                            <a href="<?php echo $zg['url']; ?>" class="ficha-chip-geo <?php echo $claseGeo; ?>" title="Ver crematorios en <?php echo limpiar($zg['nombre']); ?>">
+                                <i data-lucide="<?php echo $iconoGeo; ?>" class="icono"></i>
+                                <?php echo limpiar($zg['nombre']); ?>
+                            </a>
+                            <?php else: ?>
+                            <span class="ficha-chip-geo <?php echo $claseGeo; ?>">
+                                <i data-lucide="<?php echo $iconoGeo; ?>" class="icono"></i>
+                                <?php echo limpiar($zg['nombre']); ?>
+                            </span>
+                            <?php endif; ?>
+                            <?php endforeach; ?>
                         </div>
                         <?php else: ?>
                         <p class="ficha-meta-card__vacio">No disponible</p>
@@ -1252,29 +1281,21 @@ include 'includes/header.php';
                             <i data-lucide="map-pin" class="icono"></i>
                             <span>Ciudades de cobertura</span>
                         </h3>
-                        <?php
-                        $listaCiudades = [];
-                        if ($ciudades_cob) {
-                            foreach (preg_split('/[,;]+/', $ciudades_cob) as $ciudad) {
-                                $ciudad = trim($ciudad);
-                                if ($ciudad !== '') $listaCiudades[] = $ciudad;
-                            }
-                            // Orden alfabético (locale-aware para acentos)
-                            usort($listaCiudades, function($a, $b) {
-                                return strcoll(mb_strtolower($a), mb_strtolower($b));
-                            });
-                        }
-                        ?>
+                        <?php $listaCiudades = $zonaCiu; // ya viene ordenada, sin duplicados y con la URL correcta (o sin ella) ?>
                         <?php if (!empty($listaCiudades)): ?>
                         <div class="ficha-chips">
-                            <?php foreach ($listaCiudades as $ciudad):
-                                // Slug de la ciudad para link (heurística simple)
-                                $slugCiu = strtolower(str_replace(['á','é','í','ó','ú','ñ',' ',','], ['a','e','i','o','u','n','-',''], $ciudad));
-                            ?>
-                            <a href="<?php echo generarUrl('ciudad', $slugCiu, $provincia_slug); ?>" class="ficha-chip-geo ficha-chip-geo--ciudad" title="Ver crematorios en <?php echo limpiar($ciudad); ?>">
+                            <?php foreach ($listaCiudades as $zonaItem): ?>
+                            <?php if ($zonaItem['url']): ?>
+                            <a href="<?php echo $zonaItem['url']; ?>" class="ficha-chip-geo ficha-chip-geo--ciudad" title="Ver crematorios en <?php echo limpiar($zonaItem['nombre']); ?>">
                                 <i data-lucide="map-pin" class="icono"></i>
-                                <?php echo limpiar($ciudad); ?>
+                                <?php echo limpiar($zonaItem['nombre']); ?>
                             </a>
+                            <?php else: ?>
+                            <span class="ficha-chip-geo ficha-chip-geo--ciudad">
+                                <i data-lucide="map-pin" class="icono"></i>
+                                <?php echo limpiar($zonaItem['nombre']); ?>
+                            </span>
+                            <?php endif; ?>
                             <?php endforeach; ?>
                         </div>
                         <?php else: ?>

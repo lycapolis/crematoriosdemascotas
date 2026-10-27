@@ -124,13 +124,9 @@ switch ($nivel) {
         break;
 
     case 'ciudad':
-        $stmt = $pdo->prepare("SELECT id FROM provincias WHERE slug = :s LIMIT 1");
-        $stmt->execute([':s' => $provinciaArg]);
-        $pid = (int)$stmt->fetchColumn();
-        if (!$pid) { $whereNivel = " AND 0 "; break; }
-        $whereNivel = " AND c.provincia_id = :pid ";
-        $paramsNivel[':pid'] = $pid;
-        $filtrarCiudadEnPhp = true; // slug ciudad → en PHP con slugificar()
+        // Mismas fichas que la página de la ciudad: las de la ciudad + las que la cubren (cobertura y 20 km)
+        $idsCiudad = array_map('intval', array_column(obtenerCrematoriosCiudad($slug, $provinciaArg), 'id'));
+        $whereNivel = $idsCiudad ? " AND c.id IN (" . implode(',', $idsCiudad) . ") " : " AND 0 ";
         break;
 }
 
@@ -154,14 +150,6 @@ $sql = "SELECT c.*,
 $stmt = $pdo->prepare($sql);
 $stmt->execute($paramsNivel);
 $crematorios = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// Filtro ciudad en PHP (slug normalizado con acentos)
-if ($filtrarCiudadEnPhp) {
-    $slugCiu = slugificar($slug);
-    $crematorios = array_values(array_filter($crematorios, function ($c) use ($slugCiu) {
-        return slugificar((string)($c['ciudad'] ?? '')) === $slugCiu;
-    }));
-}
 
 // Filtro abiertos_ahora en PHP (horarios son JSON)
 if (!empty($serviciosActivos['abiertos_ahora'])) {

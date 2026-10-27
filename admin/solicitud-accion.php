@@ -452,6 +452,9 @@ try {
         // descripcion, meta_description_seo) desde los JSONs recién insertados.
         sincronizarCamposFlat($pdo, $crematorioId);
 
+        // Enlazar la ficha con su ciudad del catálogo (si no la conocemos queda «pendiente»).
+        asignarCiudadFicha($pdo, (int) $crematorioId);
+
         // ─── Geocodificar dirección con Google Geocoding API ──────────────
         // Si funciona → guarda lat/lng (+ google_place_id si no está seteado).
         // Si falla → silenciosamente sigue (la ficha queda sin coords, el admin

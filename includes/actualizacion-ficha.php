@@ -369,7 +369,7 @@ if (!function_exists('actFichaCatalogo')) {
 
             case 'nombre_negocio': $upd('nombre', $valor); return 'el nombre es el título de la ficha; la dirección web (slug) no cambia';
             case 'direccion':     $upd('direccion_completa', $valor); return '';
-            case 'ciudad':        $upd('ciudad', $valor); return '';
+            case 'ciudad':        $upd('ciudad', $valor); asignarCiudadFicha($pdo, $fichaId); return '';
             case 'codigo_postal': $upd('codigo_postal', $valor); return '';
             case 'zona_cobertura':     $upd('zona_cobertura', $valor); return '';
             case 'ciudades_cobertura': $upd('ciudades_cobertura', $valor); return '';
@@ -383,6 +383,7 @@ if (!function_exists('actFichaCatalogo')) {
                 $pid = $q->fetchColumn();
                 if (!$pid) throw new \RuntimeException("La provincia «{$valor}» no existe en el catálogo; créala antes o rechaza este campo.");
                 $upd('provincia_id', (int)$pid);
+                asignarCiudadFicha($pdo, $fichaId);
                 return '';
 
             case 'descripcion':
