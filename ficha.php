@@ -1246,17 +1246,17 @@ include 'includes/header.php';
                         <div class="ficha-chips">
                             <?php if ($comunidad_nombre): ?>
                             <a href="<?php echo generarUrl('comunidad', $comunidad_slug); ?>" class="ficha-chip-geo ficha-chip-geo--ccaa" title="Ver crematorios en <?php echo limpiar($comunidad_nombre); ?>">
-                                <i data-lucide="landmark" class="icono"></i>
+                                <i data-lucide="layers" class="icono"></i>
                                 <?php echo limpiar($comunidad_nombre); ?>
                             </a>
                             <?php endif; ?>
                             <?php if ($provincia_nombre): ?>
                             <a href="<?php echo generarUrl('provincia', $provincia_slug); ?>" class="ficha-chip-geo ficha-chip-geo--prov" title="Ver crematorios en <?php echo limpiar($provincia_nombre); ?>">
-                                <i data-lucide="signpost" class="icono"></i>
+                                <i data-lucide="map" class="icono"></i>
                                 <?php echo limpiar($provincia_nombre); ?>
                             </a>
                             <?php endif; ?>
-                            <?php foreach ($zonaExtraGeo as $zg): $claseGeo = $zg['tipo'] === 'provincia' ? 'ficha-chip-geo--prov' : 'ficha-chip-geo--ccaa'; $iconoGeo = ['provincia' => 'signpost', 'region' => 'landmark', 'pais' => 'globe'][$zg['tipo']] ?? 'map'; ?>
+                            <?php foreach ($zonaExtraGeo as $zg): $claseGeo = $zg['tipo'] === 'provincia' ? 'ficha-chip-geo--prov' : 'ficha-chip-geo--ccaa'; $iconoGeo = ['provincia' => 'map', 'region' => 'layers', 'pais' => 'globe'][$zg['tipo']] ?? 'map'; ?>
                             <?php if ($zg['url']): ?>
                             <a href="<?php echo $zg['url']; ?>" class="ficha-chip-geo <?php echo $claseGeo; ?>" title="Ver crematorios en <?php echo limpiar($zg['nombre']); ?>">
                                 <i data-lucide="<?php echo $iconoGeo; ?>" class="icono"></i>
