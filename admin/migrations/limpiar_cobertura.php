@@ -46,7 +46,7 @@ foreach ($fichas as $f) {
             $clave = $c['tipo'] . ':' . slugificar($c['nombre']);
             if (isset($vistos[$clave])) continue;      // duplicado: se descarta
             $vistos[$clave] = 1;
-            if ($c['tipo'] === 'provincia' || $c['tipo'] === 'region') { $zona[] = $c['nombre']; continue; }
+            if (in_array($c['tipo'], ['provincia', 'region', 'pais'], true)) { $zona[] = $c['nombre']; continue; }
             $ciu[] = $c['nombre'];
             if ($c['tipo'] === 'descartado') $sucios[] = "#{$f['id']} {$f['nombre']}: «{$c['nombre']}»";
             if ($c['tipo'] === 'texto')      $textos[$c['nombre']] = ($textos[$c['nombre']] ?? 0) + 1;
